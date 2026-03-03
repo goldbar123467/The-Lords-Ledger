@@ -1,16 +1,69 @@
-# React + Vite
+# The Lord's Ledger
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A medieval economic simulation game for 6th graders. Inherit a feudal estate and manage it for 28 turns (7 years x 4 seasons). Balance four competing meters — Treasury, People, Military, and Faith — while building your manor, trading goods, and navigating narrative events inspired by real medieval history.
 
-Currently, two official plugins are available:
+## Play
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+Opens at http://localhost:5173
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech Stack
 
-## Expanding the ESLint configuration
+- React 19 + Vite 7
+- Tailwind CSS 4
+- Pure JavaScript (no TypeScript)
+- Zero runtime dependencies beyond React
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Features
+
+**Core Simulation**
+- 12 buildings with production chains (basic producers + converters)
+- Dynamic market with fluctuating prices (+-20% per season)
+- Population growth/decline tied to food surplus and approval
+- Tax system with 4 rates affecting People vs Treasury tradeoff
+- Full economic engine: production, consumption, upkeep, passive income
+
+**Narrative Layer**
+- 20+ seasonal events with branching choices and real medieval history notes
+- 20+ random events gated by tutorial progression
+- 4 perspective flip mini-sequences (Serf, Merchant, Noble, Knight) that let you see your manor through another character's eyes
+
+**Hidden Synergy System (v3.0)**
+- 7 strategy paths x 3 tiers each (21 total synergies)
+- Wool Baron, Breadbasket, Fortress, Pious Lord, Market King, People's Lord, Iron Lord
+- Tier 3 synergies unlock unique victory titles
+- Conditions are declarative and checked automatically each turn
+
+**Tutorial Progression**
+- Turns 1-2: Treasury + People only
+- Turn 3: Military meter unlocks
+- Turn 5: Faith meter unlocks
+- Tabs unlock progressively (Estate/People/Chronicle -> Trade -> Military)
+
+## Architecture
+
+All game state lives in a single `useReducer`. The engine layer (`src/engine/`) is pure functions only — no side effects, no DOM access. Data definitions live in `src/data/`. See `CLAUDE.md` for full architecture docs.
+
+## Automated Playtest
+
+A headless playtest script exercises the game reducer directly (no React/DOM):
+
+```bash
+node playtest.js        # 20 games (default)
+node playtest.js 100    # custom run count
+```
+
+Runs full 28-turn games across 6 strategy profiles (passive, builder, trader, military, pious, random). Checks 11 per-turn invariants, tracks balance metrics, and prints a summary table with win rates, death causes, and synergy activation frequency.
+
+## Commands
+
+```bash
+npm run dev       # Dev server
+npm run build     # Production build
+npm run lint      # ESLint
+npm run preview   # Preview production build
+```
