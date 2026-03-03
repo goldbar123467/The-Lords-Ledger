@@ -79,6 +79,53 @@ function SingleMeter({ name, value, delta, active }) {
   );
 }
 
+function FlipStatBar({ flipStats }) {
+  if (!flipStats) return null;
+
+  return (
+    <div className="px-3 py-2 flex justify-center gap-3 sm:gap-5">
+      {flipStats.map((stat) => (
+        <div
+          key={stat.key}
+          className="flex flex-col items-center gap-0.5 transition-all duration-300"
+          style={{ minWidth: 70 }}
+          role="meter"
+          aria-label={`${stat.label}: ${stat.value} out of 100`}
+          aria-valuenow={stat.value}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div className="flex items-center gap-1">
+            <span className="text-base" aria-hidden="true">{stat.icon}</span>
+            <span
+              className="text-sm font-heading font-semibold uppercase tracking-wide"
+              style={{ color: stat.color }}
+            >
+              {stat.label}
+            </span>
+          </div>
+          <div
+            className="w-full h-4 rounded-full overflow-hidden border"
+            style={{
+              borderColor: stat.color,
+              backgroundColor: "#e8d5a3",
+            }}
+          >
+            <div
+              className="h-full rounded-full transition-all duration-500 ease-out"
+              style={{
+                width: `${stat.value}%`,
+                backgroundColor: stat.color,
+              }}
+            />
+          </div>
+          <span className="text-sm font-bold" style={{ color: stat.color }}>{stat.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function EconStat({ icon, label, value, warning }) {
   return (
     <div className="flex items-center gap-1.5">
@@ -106,6 +153,8 @@ export default function Dashboard({
   season,
   year,
   turn,
+  flipMode,
+  flipStats,
 }) {
   const meterNames = ["treasury", "people", "military", "faith"];
 
@@ -123,33 +172,39 @@ export default function Dashboard({
       className="w-full border-b-2"
       style={{ backgroundColor: "#f0dca0", borderColor: "#c4a45a" }}
     >
-      {/* Row 1: Core meters */}
-      <div className="px-3 py-2 flex justify-center gap-3 sm:gap-5">
-        {meterNames.map((name, i) => (
-          <SingleMeter
-            key={name}
-            name={name}
-            value={meters[name]}
-            delta={meterDeltas[name]}
-            active={i < activeMeterCount}
-          />
-        ))}
-      </div>
+      {/* Row 1: Core meters OR flip stats */}
+      {flipMode && flipStats ? (
+        <FlipStatBar flipStats={flipStats} />
+      ) : (
+        <div className="px-3 py-2 flex justify-center gap-3 sm:gap-5">
+          {meterNames.map((name, i) => (
+            <SingleMeter
+              key={name}
+              name={name}
+              value={meters[name]}
+              delta={meterDeltas[name]}
+              active={i < activeMeterCount}
+            />
+          ))}
+        </div>
+      )}
 
-      {/* Row 2: Economy stats */}
-      <div
-        className="px-3 py-1.5 flex flex-wrap justify-center gap-x-4 gap-y-1 border-t"
-        style={{ borderColor: "#c4a45a", backgroundColor: "#ebd599" }}
-      >
-        <EconStat icon={"\u{1FA99}"} label="Denarii" value={`${denarii}d`} warning={denarii <= 0} />
-        <EconStat icon={"\u{1F35E}"} label="Food" value={food} warning={food <= 0} />
-        <EconStat icon={"\u{1F3E0}"} label="Families" value={population} />
-        <EconStat
-          icon={SEASON_ICONS[season] || ""}
-          label="Season"
-          value={`${seasonLabel}, Y${year} (Turn ${turn}/28)`}
-        />
-      </div>
+      {/* Row 2: Economy stats (hidden during flip) */}
+      {!flipMode && (
+        <div
+          className="px-3 py-1.5 flex flex-wrap justify-center gap-x-4 gap-y-1 border-t"
+          style={{ borderColor: "#c4a45a", backgroundColor: "#ebd599" }}
+        >
+          <EconStat icon={"\u{1FA99}"} label="Denarii" value={`${denarii}d`} warning={denarii <= 0} />
+          <EconStat icon={"\u{1F35E}"} label="Food" value={food} warning={food <= 0} />
+          <EconStat icon={"\u{1F3E0}"} label="Families" value={population} />
+          <EconStat
+            icon={SEASON_ICONS[season] || ""}
+            label="Season"
+            value={`${seasonLabel}, Y${year} (Turn ${turn}/28)`}
+          />
+        </div>
+      )}
     </div>
   );
 }

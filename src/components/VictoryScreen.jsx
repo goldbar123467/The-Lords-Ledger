@@ -1,6 +1,11 @@
 import { victoryTitles, victorySummary } from "../data/endings";
+import { getSynergyVictoryTitle, getActiveSynergyDisplay } from "../engine/synergyEngine.js";
 
-function getVictoryTitle(meters) {
+function getVictoryTitle(meters, activatedSynergies) {
+  // Tier 3 synergy title override takes priority
+  const synergyTitle = getSynergyVictoryTitle(activatedSynergies ?? []);
+  if (synergyTitle) return synergyTitle;
+
   const { treasury, people, military, faith } = meters;
   const isBalanced =
     treasury >= 40 && treasury <= 60 &&
@@ -20,8 +25,8 @@ function getVictoryTitle(meters) {
   return victoryTitles[entries[0].key];
 }
 
-export default function VictoryScreen({ meters, onPlayAgain }) {
-  const title = getVictoryTitle(meters);
+export default function VictoryScreen({ meters, onPlayAgain, activatedSynergies }) {
+  const title = getVictoryTitle(meters, activatedSynergies);
   const summary = victorySummary(meters);
 
   return (
@@ -95,6 +100,36 @@ export default function VictoryScreen({ meters, onPlayAgain }) {
             );
           })}
         </div>
+
+        {/* Strategy Paths */}
+        {(() => {
+          const synDisplay = getActiveSynergyDisplay(activatedSynergies ?? []);
+          if (synDisplay.length === 0) return null;
+          return (
+            <div
+              className="rounded-md border p-4 mb-5"
+              style={{ borderColor: "#b8860b", backgroundColor: "#fdf6e3" }}
+            >
+              <h4
+                className="font-heading text-sm font-bold uppercase tracking-wider mb-2"
+                style={{ color: "#b8860b" }}
+              >
+                Strategy Paths
+              </h4>
+              <div className="space-y-1.5">
+                {synDisplay.map((s) => (
+                  <div key={s.pathName} className="flex items-center gap-2 text-sm">
+                    <span className="text-base">{s.pathIcon}</span>
+                    <span className="font-semibold" style={{ color: s.pathColor }}>{s.pathName}</span>
+                    <span style={{ color: "#5a3a28" }}>
+                      {"—"} Tier {s.tierLevel}: {s.tierTitle}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Historian's Note */}
         <div

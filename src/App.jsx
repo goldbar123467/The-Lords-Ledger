@@ -2,6 +2,8 @@ import { useReducer, useMemo, useState, useCallback } from "react";
 import { gameReducer, initialState } from "./engine/gameReducer";
 import seasonalEventsData from "./data/seasonalEvents";
 import randomEventsData from "./data/randomEvents";
+import { PERSPECTIVE_FLIPS } from "./data/perspectiveFlips";
+import { computeFlipConsequences } from "./engine/flipEngine";
 
 import TitleScreen from "./components/TitleScreen";
 import Dashboard from "./components/Dashboard";
@@ -16,6 +18,8 @@ import ScribesNote from "./components/ScribesNote";
 import ResolveScreen from "./components/ResolveScreen";
 import GameOverScreen from "./components/GameOverScreen";
 import VictoryScreen from "./components/VictoryScreen";
+import FlipScreen from "./components/FlipScreen";
+import SynergyToast from "./components/SynergyToast";
 
 const seasonalEvents = Object.values(seasonalEventsData).flat();
 const randomEvents = randomEventsData;
@@ -41,6 +45,13 @@ export default function App() {
     denarii,
     food,
     population,
+    currentFlipId,
+    currentFlipStats,
+    currentDecisionIndex,
+    currentFlipOutcome,
+    flipConsequenceFlags,
+    pendingSynergyNotifications,
+    synergies,
   } = state;
 
   const payload = useMemo(
@@ -102,6 +113,31 @@ export default function App() {
     dispatch({ type: "SET_TAX_RATE", payload: { rate } });
   }
 
+  // --- Flip handlers ---
+
+  const [prevFlipStats, setPrevFlipStats] = useState(null);
+
+  function handleDismissFlipIntro() {
+    dispatch({ type: "DISMISS_FLIP_INTRO" });
+  }
+
+  function handleFlipOption(optionIndex) {
+    setPrevFlipStats(currentFlipStats ? { ...currentFlipStats } : null);
+    dispatch({ type: "SELECT_FLIP_OPTION", payload: { optionIndex } });
+  }
+
+  function handleContinueFlip() {
+    dispatch({ type: "CONTINUE_FLIP" });
+  }
+
+  function handleDismissFlipSummary() {
+    dispatch({ type: "DISMISS_FLIP_SUMMARY" });
+  }
+
+  function handleDismissSynergyNotification() {
+    dispatch({ type: "DISMISS_SYNERGY_NOTIFICATION" });
+  }
+
   const [isResolving, setIsResolving] = useState(false);
 
   const handleSimulateSeason = useCallback(() => {
@@ -113,6 +149,39 @@ export default function App() {
       setIsResolving(false);
     });
   }, [isResolving, payload]);
+
+  // --- Computed values (must be before early returns for hooks rule) ---
+  const isManagement = phase === "management";
+  const isEventPhase =
+    phase === "seasonal_action" ||
+    phase === "seasonal_resolve" ||
+    phase === "random_event" ||
+    phase === "random_resolve";
+  const isFlipPhase =
+    phase === "flip_intro" ||
+    phase === "flip_decision" ||
+    phase === "flip_outcome" ||
+    phase === "flip_summary";
+
+  const flipData = currentFlipId ? PERSPECTIVE_FLIPS[currentFlipId] : null;
+
+  const flipDisplayStats = useMemo(() => {
+    if (!flipData || !currentFlipStats) return null;
+    return Object.entries(flipData.characterStats).map(([key, config]) => ({
+      key,
+      label: config.label,
+      icon: config.icon,
+      color: config.color,
+      value: currentFlipStats[key] ?? 0,
+    }));
+  }, [flipData, currentFlipStats]);
+
+  const flipConsequencesPreview = useMemo(() => {
+    if (!currentFlipId || phase !== "flip_summary") return null;
+    return computeFlipConsequences(currentFlipId, flipConsequenceFlags);
+  }, [currentFlipId, flipConsequenceFlags, phase]);
+
+  const displayTab = isEventPhase ? "chronicle" : activeTab;
 
   // --- Title Screen ---
   if (phase === "title") {
@@ -137,20 +206,10 @@ export default function App() {
       <VictoryScreen
         meters={meters}
         onPlayAgain={handlePlayAgain}
+        activatedSynergies={synergies?.activated ?? []}
       />
     );
   }
-
-  // --- Active Game (management + event phases) ---
-  const isManagement = phase === "management";
-  const isEventPhase =
-    phase === "seasonal_action" ||
-    phase === "seasonal_resolve" ||
-    phase === "random_event" ||
-    phase === "random_resolve";
-
-  // During event phases, force chronicle tab to show events
-  const displayTab = isEventPhase ? "chronicle" : activeTab;
 
   return (
     <div
@@ -172,30 +231,53 @@ export default function App() {
           season={season}
           year={year}
           turn={turn}
+          flipMode={isFlipPhase}
+          flipStats={flipDisplayStats}
         />
 
-        <TabBar
-          activeTab={displayTab}
-          onSetTab={handleSetTab}
-          turn={turn}
-          disabled={isEventPhase}
-        />
+        {!isFlipPhase && (
+          <TabBar
+            activeTab={displayTab}
+            onSetTab={handleSetTab}
+            turn={turn}
+            disabled={isEventPhase}
+          />
+        )}
       </div>
 
       {/* Tab content */}
       <div className="flex-1 px-4 py-4 pb-8">
 
+        {/* --- FLIP PHASES --- */}
+        {isFlipPhase && flipData && (
+          <FlipScreen
+            phase={phase}
+            flipData={flipData}
+            currentFlipStats={currentFlipStats}
+            currentDecisionIndex={currentDecisionIndex}
+            currentFlipOutcome={currentFlipOutcome}
+            flipOutcomeWasSuccess={state.flipOutcomeWasSuccess}
+            consequences={flipConsequencesPreview}
+            prevStats={prevFlipStats}
+            onDismissIntro={handleDismissFlipIntro}
+            onSelectOption={handleFlipOption}
+            onContinue={handleContinueFlip}
+            onDismissSummary={handleDismissFlipSummary}
+          />
+        )}
+
         {/* --- ESTATE TAB --- */}
-        {displayTab === "estate" && isManagement && (
+        {!isFlipPhase && displayTab === "estate" && isManagement && (
           <EstateTab
             state={state}
             onBuild={handleBuild}
             onDemolish={handleDemolish}
+            activatedSynergies={synergies?.activated ?? []}
           />
         )}
 
         {/* --- TRADE TAB --- */}
-        {displayTab === "trade" && isManagement && (
+        {!isFlipPhase && displayTab === "trade" && isManagement && (
           <TradeTab
             state={state}
             onSell={handleSell}
@@ -204,12 +286,12 @@ export default function App() {
         )}
 
         {/* --- MILITARY TAB --- */}
-        {displayTab === "military" && isManagement && (
+        {!isFlipPhase && displayTab === "military" && isManagement && (
           <MilitaryTab state={state} />
         )}
 
         {/* --- PEOPLE TAB --- */}
-        {displayTab === "people" && isManagement && (
+        {!isFlipPhase && displayTab === "people" && isManagement && (
           <PeopleTab
             state={state}
             onSetTaxRate={handleSetTaxRate}
@@ -217,7 +299,7 @@ export default function App() {
         )}
 
         {/* --- CHRONICLE TAB (events + narrative log) --- */}
-        {displayTab === "chronicle" && (
+        {!isFlipPhase && displayTab === "chronicle" && (
           <>
             {/* Event phases render inside the chronicle tab */}
             {phase === "seasonal_action" && currentEvent && (
@@ -256,8 +338,14 @@ export default function App() {
         )}
       </div>
 
-      {/* Simulate Season button — visible during management phase */}
-      {isManagement && (
+      {/* Synergy notification toast */}
+      <SynergyToast
+        notification={pendingSynergyNotifications?.[0] ?? null}
+        onDismiss={handleDismissSynergyNotification}
+      />
+
+      {/* Simulate Season button — visible during management phase (not during flips) */}
+      {isManagement && !isFlipPhase && (
         <div
           className="sticky bottom-0 w-full px-4 py-3 border-t-2 text-center z-30"
           style={{ backgroundColor: "#f0dca0", borderColor: "#c4a45a" }}

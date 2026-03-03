@@ -29,6 +29,10 @@ import {
 import { simulateEconomy, canBuildBuilding, getTotalFood } from "./economyEngine.js";
 import BUILDINGS from "../data/buildings.js";
 import { EMPTY_INVENTORY, generateMarketPrices } from "../data/economy.js";
+import { PERSPECTIVE_FLIPS } from "../data/perspectiveFlips.js";
+import { checkFlipTriggers, getInitialFlipStats, resolveFlipOption, computeFlipConsequences } from "./flipEngine.js";
+import { checkSynergies, getSynergyTradePriceBonus, getSynergyWoolSellBonus } from "./synergyEngine.js";
+import { SYNERGY_TIER_MAP } from "../data/synergies.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -107,6 +111,30 @@ export const initialState = {
   causeChain: [],
   activeMeterCount: 2,
   gameOverReason: null,
+
+  // V3: Perspective flip state
+  perspectiveFlips: { serf_week: false, merchant_day: false, noble_dilemma: false, knight_gamble: false },
+  tradeCount: 0,
+  militaryEventEverFired: false,
+  currentFlipId: null,
+  currentFlipStats: null,
+  currentDecisionIndex: 0,
+  flipConsequenceFlags: [],
+  currentFlipOutcome: null,
+
+  // V3b: Synergy system state
+  synergies: {
+    activated: [],
+    tradeTypes: [],
+    woolTrades: 0,
+    spicePurchases: 0,
+    lowTaxTurns: 0,
+    highPeopleTurns: 0,
+    highFaithTurns: 0,
+    foodSurplusTurns: 0,
+    revoltTriggered: false,
+  },
+  pendingSynergyNotifications: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -281,6 +309,12 @@ export function gameReducer(state, action) {
         defenseUpgrades: [],
         activeTab: "estate",
         seasonReport: [],
+        synergies: {
+          activated: [], tradeTypes: [], woolTrades: 0, spicePurchases: 0,
+          lowTaxTurns: 0, highPeopleTurns: 0, highFaithTurns: 0,
+          foodSurplusTurns: 0, revoltTriggered: false,
+        },
+        pendingSynergyNotifications: [],
       };
     }
 
@@ -346,15 +380,28 @@ export function gameReducer(state, action) {
       if (available <= 0 || quantity <= 0) return state;
 
       const sellQty = Math.min(quantity, available);
-      const price = state.marketPrices.sell?.[resource] || 0;
+      const activated = state.synergies?.activated ?? [];
+      const basePrice = state.marketPrices.sell?.[resource] || 0;
+      const tradeBonus = getSynergyTradePriceBonus(activated);
+      const isWoolish = resource === "wool" || resource === "cloth";
+      const woolBonus = isWoolish ? getSynergyWoolSellBonus(activated) : 0;
+      const price = basePrice + tradeBonus + woolBonus;
       const income = sellQty * price;
       const newInventory = { ...state.inventory, [resource]: available - sellQty };
+
+      const prevSynergies = state.synergies ?? {};
+      const newWoolTrades = prevSynergies.woolTrades + (isWoolish ? sellQty : 0);
+      const newTradeTypes = prevSynergies.tradeTypes.includes(resource)
+        ? prevSynergies.tradeTypes
+        : [...prevSynergies.tradeTypes, resource];
 
       return {
         ...state,
         inventory: newInventory,
         denarii: state.denarii + income,
         food: getTotalFood(newInventory),
+        tradeCount: (state.tradeCount || 0) + 1,
+        synergies: { ...prevSynergies, woolTrades: newWoolTrades, tradeTypes: newTradeTypes },
       };
     }
 
@@ -377,11 +424,19 @@ export function gameReducer(state, action) {
       const currentQty = state.inventory[resource] || 0;
       const newInventory = { ...state.inventory, [resource]: currentQty + buyQty };
 
+      const prevSynergies = state.synergies ?? {};
+      const newSpicePurchases = prevSynergies.spicePurchases + (resource === "spices" ? buyQty : 0);
+      const newTradeTypes = prevSynergies.tradeTypes.includes(resource)
+        ? prevSynergies.tradeTypes
+        : [...prevSynergies.tradeTypes, resource];
+
       return {
         ...state,
         denarii: state.denarii - totalCost,
         inventory: newInventory,
         food: getTotalFood(newInventory),
+        tradeCount: (state.tradeCount || 0) + 1,
+        synergies: { ...prevSynergies, spicePurchases: newSpicePurchases, tradeTypes: newTradeTypes },
       };
     }
 
@@ -500,12 +555,19 @@ export function gameReducer(state, action) {
 
       const partial = applyChoice(state, currentEvent, optionIndex, "action");
 
+      // Revolt tracking: if People meter drops to <=15
+      let synergiesAfterAction = state.synergies;
+      if (partial.meters.people <= 15 && partial.meters.people < state.meters.people) {
+        synergiesAfterAction = { ...synergiesAfterAction, revoltTriggered: true };
+      }
+
       if (partial.gameOverReason) {
         return {
           ...state,
           ...partial,
           phase: "game_over",
           currentEvent: null,
+          synergies: synergiesAfterAction,
         };
       }
 
@@ -513,6 +575,7 @@ export function gameReducer(state, action) {
         ...state,
         ...partial,
         phase: "seasonal_resolve",
+        synergies: synergiesAfterAction,
       };
     }
 
@@ -559,12 +622,19 @@ export function gameReducer(state, action) {
 
       const partial = applyChoice(state, currentRandomEvent, optionIndex, "event");
 
+      // Revolt tracking: if People meter drops to <=15
+      let synergiesAfterRandom = state.synergies;
+      if (partial.meters.people <= 15 && partial.meters.people < state.meters.people) {
+        synergiesAfterRandom = { ...synergiesAfterRandom, revoltTriggered: true };
+      }
+
       if (partial.gameOverReason) {
         return {
           ...state,
           ...partial,
           phase: "game_over",
           currentRandomEvent: null,
+          synergies: synergiesAfterRandom,
         };
       }
 
@@ -572,6 +642,8 @@ export function gameReducer(state, action) {
         ...state,
         ...partial,
         phase: "random_resolve",
+        militaryEventEverFired: state.militaryEventEverFired || (currentRandomEvent?.requiresMeter === "military"),
+        synergies: synergiesAfterRandom,
       };
     }
 
@@ -628,6 +700,91 @@ export function gameReducer(state, action) {
 
       const zeroDeltas = { treasury: 0, people: 0, military: 0, faith: 0 };
 
+      // --- Synergy consecutive counters ---
+      const prevSyn = state.synergies ?? {};
+      const taxIsLow = state.taxRate === "low" || state.taxRate === "medium";
+      const newLowTaxTurns = taxIsLow ? (prevSyn.lowTaxTurns ?? 0) + 1 : 0;
+      const newHighPeopleTurns = (state.meters.people ?? 0) > 60
+        ? (prevSyn.highPeopleTurns ?? 0) + 1 : 0;
+      const newHighFaithTurns = (state.meters.faith ?? 0) > 70
+        ? (prevSyn.highFaithTurns ?? 0) + 1 : 0;
+      const newFoodSurplusTurns = (state.food ?? 0) > 100
+        ? (prevSyn.foodSurplusTurns ?? 0) + 1 : 0;
+
+      const updatedSynergies = {
+        ...prevSyn,
+        lowTaxTurns: newLowTaxTurns,
+        highPeopleTurns: newHighPeopleTurns,
+        highFaithTurns: newHighFaithTurns,
+        foodSurplusTurns: newFoodSurplusTurns,
+      };
+
+      // Check for newly activated synergies
+      const stateForSynergyCheck = { ...state, synergies: updatedSynergies };
+      const newSynergyIds = checkSynergies(stateForSynergyCheck);
+
+      let synergiesAfterCheck = updatedSynergies;
+      let synChronicle = nextChronicle;
+      let synNotifications = [];
+
+      if (newSynergyIds.length > 0) {
+        synergiesAfterCheck = {
+          ...updatedSynergies,
+          activated: [...(updatedSynergies.activated ?? []), ...newSynergyIds],
+        };
+        for (const tierId of newSynergyIds) {
+          const entry = SYNERGY_TIER_MAP[tierId];
+          if (entry?.tier.chronicle) {
+            synChronicle = addChronicle(
+              synChronicle, entry.tier.chronicle, nextSeason, nextYear, nextTurn, "event",
+            );
+          }
+          synNotifications.push({
+            tierId,
+            tier: entry?.tier.tier ?? 1,
+            title: entry?.tier.title ?? "",
+            description: entry?.tier.description ?? "",
+            pathName: entry?.path.name ?? "",
+            pathIcon: entry?.path.icon ?? "",
+            pathColor: entry?.path.color ?? "#b8860b",
+            scribesNote: entry?.tier.scribesNote ?? null,
+          });
+        }
+      }
+
+      // Check if a perspective flip should trigger this turn
+      const triggeredFlipId = checkFlipTriggers({
+        ...state,
+        turn: nextTurn,
+        activeMeterCount: nextActiveMeterCount,
+      });
+
+      if (triggeredFlipId) {
+        return {
+          ...state,
+          phase: "flip_intro",
+          turn: nextTurn,
+          season: nextSeason,
+          year: nextYear,
+          activeMeterCount: nextActiveMeterCount,
+          chronicle: synChronicle,
+          marketPrices: newMarketPrices,
+          meterDeltas: zeroDeltas,
+          currentEvent: null,
+          currentRandomEvent: null,
+          scribesNote: null,
+          seasonReport: [],
+          synergies: synergiesAfterCheck,
+          pendingSynergyNotifications: synNotifications,
+          // Flip state
+          currentFlipId: triggeredFlipId,
+          currentFlipStats: getInitialFlipStats(triggeredFlipId),
+          currentDecisionIndex: 0,
+          flipConsequenceFlags: [],
+          currentFlipOutcome: null,
+        };
+      }
+
       return {
         ...state,
         phase: "management",
@@ -638,11 +795,13 @@ export function gameReducer(state, action) {
         currentEvent: null,
         currentRandomEvent: null,
         scribesNote: null,
-        chronicle: nextChronicle,
+        chronicle: synChronicle,
         meterDeltas: zeroDeltas,
         marketPrices: newMarketPrices,
         activeTab: "estate",
         seasonReport: [],
+        synergies: synergiesAfterCheck,
+        pendingSynergyNotifications: synNotifications,
       };
     }
 
@@ -651,6 +810,184 @@ export function gameReducer(state, action) {
     // -----------------------------------------------------------------------
     case "DISMISS_SCRIBES_NOTE": {
       return { ...state, scribesNote: null };
+    }
+
+    // -----------------------------------------------------------------------
+    // V3: Perspective Flip actions
+    // -----------------------------------------------------------------------
+    case "DISMISS_FLIP_INTRO": {
+      if (state.phase !== "flip_intro") return state;
+      return { ...state, phase: "flip_decision" };
+    }
+
+    case "SELECT_FLIP_OPTION": {
+      if (state.phase !== "flip_decision") return state;
+      const { optionIndex } = action.payload ?? {};
+      const flip = PERSPECTIVE_FLIPS[state.currentFlipId];
+      if (!flip) return state;
+
+      const decision = flip.decisions[state.currentDecisionIndex];
+      if (!decision) return state;
+
+      const option = decision.options[optionIndex];
+      if (!option) return state;
+
+      const { nextStats, consequenceFlags, outcome, wasSuccess } = resolveFlipOption(
+        option,
+        state.currentFlipStats,
+      );
+
+      return {
+        ...state,
+        phase: "flip_outcome",
+        currentFlipStats: nextStats,
+        flipConsequenceFlags: [...state.flipConsequenceFlags, ...consequenceFlags],
+        currentFlipOutcome: outcome,
+        flipOutcomeWasSuccess: wasSuccess,
+      };
+    }
+
+    case "CONTINUE_FLIP": {
+      if (state.phase !== "flip_outcome") return state;
+      const flip = PERSPECTIVE_FLIPS[state.currentFlipId];
+      if (!flip) return state;
+
+      const nextIndex = state.currentDecisionIndex + 1;
+
+      if (nextIndex >= flip.decisions.length) {
+        return {
+          ...state,
+          phase: "flip_summary",
+          currentFlipOutcome: null,
+        };
+      }
+
+      return {
+        ...state,
+        phase: "flip_decision",
+        currentDecisionIndex: nextIndex,
+        currentFlipOutcome: null,
+      };
+    }
+
+    case "DISMISS_FLIP_SUMMARY": {
+      if (state.phase !== "flip_summary") return state;
+
+      const { currentFlipId, flipConsequenceFlags, turn, meters, activeMeterCount, chronicle } = state;
+      const flip = PERSPECTIVE_FLIPS[currentFlipId];
+      if (!flip) return state;
+
+      // Compute lord-meter consequences
+      const consequences = computeFlipConsequences(currentFlipId, flipConsequenceFlags);
+      const newMeters = applyEffects(meters, consequences, activeMeterCount);
+      const deltas = computeDeltas(meters, newMeters);
+      const gameOverReason = checkGameOver(newMeters, activeMeterCount);
+
+      // Chronicle entry
+      const { season: flipSeason, year: flipYear } = turnToSeasonYear(turn);
+      const chronicleText = `You experienced life as ${flip.character} and saw your manor through their eyes.`;
+      let nextChronicle = addChronicle(chronicle, chronicleText, flipSeason, flipYear, turn, "event");
+
+      // Mark flip as fired
+      const nextPerspectiveFlips = { ...state.perspectiveFlips, [currentFlipId]: true };
+
+      if (gameOverReason) {
+        return {
+          ...state,
+          phase: "game_over",
+          meters: newMeters,
+          meterDeltas: deltas,
+          chronicle: nextChronicle,
+          gameOverReason,
+          perspectiveFlips: nextPerspectiveFlips,
+          currentFlipId: null,
+          currentFlipStats: null,
+          currentDecisionIndex: 0,
+          flipConsequenceFlags: [],
+          currentFlipOutcome: null,
+        };
+      }
+
+      // Advance to next turn's management phase
+      const advanceTurn = turn + 1;
+
+      // Victory check (the flip consumed a turn)
+      if (turn >= MAX_TURNS) {
+        const victoryText =
+          "Seven years have passed. Your reign has endured through war, famine, and feast. " +
+          "The chronicles will remember your name.";
+        return {
+          ...state,
+          phase: "victory",
+          meters: newMeters,
+          meterDeltas: deltas,
+          chronicle: addChronicle(nextChronicle, victoryText, flipSeason, flipYear, turn, "system"),
+          perspectiveFlips: nextPerspectiveFlips,
+          currentFlipId: null,
+          currentFlipStats: null,
+          currentDecisionIndex: 0,
+          flipConsequenceFlags: [],
+          currentFlipOutcome: null,
+          currentEvent: null,
+          currentRandomEvent: null,
+          scribesNote: null,
+        };
+      }
+
+      const { season: nextSeason, year: nextYear } = turnToSeasonYear(advanceTurn);
+      const nextActiveMeterCount = activeMeterCountForTurn(advanceTurn);
+
+      // Tutorial-unlock chronicle entries for the new turn
+      if (advanceTurn === MILITARY_UNLOCK_TURN) {
+        nextChronicle = addChronicle(
+          nextChronicle,
+          "Raiders have been spotted near your borders. You must now manage your military forces.",
+          nextSeason, nextYear, advanceTurn, "system",
+        );
+      }
+      if (advanceTurn === FAITH_UNLOCK_TURN) {
+        nextChronicle = addChronicle(
+          nextChronicle,
+          "The bishop arrives to inspect your chapel. The faith of your people now rests in your hands.",
+          nextSeason, nextYear, advanceTurn, "system",
+        );
+      }
+
+      return {
+        ...state,
+        phase: "management",
+        turn: advanceTurn,
+        season: nextSeason,
+        year: nextYear,
+        activeMeterCount: nextActiveMeterCount,
+        meters: newMeters,
+        meterDeltas: deltas,
+        chronicle: nextChronicle,
+        marketPrices: generateMarketPrices(),
+        perspectiveFlips: nextPerspectiveFlips,
+        activeTab: "estate",
+        seasonReport: [],
+        currentEvent: null,
+        currentRandomEvent: null,
+        scribesNote: null,
+        // Reset flip state
+        currentFlipId: null,
+        currentFlipStats: null,
+        currentDecisionIndex: 0,
+        flipConsequenceFlags: [],
+        currentFlipOutcome: null,
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // V3b: Dismiss synergy notification (pop first from queue)
+    // -----------------------------------------------------------------------
+    case "DISMISS_SYNERGY_NOTIFICATION": {
+      const queue = state.pendingSynergyNotifications ?? [];
+      return {
+        ...state,
+        pendingSynergyNotifications: queue.slice(1),
+      };
     }
 
     // -----------------------------------------------------------------------

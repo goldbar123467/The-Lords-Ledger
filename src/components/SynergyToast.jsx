@@ -1,0 +1,219 @@
+/**
+ * SynergyToast.jsx
+ *
+ * Three-tier notification system for synergy unlocks.
+ * Tier 1: small toast at bottom. Tier 2: slide-in card from right. Tier 3: full overlay.
+ */
+
+import { useState, useEffect } from "react";
+
+function Tier1Toast({ notification, onDismiss }) {
+  const [opacity, setOpacity] = useState(0);
+
+  useEffect(() => {
+    // Fade in
+    const fadeInTimer = setTimeout(() => setOpacity(1), 50);
+    // Auto-dismiss after 5s
+    const dismissTimer = setTimeout(() => {
+      setOpacity(0);
+      setTimeout(onDismiss, 400);
+    }, 5000);
+    return () => {
+      clearTimeout(fadeInTimer);
+      clearTimeout(dismissTimer);
+    };
+  }, [onDismiss]);
+
+  return (
+    <div
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-lg border-2 shadow-lg flex items-center gap-3 cursor-pointer max-w-sm"
+      style={{
+        backgroundColor: "#faf3e3",
+        borderColor: "#b8860b",
+        boxShadow: "0 4px 16px rgba(139, 105, 20, 0.3)",
+        opacity,
+        transition: "opacity 0.4s ease",
+      }}
+      onClick={() => {
+        setOpacity(0);
+        setTimeout(onDismiss, 400);
+      }}
+      role="status"
+      aria-live="polite"
+    >
+      <span className="text-2xl">{notification.pathIcon}</span>
+      <div>
+        <p
+          className="font-heading font-bold text-sm uppercase tracking-wider"
+          style={{ color: "#b8860b" }}
+        >
+          Path Unlocked
+        </p>
+        <p className="text-sm font-semibold" style={{ color: "#2c1810" }}>
+          {notification.title}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function Tier2Card({ notification, onDismiss }) {
+  const [translateX, setTranslateX] = useState("100%");
+
+  useEffect(() => {
+    const timer = setTimeout(() => setTranslateX("0"), 50);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div
+      className="fixed right-4 top-1/2 -translate-y-1/2 z-50 w-72 rounded-lg border-2 shadow-xl overflow-hidden cursor-pointer"
+      style={{
+        backgroundColor: "#faf3e3",
+        borderColor: notification.pathColor || "#b8860b",
+        boxShadow: `0 8px 24px rgba(0,0,0,0.2)`,
+        transform: `translateY(-50%) translateX(${translateX})`,
+        transition: "transform 0.4s ease-out",
+      }}
+      onClick={onDismiss}
+      role="status"
+      aria-live="polite"
+    >
+      {/* Gold accent bar */}
+      <div className="h-1.5" style={{ backgroundColor: notification.pathColor || "#b8860b" }} />
+      <div className="p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-3xl">{notification.pathIcon}</span>
+          <div>
+            <p
+              className="font-heading text-xs font-semibold uppercase tracking-wider"
+              style={{ color: notification.pathColor || "#b8860b" }}
+            >
+              {notification.pathName}
+            </p>
+            <p
+              className="font-heading font-bold text-base"
+              style={{ color: "#2c1810" }}
+            >
+              {notification.title}
+            </p>
+          </div>
+        </div>
+        <p className="text-sm leading-relaxed" style={{ color: "#3d2517" }}>
+          {notification.description}
+        </p>
+        <p className="text-xs mt-3 italic" style={{ color: "#8b6914" }}>
+          Tap to dismiss
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function Tier3Overlay({ notification, onDismiss }) {
+  const [opacity, setOpacity] = useState(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setOpacity(1), 50);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{
+        backgroundColor: `rgba(0,0,0,${0.6 * opacity})`,
+        transition: "background-color 0.5s ease",
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Strategy path mastered"
+    >
+      <div
+        className="w-full max-w-md rounded-lg border-2 overflow-hidden shadow-2xl"
+        style={{
+          backgroundColor: "#2c1810",
+          borderColor: "#b8860b",
+          opacity,
+          transform: `scale(${0.9 + 0.1 * opacity})`,
+          transition: "opacity 0.5s ease, transform 0.5s ease",
+        }}
+      >
+        {/* Header */}
+        <div className="text-center pt-6 pb-3 px-4">
+          <span className="text-5xl block mb-2">{notification.pathIcon}</span>
+          <div className="flex justify-center gap-1 mb-2">
+            {[1, 2, 3].map((s) => (
+              <span key={s} className="text-lg" style={{ color: "#b8860b" }}>
+                {"\u2605"}
+              </span>
+            ))}
+          </div>
+          <p
+            className="font-heading text-xs font-semibold uppercase tracking-widest mb-1"
+            style={{ color: "#b8860b" }}
+          >
+            Strategy Path Mastered
+          </p>
+          <h2
+            className="font-heading text-2xl sm:text-3xl font-bold"
+            style={{ color: "#b8860b" }}
+          >
+            {notification.title}
+          </h2>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 pb-4">
+          <p className="text-sm leading-relaxed text-center mb-4" style={{ color: "#e8d5b7" }}>
+            {notification.description}
+          </p>
+
+          {/* Scribe's Note */}
+          {notification.scribesNote && (
+            <div
+              className="rounded-md border p-3 mb-4"
+              style={{ borderColor: "#5a3a28", backgroundColor: "#3d2517" }}
+            >
+              <p
+                className="font-heading text-xs font-semibold uppercase tracking-wider mb-1"
+                style={{ color: "#b8860b" }}
+              >
+                Scribe&apos;s Note
+              </p>
+              <p className="text-xs leading-relaxed italic" style={{ color: "#c4a45a" }}>
+                {notification.scribesNote}
+              </p>
+            </div>
+          )}
+
+          <button
+            onClick={onDismiss}
+            className="w-full py-3 rounded-md border-2 font-heading font-bold text-sm uppercase tracking-wider cursor-pointer transition-all duration-200"
+            style={{
+              backgroundColor: "#b8860b",
+              borderColor: "#8b6914",
+              color: "#2c1810",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#d4a017"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#b8860b"; }}
+          >
+            Continue Your Reign
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function SynergyToast({ notification, onDismiss }) {
+  if (!notification) return null;
+
+  if (notification.tier === 3) {
+    return <Tier3Overlay notification={notification} onDismiss={onDismiss} />;
+  }
+  if (notification.tier === 2) {
+    return <Tier2Card notification={notification} onDismiss={onDismiss} />;
+  }
+  return <Tier1Toast notification={notification} onDismiss={onDismiss} />;
+}

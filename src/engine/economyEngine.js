@@ -22,6 +22,7 @@ import {
   GARRISON_UPKEEP_PER_SOLDIER,
   FOOD_PER_FAMILY,
 } from "../data/economy.js";
+import { getSynergyPassiveIncome, getSynergyMeterEffects, hasSynergyPopulationBonus } from "./synergyEngine.js";
 
 /**
  * Count how many of a given building ID the player has built.
@@ -305,6 +306,19 @@ export function simulateEconomy(state) {
     report.push(`Passive income: ${passiveIncome}d from market tolls and mill fees.`);
   }
 
+  // ----- 5.5. SYNERGY BONUSES -----
+  const activatedSynergies = state.synergies?.activated ?? [];
+  const synergyIncome = getSynergyPassiveIncome(activatedSynergies);
+  currentDenarii += synergyIncome;
+  if (synergyIncome > 0) {
+    report.push(`Strategy bonuses: +${synergyIncome}d`);
+  }
+
+  const synergyMeterFx = getSynergyMeterEffects(activatedSynergies);
+  for (const [m, d] of Object.entries(synergyMeterFx)) {
+    meterEffects[m] += d;
+  }
+
   // ----- 6. METER ADJUSTMENTS -----
   // Treasury meter reflects financial health
   const netIncome = (taxIncome + passiveIncome) - getTotalUpkeep(buildings, garrison);
@@ -359,6 +373,12 @@ export function simulateEconomy(state) {
 
   if (foodSurplus && peopleMeterValue > 40 && Math.random() < 0.3) {
     populationChange = Math.random() < 0.5 ? 1 : 2;
+  }
+  // Synergy: Breadbasket bonus — extra chance for +1 population
+  if (hasSynergyPopulationBonus(activatedSynergies) && foodSurplus && peopleMeterValue > 35) {
+    if (populationChange === 0 && Math.random() < 0.25) {
+      populationChange = 1;
+    }
   }
   if (peopleMeterValue < 20 || consumption.shortfall > 0) {
     populationChange = -(Math.random() < 0.5 ? 1 : 2);

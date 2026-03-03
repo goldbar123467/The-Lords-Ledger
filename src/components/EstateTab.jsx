@@ -15,6 +15,7 @@ import {
   getPassiveIncome,
   getFoodConsumption,
 } from "../engine/economyEngine.js";
+import { getSynergyBuildings } from "../engine/synergyEngine.js";
 
 function EconomyStatusBox({ state }) {
   const {
@@ -66,7 +67,7 @@ function EconomyStatusBox({ state }) {
   );
 }
 
-function BuildingCard({ building, state, onBuild, onDemolish }) {
+function BuildingCard({ building, state, onBuild, onDemolish, isSynergyBuilding }) {
   const built = state.buildings.filter((b) => b === building.id);
   const builtCount = built.length;
   const check = canBuildBuilding(building.id, state);
@@ -90,6 +91,9 @@ function BuildingCard({ building, state, onBuild, onDemolish }) {
           <div>
             <h4 className="font-heading text-sm font-bold leading-tight" style={{ color: "#2c1810" }}>
               {building.name}
+              {isSynergyBuilding && (
+                <span title="Part of an active strategy path" className="ml-1" style={{ color: "#b8860b" }}>{"\u2B50"}</span>
+              )}
             </h4>
             <p className="text-[10px] italic" style={{ color: "#8b6914" }}>{building.latin}</p>
           </div>
@@ -186,7 +190,9 @@ function BuildingCard({ building, state, onBuild, onDemolish }) {
   );
 }
 
-export default function EstateTab({ state, onBuild, onDemolish }) {
+export default function EstateTab({ state, onBuild, onDemolish, activatedSynergies }) {
+  const synergyBuildingIds = getSynergyBuildings(activatedSynergies ?? [], state.buildings);
+
   return (
     <div className="w-full max-w-4xl mx-auto">
       <EconomyStatusBox state={state} />
@@ -235,6 +241,7 @@ export default function EstateTab({ state, onBuild, onDemolish }) {
             state={state}
             onBuild={onBuild}
             onDemolish={onDemolish}
+            isSynergyBuilding={synergyBuildingIds.has(building.id)}
           />
         ))}
       </div>
