@@ -3,45 +3,22 @@
  *
  * useReducer-compatible reducer for The Lord's Ledger.
  *
+ * V2 additions:
+ *  - `management` phase: player browses tabs, builds, trades, etc.
+ *  - `SIMULATE_SEASON` action: runs economic engine, then fires events
+ *  - `BUILD_BUILDING` / `DEMOLISH_BUILDING`: estate management
+ *  - `SET_TAB`: switch active tab
+ *  - `SELL_RESOURCE` / `BUY_RESOURCE`: trade tab
+ *  - Economy state: denarii, food, population, inventory, buildings, garrison, etc.
+ *
  * State is plain-serializable JS — no class instances, no functions, no closures.
  * All transitions are pure: same action + same state = same result (modulo the
  * stochastic event selection, which intentionally uses Math.random()).
- *
- * Imports
- * -------
- * This module imports from ./meterUtils and ./eventSelector so those files must
- * be present. It does NOT import event data directly — callers inject event
- * arrays via actions (or the data can be imported at the call site and passed
- * through START_GAME / ADVANCE_TURN). For clean separation, the reducer receives
- * event collections through the action payload when they are needed.
- *
- * The typical wiring in a React component:
- *
- *   import seasonalEvents from "@/data/seasonalEvents";
- *   import randomEvents   from "@/data/randomEvents";
- *
- *   const [state, dispatch] = useReducer(gameReducer, initialState);
- *
- *   // Start:
- *   dispatch({ type: "START_GAME", payload: { seasonalEvents, randomEvents } });
- *
- *   // Player chooses an option:
- *   dispatch({ type: "SELECT_SEASONAL_ACTION", payload: { optionIndex: 1, randomEvents } });
- *
- *   // After resolve screen:
- *   dispatch({ type: "CONTINUE_TO_RANDOM" }); // random event picked internally from state cache
- *
- *   // Random response:
- *   dispatch({ type: "SELECT_RANDOM_RESPONSE", payload: { optionIndex: 0 } });
- *
- *   // After random resolve:
- *   dispatch({ type: "ADVANCE_TURN", payload: { seasonalEvents, randomEvents } });
  */
 
 import {
   applyEffects,
   checkGameOver,
-  getActiveMeterNames,
 } from "./meterUtils.js";
 
 import {
@@ -49,18 +26,27 @@ import {
   selectRandomEvent,
 } from "./eventSelector.js";
 
+import { simulateEconomy, canBuildBuilding, getTotalFood } from "./economyEngine.js";
+import BUILDINGS from "../data/buildings.js";
+import { EMPTY_INVENTORY, generateMarketPrices } from "../data/economy.js";
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const SEASONS = ["spring", "summer", "autumn", "winter"];
 
-/**
- * The turn number at which each meter unlocks.
- * Treasury and people are always active (start at turn 1).
- */
 const MILITARY_UNLOCK_TURN = 3;
 const FAITH_UNLOCK_TURN = 5;
+
+/** Turn at which each tab unlocks */
+const TAB_UNLOCK = {
+  estate: 1,
+  chronicle: 1,
+  people: 1,
+  trade: 3,
+  military: 5,
+};
 
 const MAX_TURNS = 28;
 const MAX_CAUSE_CHAIN = 4;
@@ -74,6 +60,8 @@ export const initialState = {
   turn: 1,
   season: "spring",
   year: 1,
+
+  // Core meters (unchanged from V1)
   meters: {
     treasury: 40,
     people: 50,
@@ -86,6 +74,30 @@ export const initialState = {
     military: 0,
     faith: 0,
   },
+
+  // V2: Economy state
+  denarii: 500,
+  food: 200,
+  population: 20,
+  inventory: { ...EMPTY_INVENTORY, grain: 150, livestock: 30, fish: 20 },
+  inventoryCapacity: 300,
+  buildings: [],       // Array of building IDs (e.g., ["strip_farm", "pasture"])
+  garrison: 5,
+  castleLevel: 1,
+  castleUpgradeProgress: 0,
+  castleUpgrading: false,
+  taxRate: "medium",
+  laborAllocation: { demesne: 40, peasant: 40, construction: 20 },
+  marketPrices: generateMarketPrices(),
+  defenseUpgrades: [],
+
+  // V2: UI state
+  activeTab: "estate",
+
+  // V2: Season report (economic summary lines shown in chronicle)
+  seasonReport: [],
+
+  // Event system (unchanged from V1)
   chronicle: [],
   currentEvent: null,
   currentRandomEvent: null,
@@ -98,20 +110,9 @@ export const initialState = {
 };
 
 // ---------------------------------------------------------------------------
-// Internal helpers
+// Internal helpers (all preserved from V1)
 // ---------------------------------------------------------------------------
 
-/**
- * Computes which season and year correspond to a given turn number (1-based).
- *
- * Turn 1  → spring, year 1
- * Turn 4  → winter, year 1
- * Turn 5  → spring, year 2
- * …
- *
- * @param {number} turn
- * @returns {{ season: string, year: number }}
- */
 function turnToSeasonYear(turn) {
   const zeroIndexed = turn - 1;
   const seasonIndex = zeroIndexed % 4;
@@ -119,29 +120,12 @@ function turnToSeasonYear(turn) {
   return { season: SEASONS[seasonIndex], year };
 }
 
-/**
- * Determines the activeMeterCount for a given turn.
- *
- * @param {number} turn
- * @returns {number} 2, 3, or 4
- */
 function activeMeterCountForTurn(turn) {
   if (turn >= FAITH_UNLOCK_TURN) return 4;
   if (turn >= MILITARY_UNLOCK_TURN) return 3;
   return 2;
 }
 
-/**
- * Appends an entry to the chronicle array (immutably).
- *
- * @param {Array} chronicle
- * @param {string} text
- * @param {string} season
- * @param {number} year
- * @param {number} turn
- * @param {"action"|"event"|"system"} type
- * @returns {Array}
- */
 function addChronicle(chronicle, text, season, year, turn, type = "system") {
   return [
     ...chronicle,
@@ -149,29 +133,12 @@ function addChronicle(chronicle, text, season, year, turn, type = "system") {
   ];
 }
 
-/**
- * Appends a cause-chain entry (keeps last MAX_CAUSE_CHAIN entries).
- *
- * @param {Array} causeChain
- * @param {number} turn
- * @param {string} season
- * @param {number} year
- * @param {string} summary
- * @returns {Array}
- */
 function addCauseChain(causeChain, turn, season, year, summary) {
   const entry = { turn, season, year, summary };
   const next = [...causeChain, entry];
   return next.slice(-MAX_CAUSE_CHAIN);
 }
 
-/**
- * Computes a meterDeltas object showing how much each meter changed.
- *
- * @param {{ treasury: number, people: number, military: number, faith: number }} before
- * @param {{ treasury: number, people: number, military: number, faith: number }} after
- * @returns {{ treasury: number, people: number, military: number, faith: number }}
- */
 function computeDeltas(before, after) {
   return {
     treasury: after.treasury - before.treasury,
@@ -181,22 +148,10 @@ function computeDeltas(before, after) {
   };
 }
 
-/**
- * Picks a seasonal event and returns an updated usedSeasonalIds array.
- * If usedIds would cover every event for the season (or all events), resets them.
- *
- * @param {string} season
- * @param {string[]} usedSeasonalIds
- * @param {number} activeMeterCount
- * @param {Array} allSeasonalEvents
- * @returns {{ event: object|null, usedSeasonalIds: string[] }}
- */
 function pickSeasonalEvent(season, usedSeasonalIds, activeMeterCount, allSeasonalEvents) {
   const event = selectSeasonalEvent(season, usedSeasonalIds, activeMeterCount, allSeasonalEvents);
   if (!event) return { event: null, usedSeasonalIds };
 
-  // If selectSeasonalEvent returned something from the full pool (after reset),
-  // we need to figure out whether to reset usedSeasonalIds or just append.
   const forSeason = (allSeasonalEvents || []).filter((e) => e.season === season);
   const allUsed = forSeason.every((e) => usedSeasonalIds.includes(e.id));
   const nextUsed = allUsed
@@ -206,14 +161,6 @@ function pickSeasonalEvent(season, usedSeasonalIds, activeMeterCount, allSeasona
   return { event, usedSeasonalIds: nextUsed };
 }
 
-/**
- * Picks a random event and returns an updated usedRandomIds array.
- *
- * @param {string[]} usedRandomIds
- * @param {number} activeMeterCount
- * @param {Array} allRandomEvents
- * @returns {{ event: object|null, usedRandomIds: string[] }}
- */
 function pickRandomEvent(usedRandomIds, activeMeterCount, allRandomEvents) {
   const event = selectRandomEvent(usedRandomIds, activeMeterCount, allRandomEvents);
   if (!event) return { event: null, usedRandomIds };
@@ -226,43 +173,18 @@ function pickRandomEvent(usedRandomIds, activeMeterCount, allRandomEvents) {
   return { event, usedRandomIds: nextUsed };
 }
 
-/**
- * Extracts the effects for a given option index from an event.
- * Events may store effects at the option level, the event root level, or both.
- * Option-level effects take precedence; root-level effects are the fallback.
- *
- * @param {object} event
- * @param {number} optionIndex
- * @returns {{ treasury?: number, people?: number, military?: number, faith?: number }}
- */
 function getOptionEffects(event, optionIndex) {
   const option = event.options?.[optionIndex];
   if (!option) return {};
   if (option.effects) return option.effects;
-  // Some event designs store a single effect set at the root level. In that
-  // case the option choice changes the narrative but applies the same numbers.
   return event.effects ?? {};
 }
 
-/**
- * Returns the scribesNote text for a chosen option, or null if none.
- *
- * @param {object} event
- * @param {number} optionIndex
- * @returns {string|null}
- */
 function getScribesNote(event, optionIndex) {
   const option = event.options?.[optionIndex];
   return option?.scribesNote ?? event.scribesNote ?? null;
 }
 
-/**
- * Builds a concise cause-chain summary string for a player choice.
- *
- * @param {object} event
- * @param {number} optionIndex
- * @returns {string}
- */
 function buildCauseChainSummary(event, optionIndex) {
   const option = event.options?.[optionIndex];
   if (option?.causeChainSummary) return option.causeChainSummary;
@@ -271,18 +193,6 @@ function buildCauseChainSummary(event, optionIndex) {
   return `Turn choice at event ${event.id}`;
 }
 
-/**
- * Handles the shared logic of applying effects, computing deltas, checking
- * game over, and updating the cause chain after any player choice.
- *
- * Returns an object with the next partial state fields.
- *
- * @param {object} state        - Current full state
- * @param {object} event        - The event whose option was chosen
- * @param {number} optionIndex  - Index into event.options
- * @param {"action"|"event"} chronicleType
- * @returns {object}            - Partial state to merge
- */
 function applyChoice(state, event, optionIndex, chronicleType) {
   const { meters, activeMeterCount, chronicle, causeChain, turn, season, year } = state;
 
@@ -292,7 +202,6 @@ function applyChoice(state, event, optionIndex, chronicleType) {
   const gameOverReason = checkGameOver(newMeters, activeMeterCount);
   const scribesNote = getScribesNote(event, optionIndex);
 
-  // Chronicle entry: prefer the option's result text, then the option text.
   const option = event.options?.[optionIndex];
   const chronicleText = option?.chronicle ?? option?.resultText ?? option?.text ?? event.title ?? "A decision was made.";
 
@@ -311,71 +220,286 @@ function applyChoice(state, event, optionIndex, chronicleType) {
   };
 }
 
+/**
+ * Returns which tabs are unlocked for a given turn.
+ */
+export function getUnlockedTabs(turn) {
+  return Object.entries(TAB_UNLOCK)
+    .filter(([, unlockTurn]) => turn >= unlockTurn)
+    .map(([tab]) => tab);
+}
+
 // ---------------------------------------------------------------------------
 // Reducer
 // ---------------------------------------------------------------------------
 
-/**
- * The main game reducer. Handles all state transitions.
- *
- * @param {object} state
- * @param {{ type: string, payload?: object }} action
- * @returns {object} Next state
- */
 export function gameReducer(state, action) {
   switch (action.type) {
 
     // -----------------------------------------------------------------------
+    // START / RESTART — V2: go to management phase, not seasonal_action
+    // -----------------------------------------------------------------------
     case "START_GAME":
     case "PLAY_AGAIN": {
-      const { seasonalEvents = [], randomEvents = [] } = action.payload ?? {};
-
       const startTurn = 1;
       const startActiveMeterCount = activeMeterCountForTurn(startTurn);
       const { season: startSeason, year: startYear } = turnToSeasonYear(startTurn);
 
-      const { event: firstEvent, usedSeasonalIds } = pickSeasonalEvent(
-        startSeason,
-        [],
-        startActiveMeterCount,
-        seasonalEvents,
-      );
-
-      // Opening chronicle entry.
       const openingText =
         "The old lord has passed. You have inherited the estate. " +
-        "The spring air carries both promise and uncertainty. Manage your treasury and your people wisely.";
+        "The spring air carries both promise and uncertainty. " +
+        "Build your manor, manage your resources, then simulate the season to see what unfolds.";
 
       const chronicle = addChronicle([], openingText, startSeason, startYear, startTurn, "system");
 
       return {
         ...initialState,
-        phase: "seasonal_action",
+        phase: "management",
         turn: startTurn,
         season: startSeason,
         year: startYear,
         activeMeterCount: startActiveMeterCount,
-        currentEvent: firstEvent,
-        usedSeasonalIds,
+        currentEvent: null,
+        usedSeasonalIds: [],
         usedRandomIds: [],
         chronicle,
-        // Preserve initial meter values from initialState — do not spread over them.
         meters: { ...initialState.meters },
         meterDeltas: { ...initialState.meterDeltas },
+        denarii: 500,
+        food: 200,
+        population: 20,
+        inventory: { ...EMPTY_INVENTORY, grain: 150, livestock: 30, fish: 20 },
+        inventoryCapacity: 300,
+        buildings: [],
+        garrison: 5,
+        castleLevel: 1,
+        castleUpgradeProgress: 0,
+        castleUpgrading: false,
+        taxRate: "medium",
+        laborAllocation: { demesne: 40, peasant: 40, construction: 20 },
+        marketPrices: generateMarketPrices(),
+        defenseUpgrades: [],
+        activeTab: "estate",
+        seasonReport: [],
       };
     }
 
+    // -----------------------------------------------------------------------
+    // SET_TAB — Switch active tab during management phase
+    // -----------------------------------------------------------------------
+    case "SET_TAB": {
+      const { tab } = action.payload ?? {};
+      if (!tab) return state;
+      return { ...state, activeTab: tab };
+    }
+
+    // -----------------------------------------------------------------------
+    // BUILD_BUILDING — Construct a building on the estate
+    // -----------------------------------------------------------------------
+    case "BUILD_BUILDING": {
+      const { buildingId } = action.payload ?? {};
+      if (state.phase !== "management") return state;
+
+      const def = BUILDINGS[buildingId];
+      if (!def) return state;
+
+      const check = canBuildBuilding(buildingId, state);
+      if (!check.canBuild) return state;
+
+      return {
+        ...state,
+        denarii: state.denarii - def.cost,
+        buildings: [...state.buildings, buildingId],
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // DEMOLISH_BUILDING — Remove a building (by index in buildings array)
+    // -----------------------------------------------------------------------
+    case "DEMOLISH_BUILDING": {
+      const { buildingIndex } = action.payload ?? {};
+      if (state.phase !== "management") return state;
+      if (buildingIndex < 0 || buildingIndex >= state.buildings.length) return state;
+
+      const newBuildings = [...state.buildings];
+      newBuildings.splice(buildingIndex, 1);
+
+      // Refund half the cost
+      const removedId = state.buildings[buildingIndex];
+      const def = BUILDINGS[removedId];
+      const refund = def ? Math.floor(def.cost / 2) : 0;
+
+      return {
+        ...state,
+        buildings: newBuildings,
+        denarii: state.denarii + refund,
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // SELL_RESOURCE — Sell from inventory at market price
+    // -----------------------------------------------------------------------
+    case "SELL_RESOURCE": {
+      const { resource, quantity } = action.payload ?? {};
+      if (state.phase !== "management") return state;
+      const available = state.inventory[resource] || 0;
+      if (available <= 0 || quantity <= 0) return state;
+
+      const sellQty = Math.min(quantity, available);
+      const price = state.marketPrices.sell?.[resource] || 0;
+      const income = sellQty * price;
+      const newInventory = { ...state.inventory, [resource]: available - sellQty };
+
+      return {
+        ...state,
+        inventory: newInventory,
+        denarii: state.denarii + income,
+        food: getTotalFood(newInventory),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // BUY_RESOURCE — Buy from market into inventory
+    // -----------------------------------------------------------------------
+    case "BUY_RESOURCE": {
+      const { resource, quantity } = action.payload ?? {};
+      if (state.phase !== "management") return state;
+
+      const price = state.marketPrices.buy?.[resource] || 0;
+      if (price <= 0 || quantity <= 0) return state;
+
+      // Cap purchase quantity by what the player can afford
+      const maxAfford = Math.floor(state.denarii / price);
+      const buyQty = Math.min(quantity, maxAfford);
+      if (buyQty <= 0) return state;
+
+      const totalCost = price * buyQty;
+      const currentQty = state.inventory[resource] || 0;
+      const newInventory = { ...state.inventory, [resource]: currentQty + buyQty };
+
+      return {
+        ...state,
+        denarii: state.denarii - totalCost,
+        inventory: newInventory,
+        food: getTotalFood(newInventory),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // SET_TAX_RATE — Change tax rate during management
+    // -----------------------------------------------------------------------
+    case "SET_TAX_RATE": {
+      const { rate } = action.payload ?? {};
+      if (state.phase !== "management") return state;
+      if (!["low", "medium", "high", "crushing"].includes(rate)) return state;
+      return { ...state, taxRate: rate };
+    }
+
+    // -----------------------------------------------------------------------
+    // SIMULATE_SEASON — Run economic engine, then fire seasonal event
+    // -----------------------------------------------------------------------
+    case "SIMULATE_SEASON": {
+      if (state.phase !== "management") return state;
+
+      const { seasonalEvents = [] } = action.payload ?? {};
+      const { turn, season, year, usedSeasonalIds, activeMeterCount, meters } = state;
+
+      // 1. Run the full economic simulation
+      const econResult = simulateEconomy({
+        denarii: state.denarii,
+        population: state.population,
+        inventory: state.inventory,
+        inventoryCapacity: state.inventoryCapacity,
+        buildings: state.buildings,
+        garrison: state.garrison,
+        castleLevel: state.castleLevel,
+        taxRate: state.taxRate,
+        season,
+        meters,
+        activeMeterCount,
+      });
+
+      // 2. Apply meter effects from economy
+      const metersBeforeEcon = { ...meters };
+      const metersAfterEcon = applyEffects(meters, econResult.meterEffects, activeMeterCount);
+
+      // 3. Castle upgrade progress
+      let castleUpgradeProgress = state.castleUpgradeProgress;
+      let castleUpgrading = state.castleUpgrading;
+      let castleLevel = state.castleLevel;
+      if (castleUpgrading) {
+        castleUpgradeProgress += 1;
+        // Check completion (we'll implement full castle upgrades in Military tab)
+      }
+
+      // 4. Add economic report to chronicle
+      let nextChronicle = state.chronicle;
+      for (const line of econResult.report) {
+        nextChronicle = addChronicle(nextChronicle, line, season, year, turn, "system");
+      }
+
+      // 5. Check game over from economic effects
+      const econGameOver = checkGameOver(metersAfterEcon, activeMeterCount);
+      if (econGameOver) {
+        return {
+          ...state,
+          meters: metersAfterEcon,
+          meterDeltas: computeDeltas(metersBeforeEcon, metersAfterEcon),
+          denarii: econResult.denarii,
+          food: econResult.food,
+          population: econResult.population,
+          inventory: econResult.inventory,
+          chronicle: nextChronicle,
+          seasonReport: econResult.report,
+          castleUpgradeProgress,
+          castleUpgrading,
+          castleLevel,
+          phase: "game_over",
+          gameOverReason: econGameOver,
+          currentEvent: null,
+          currentRandomEvent: null,
+        };
+      }
+
+      // 6. Pick the seasonal event
+      const { event: seasonalEvent, usedSeasonalIds: nextUsedSeasonalIds } = pickSeasonalEvent(
+        season,
+        usedSeasonalIds,
+        activeMeterCount,
+        seasonalEvents,
+      );
+
+      return {
+        ...state,
+        meters: metersAfterEcon,
+        meterDeltas: computeDeltas(metersBeforeEcon, metersAfterEcon),
+        denarii: econResult.denarii,
+        food: econResult.food,
+        population: econResult.population,
+        inventory: econResult.inventory,
+        chronicle: nextChronicle,
+        seasonReport: econResult.report,
+        castleUpgradeProgress,
+        castleUpgrading,
+        castleLevel,
+        phase: "seasonal_action",
+        currentEvent: seasonalEvent,
+        usedSeasonalIds: nextUsedSeasonalIds,
+        activeTab: "chronicle",
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // SELECT_SEASONAL_ACTION (unchanged from V1)
     // -----------------------------------------------------------------------
     case "SELECT_SEASONAL_ACTION": {
       const { optionIndex } = action.payload ?? {};
       const { currentEvent, phase } = state;
 
-      // Guard: only valid during seasonal_action.
       if (phase !== "seasonal_action" || !currentEvent) return state;
 
       const partial = applyChoice(state, currentEvent, optionIndex, "action");
 
-      // If game over, transition immediately.
       if (partial.gameOverReason) {
         return {
           ...state,
@@ -393,14 +517,14 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
+    // CONTINUE_TO_RANDOM (unchanged from V1)
+    // -----------------------------------------------------------------------
     case "CONTINUE_TO_RANDOM": {
       const { phase, usedRandomIds, activeMeterCount } = state;
       const { randomEvents = [] } = action.payload ?? {};
 
       if (phase !== "seasonal_resolve") return state;
 
-      // Pick a random event. If none eligible, skip straight to a waiting state
-      // that the UI can immediately resolve by dispatching ADVANCE_TURN.
       const { event: randomEvent, usedRandomIds: nextUsedRandomIds } = pickRandomEvent(
         usedRandomIds,
         activeMeterCount,
@@ -408,8 +532,6 @@ export function gameReducer(state, action) {
       );
 
       if (!randomEvent) {
-        // No eligible random event — move to a pseudo-resolve phase so the UI
-        // can call ADVANCE_TURN without a player choice.
         return {
           ...state,
           phase: "random_resolve",
@@ -426,6 +548,8 @@ export function gameReducer(state, action) {
       };
     }
 
+    // -----------------------------------------------------------------------
+    // SELECT_RANDOM_RESPONSE (unchanged from V1)
     // -----------------------------------------------------------------------
     case "SELECT_RANDOM_RESPONSE": {
       const { optionIndex } = action.payload ?? {};
@@ -452,14 +576,15 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
+    // ADVANCE_TURN — V2: go to management phase, no passive effects
+    //   (passive effects are now handled by SIMULATE_SEASON's economy engine)
+    // -----------------------------------------------------------------------
     case "ADVANCE_TURN": {
-      const { phase, turn, usedSeasonalIds, usedRandomIds, chronicle, meters } = state;
-      const { seasonalEvents = [], randomEvents = [] } = action.payload ?? {};
+      const { phase, turn, chronicle } = state;
 
-      // Accept advance from random_resolve or (if no random event) from seasonal_resolve.
       if (phase !== "random_resolve" && phase !== "seasonal_resolve") return state;
 
-      // Victory: if the player just completed turn 28, they win.
+      // Victory check
       if (turn >= MAX_TURNS) {
         const victoryText =
           "Seven years have passed. Your reign has endured through war, famine, and feast. " +
@@ -479,17 +604,14 @@ export function gameReducer(state, action) {
       const { season: nextSeason, year: nextYear } = turnToSeasonYear(nextTurn);
       const nextActiveMeterCount = activeMeterCountForTurn(nextTurn);
 
-      // Build any tutorial-unlock chronicle entries for newly activated meters.
+      // Tutorial-unlock chronicle entries
       let nextChronicle = chronicle;
 
       if (nextTurn === MILITARY_UNLOCK_TURN) {
         nextChronicle = addChronicle(
           nextChronicle,
           "Raiders have been spotted near your borders. You must now manage your military forces.",
-          nextSeason,
-          nextYear,
-          nextTurn,
-          "system",
+          nextSeason, nextYear, nextTurn, "system",
         );
       }
 
@@ -497,67 +619,38 @@ export function gameReducer(state, action) {
         nextChronicle = addChronicle(
           nextChronicle,
           "The bishop arrives to inspect your chapel. The faith of your people now rests in your hands.",
-          nextSeason,
-          nextYear,
-          nextTurn,
-          "system",
+          nextSeason, nextYear, nextTurn, "system",
         );
       }
 
-      // Passive seasonal income: the estate collects rents and produces food
-      // each season. This is historically accurate — lords had baseline revenue
-      // from demesne land and tenant rents — and keeps the game survivable.
-      const passiveEffects = { treasury: 3, people: -1 };
-      const metersAfterPassive = applyEffects(meters, passiveEffects, nextActiveMeterCount);
+      // Generate new market prices for the new season
+      const newMarketPrices = generateMarketPrices();
 
-      // Check game over from passive changes (very unlikely but handle it).
-      const passiveGameOver = checkGameOver(metersAfterPassive, nextActiveMeterCount);
-      if (passiveGameOver) {
-        return {
-          ...state,
-          meters: metersAfterPassive,
-          phase: "game_over",
-          gameOverReason: passiveGameOver,
-          chronicle: nextChronicle,
-          currentEvent: null,
-          currentRandomEvent: null,
-        };
-      }
-
-      // Select next seasonal event.
-      const { event: nextEvent, usedSeasonalIds: nextUsedSeasonalIds } = pickSeasonalEvent(
-        nextSeason,
-        usedSeasonalIds,
-        nextActiveMeterCount,
-        seasonalEvents,
-      );
-
-      // Reset meterDeltas for the new turn so arrows clear.
       const zeroDeltas = { treasury: 0, people: 0, military: 0, faith: 0 };
 
       return {
         ...state,
-        phase: "seasonal_action",
+        phase: "management",
         turn: nextTurn,
         season: nextSeason,
         year: nextYear,
-        meters: metersAfterPassive,
         activeMeterCount: nextActiveMeterCount,
-        currentEvent: nextEvent,
+        currentEvent: null,
         currentRandomEvent: null,
         scribesNote: null,
         chronicle: nextChronicle,
-        usedSeasonalIds: nextUsedSeasonalIds,
         meterDeltas: zeroDeltas,
+        marketPrices: newMarketPrices,
+        activeTab: "estate",
+        seasonReport: [],
       };
     }
 
     // -----------------------------------------------------------------------
+    // DISMISS_SCRIBES_NOTE (unchanged from V1)
+    // -----------------------------------------------------------------------
     case "DISMISS_SCRIBES_NOTE": {
-      return {
-        ...state,
-        scribesNote: null,
-      };
+      return { ...state, scribesNote: null };
     }
 
     // -----------------------------------------------------------------------

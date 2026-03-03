@@ -32,13 +32,13 @@ export default function Chronicle({ entries }) {
       style={{ borderColor: "#c4a45a", backgroundColor: "#faf3e3" }}
     >
       <div
-        className="px-4 py-2 border-b font-heading text-sm font-semibold uppercase tracking-widest"
+        className="px-4 py-2 border-b font-heading text-base font-semibold uppercase tracking-widest"
         style={{ backgroundColor: "#e8d5a3", borderColor: "#c4a45a", color: "#5a3a28" }}
       >
         Chronicle of Your Reign
       </div>
       <div
-        className="max-h-60 overflow-y-auto p-3 flex flex-col gap-2"
+        className="max-h-80 overflow-y-auto p-3 flex flex-col gap-2"
         style={{ scrollbarGutter: "stable" }}
       >
         <div ref={topRef} />
@@ -48,10 +48,10 @@ export default function Chronicle({ entries }) {
           return (
             <div
               key={entries.length - 1 - i}
-              className="pl-3 py-1.5 text-sm leading-relaxed"
+              className="pl-3 py-1.5 text-base leading-relaxed"
               style={{ ...style, color: "#3d2517" }}
             >
-              <span className="text-xs font-semibold mr-1.5" style={{ color: "#8b6914" }}>
+              <span className="text-sm font-semibold mr-1.5" style={{ color: "#8b6914" }}>
                 {icon} Y{entry.year} {entry.season?.charAt(0).toUpperCase() + entry.season?.slice(1)}
               </span>
               <span>{entry.text}</span>

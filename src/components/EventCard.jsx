@@ -56,12 +56,12 @@ export default function EventCard({ event, onChoose, phaseLabel }) {
       <p className="text-base leading-relaxed mb-4" style={{ color: "#3d2517" }}>
         {event.description}
       </p>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2" role="group" aria-label="Choose your response">
         {event.options.map((option, i) => (
           <button
             key={i}
             onClick={() => onChoose(i)}
-            className="w-full text-left px-4 py-3 rounded-md border-2 transition-all duration-200 cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+            className="w-full text-left px-4 py-4 rounded-md border-2 transition-all duration-200 cursor-pointer min-h-[44px]"
             style={{
               backgroundColor: "#f4e4c1",
               borderColor: "#b89a5a",
@@ -75,6 +75,7 @@ export default function EventCard({ event, onChoose, phaseLabel }) {
               e.currentTarget.style.backgroundColor = "#f4e4c1";
               e.currentTarget.style.borderColor = "#b89a5a";
             }}
+            aria-label={`Option ${i + 1}: ${option.text}`}
           >
             <div className="font-semibold text-base">{option.text}</div>
             <IndicatorPills indicators={option.indicators} />

@@ -36,7 +36,22 @@ export function applyEffects(meters, effects, activeMeterCount) {
 
   for (const name of activeNames) {
     if (effects[name] !== undefined) {
-      next[name] = Math.min(100, Math.max(0, next[name] + effects[name]));
+      let raw = next[name] + effects[name];
+
+      // Regression to mean: extreme values resist further movement away from center.
+      // Positive effects dampened above 80; negative effects dampened below 20.
+      // 70% of excess/deficit sticks — enough to slow runaway while still
+      // allowing game over at 0 or 100 from sustained mismanagement.
+      if (raw > 80 && effects[name] > 0) {
+        const excess = raw - 80;
+        raw = 80 + Math.round(excess * 0.7);
+      }
+      if (raw < 20 && effects[name] < 0) {
+        const deficit = 20 - raw;
+        raw = 20 - Math.round(deficit * 0.7);
+      }
+
+      next[name] = Math.min(100, Math.max(0, raw));
     }
   }
 
@@ -71,20 +86,20 @@ export function checkGameOver(meters, activeMeterCount) {
  * Returns a descriptive status string for a single meter value.
  *
  * Thresholds (tuned for the 0-100 scale):
- *   critical  — value < 20  (imminent collapse)
- *   danger    — value > 80  (runaway excess, crisis risk)
- *   warning   — value < 30 OR value > 70  (approaching extremes)
+ *   critical  — value < 15  (imminent collapse)
+ *   danger    — value > 90  (runaway excess, crisis risk)
+ *   warning   — value < 25 OR value > 80  (approaching extremes)
  *   normal    — everything else
  *
- * Note: "danger" is checked before "warning" so >80 always returns "danger",
- * not "warning".
+ * High-end thresholds raised so meters hovering 80-90 from regression
+ * show a caution state, not the alarming pulse reserved for 90+.
  *
  * @param {number} value
  * @returns {"critical" | "danger" | "warning" | "normal"}
  */
 export function getMeterStatus(value) {
-  if (value < 20) return "critical";
-  if (value > 80) return "danger";
-  if (value < 30 || value > 70) return "warning";
+  if (value < 15) return "critical";
+  if (value > 90) return "danger";
+  if (value < 25 || value > 80) return "warning";
   return "normal";
 }

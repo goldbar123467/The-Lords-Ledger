@@ -92,9 +92,9 @@ export default function GameOverScreen({ gameOverReason, causeChain, meters, onP
         </div>
 
         {/* Final meter values */}
-        <div className="grid grid-cols-4 gap-2 mb-5 text-center text-xs">
+        <div className="grid grid-cols-4 gap-2 mb-5 text-center text-sm">
           {["treasury", "people", "military", "faith"].map((m) => (
-            <div key={m} className="py-1.5 rounded-md border" style={{ borderColor: "#c4a45a", backgroundColor: "#f4e4c1" }}>
+            <div key={m} className="py-2 rounded-md border" style={{ borderColor: "#c4a45a", backgroundColor: "#f4e4c1" }}>
               <div className="font-heading font-semibold uppercase" style={{ color: "#5a3a28" }}>
                 {m.charAt(0).toUpperCase() + m.slice(1)}
               </div>

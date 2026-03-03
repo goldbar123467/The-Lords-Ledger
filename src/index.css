@@ -41,6 +41,33 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
 }
 
+/* Focus-visible outlines for keyboard navigation */
+*:focus-visible {
+  outline: 3px solid var(--color-treasury);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+button:focus-visible {
+  outline: 3px solid var(--color-treasury);
+  outline-offset: 2px;
+}
+
+/* Meter warning pulse */
+@keyframes meter-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.meter-pulse {
+  animation: meter-pulse 1.5s ease-in-out infinite;
+}
+
+/* Button pressed feedback */
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
 ::-webkit-scrollbar {
   width: 8px;
 }
