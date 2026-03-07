@@ -1,5 +1,4 @@
 import { useReducer, useMemo, useState, useCallback } from "react";
-import { Analytics } from "@vercel/analytics/react";
 import { gameReducer, initialState } from "./engine/gameReducer";
 import seasonalEventsData from "./data/seasonalEvents";
 import randomEventsData from "./data/randomEvents";
@@ -186,40 +185,29 @@ export default function App() {
 
   // --- Title Screen ---
   if (phase === "title") {
-    return (
-      <>
-        <TitleScreen onStart={handleStart} />
-        <Analytics />
-      </>
-    );
+    return <TitleScreen onStart={handleStart} />;
   }
 
   // --- Game Over Screen ---
   if (phase === "game_over") {
     return (
-      <>
-        <GameOverScreen
-          gameOverReason={gameOverReason}
-          causeChain={causeChain}
-          meters={meters}
-          onPlayAgain={handlePlayAgain}
-        />
-        <Analytics />
-      </>
+      <GameOverScreen
+        gameOverReason={gameOverReason}
+        causeChain={causeChain}
+        meters={meters}
+        onPlayAgain={handlePlayAgain}
+      />
     );
   }
 
   // --- Victory Screen ---
   if (phase === "victory") {
     return (
-      <>
-        <VictoryScreen
-          meters={meters}
-          onPlayAgain={handlePlayAgain}
-          activatedSynergies={synergies?.activated ?? []}
-        />
-        <Analytics />
-      </>
+      <VictoryScreen
+        meters={meters}
+        onPlayAgain={handlePlayAgain}
+        activatedSynergies={synergies?.activated ?? []}
+      />
     );
   }
 
@@ -387,8 +375,6 @@ export default function App() {
           </p>
         </div>
       )}
-
-      <Analytics />
     </div>
   );
 }
