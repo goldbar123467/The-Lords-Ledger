@@ -61,8 +61,8 @@ export default function App() {
 
   // --- Action handlers ---
 
-  function handleStart() {
-    dispatch({ type: "START_GAME", payload });
+  function handleStart(difficulty) {
+    dispatch({ type: "START_GAME", payload: { ...payload, difficulty } });
   }
 
   function handleSeasonalChoice(optionIndex) {

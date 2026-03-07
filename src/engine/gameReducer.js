@@ -28,7 +28,7 @@ import {
 
 import { simulateEconomy, canBuildBuilding, getTotalFood } from "./economyEngine.js";
 import BUILDINGS from "../data/buildings.js";
-import { EMPTY_INVENTORY, generateMarketPrices } from "../data/economy.js";
+import { EMPTY_INVENTORY, generateMarketPrices, DIFFICULTY_CONFIGS } from "../data/economy.js";
 import { PERSPECTIVE_FLIPS } from "../data/perspectiveFlips.js";
 import { checkFlipTriggers, getInitialFlipStats, resolveFlipOption, computeFlipConsequences } from "./flipEngine.js";
 import { checkSynergies, getSynergyTradePriceBonus, getSynergyWoolSellBonus } from "./synergyEngine.js";
@@ -61,6 +61,7 @@ const MAX_CAUSE_CHAIN = 4;
 
 export const initialState = {
   phase: "title",
+  difficulty: "normal",
   turn: 1,
   season: "spring",
   year: 1,
@@ -269,6 +270,10 @@ export function gameReducer(state, action) {
     // -----------------------------------------------------------------------
     case "START_GAME":
     case "PLAY_AGAIN": {
+      const difficulty = action.payload?.difficulty || state.difficulty || "normal";
+      const config = DIFFICULTY_CONFIGS[difficulty] || DIFFICULTY_CONFIGS.normal;
+      const startInventory = { ...EMPTY_INVENTORY, ...config.startingInventory };
+
       const startTurn = 1;
       const startActiveMeterCount = activeMeterCountForTurn(startTurn);
       const { season: startSeason, year: startYear } = turnToSeasonYear(startTurn);
@@ -283,6 +288,7 @@ export function gameReducer(state, action) {
       return {
         ...initialState,
         phase: "management",
+        difficulty,
         turn: startTurn,
         season: startSeason,
         year: startYear,
@@ -291,12 +297,12 @@ export function gameReducer(state, action) {
         usedSeasonalIds: [],
         usedRandomIds: [],
         chronicle,
-        meters: { ...initialState.meters },
+        meters: { ...config.startingMeters },
         meterDeltas: { ...initialState.meterDeltas },
-        denarii: 500,
-        food: 200,
-        population: 20,
-        inventory: { ...EMPTY_INVENTORY, grain: 150, livestock: 30, fish: 20 },
+        denarii: config.startingDenarii,
+        food: getTotalFood(startInventory),
+        population: config.startingPopulation,
+        inventory: startInventory,
         inventoryCapacity: 300,
         buildings: [],
         garrison: 5,
@@ -472,6 +478,7 @@ export function gameReducer(state, action) {
         season,
         meters,
         activeMeterCount,
+        difficulty: state.difficulty,
       });
 
       // 2. Apply meter effects from economy

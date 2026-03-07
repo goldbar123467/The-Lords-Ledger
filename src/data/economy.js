@@ -135,3 +135,34 @@ export const STARTING_INVENTORY_CAPACITY = 300;
 
 /** Food consumption: 1 food per family per season */
 export const FOOD_PER_FAMILY = 1;
+
+/** Difficulty configuration presets */
+export const DIFFICULTY_CONFIGS = {
+  easy: {
+    label: "Easy",
+    description: "More resources, gentler penalties",
+    startingDenarii: 700,
+    startingInventory: { grain: 200, livestock: 50, fish: 30 },
+    startingMeters: { treasury: 50, people: 55, military: 35, faith: 50 },
+    startingPopulation: 22,
+    penaltyScale: 0.5,
+  },
+  normal: {
+    label: "Normal",
+    description: "The standard medieval experience",
+    startingDenarii: 500,
+    startingInventory: { grain: 150, livestock: 30, fish: 20 },
+    startingMeters: { treasury: 40, people: 50, military: 30, faith: 45 },
+    startingPopulation: 20,
+    penaltyScale: 1.0,
+  },
+  hard: {
+    label: "Hard",
+    description: "Fewer resources, harsher consequences",
+    startingDenarii: 350,
+    startingInventory: { grain: 100, livestock: 20, fish: 10 },
+    startingMeters: { treasury: 30, people: 45, military: 25, faith: 40 },
+    startingPopulation: 18,
+    penaltyScale: 1.5,
+  },
+};

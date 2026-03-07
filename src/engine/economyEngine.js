@@ -21,6 +21,7 @@ import {
   TAX_RATES,
   GARRISON_UPKEEP_PER_SOLDIER,
   FOOD_PER_FAMILY,
+  DIFFICULTY_CONFIGS,
 } from "../data/economy.js";
 import { getSynergyPassiveIncome, getSynergyMeterEffects, hasSynergyPopulationBonus } from "./synergyEngine.js";
 
@@ -237,6 +238,7 @@ export function simulateEconomy(state) {
   } = state;
 
   const report = [];
+  const penaltyScale = (DIFFICULTY_CONFIGS[state.difficulty || "normal"] || DIFFICULTY_CONFIGS.normal).penaltyScale;
   let currentDenarii = denarii;
   let currentPopulation = population;
   const meterEffects = { treasury: 0, people: 0, military: 0, faith: 0 };
@@ -268,9 +270,9 @@ export function simulateEconomy(state) {
   currentInventory = consumption.inventory;
   report.push(...consumption.report);
 
-  // Food shortfall damages People meter (capped so 50→0 takes at least 4 turns)
+  // Food shortfall damages People meter (capped so 50→0 takes at least 4 turns on normal)
   if (consumption.shortfall > 0) {
-    const peopleDamage = Math.min(12, consumption.shortfall * 2);
+    const peopleDamage = Math.round(Math.min(12, consumption.shortfall * 2) * penaltyScale);
     meterEffects.people -= peopleDamage;
   }
 
@@ -281,8 +283,8 @@ export function simulateEconomy(state) {
 
   // Unpaid upkeep: garrison deserts, buildings decay
   if (upkeep.unpaidUpkeep > 0) {
-    meterEffects.military -= 3;
-    meterEffects.treasury -= 5;
+    meterEffects.military -= Math.round(3 * penaltyScale);
+    meterEffects.treasury -= Math.round(5 * penaltyScale);
   }
 
   // ----- 4. TAX COLLECTION (Autumn only) -----
@@ -330,7 +332,7 @@ export function simulateEconomy(state) {
 
   // If denarii hits 0, Treasury meter drops hard
   if (currentDenarii <= 0) {
-    meterEffects.treasury -= 15;
+    meterEffects.treasury -= Math.round(15 * penaltyScale);
   }
 
   // Baseline: estate collects some rents (replaces old +3 treasury passive)
@@ -338,7 +340,7 @@ export function simulateEconomy(state) {
 
   // People: natural maintenance cost (complaints, disputes, wear on goodwill)
   // Without active management, People meter drifts down over time
-  meterEffects.people -= 2;
+  meterEffects.people -= Math.round(2 * penaltyScale);
 
   // Food surplus boosts People, deficit hurts them
   // Need genuine surplus (double the consumption) for a People boost
@@ -349,21 +351,21 @@ export function simulateEconomy(state) {
     meterEffects.people += 1;
   }
   if (totalFoodInInventory === 0 && consumption.shortfall > 0) {
-    meterEffects.people -= 3;
+    meterEffects.people -= Math.round(3 * penaltyScale);
   }
 
   // Faith meter: the Church expects ongoing tithes and investment
-  meterEffects.faith -= 2;
+  meterEffects.faith -= Math.round(2 * penaltyScale);
 
   // Military meter: soldiers need pay, walls need repair, readiness decays
-  meterEffects.military -= 2;
+  meterEffects.military -= Math.round(2 * penaltyScale);
 
   // Military meter: garrison presence offsets some decay
   if (garrison > 0) {
     meterEffects.military += 1;
   }
   if (garrison === 0) {
-    meterEffects.military -= 2;
+    meterEffects.military -= Math.round(2 * penaltyScale);
   }
 
   // Population growth/decline
