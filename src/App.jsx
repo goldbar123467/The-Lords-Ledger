@@ -186,7 +186,12 @@ export default function App() {
 
   // --- Title Screen ---
   if (phase === "title") {
-    return <><TitleScreen onStart={handleStart} /><Analytics /></>;
+    return (
+      <>
+        <TitleScreen onStart={handleStart} />
+        <Analytics />
+      </>
+    );
   }
 
   // --- Game Over Screen ---
