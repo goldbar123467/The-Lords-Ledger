@@ -25,7 +25,8 @@ function EconomyStatusBox({ state }) {
 
   const used = getInventoryUsed(inventory);
   const pct = inventoryCapacity > 0 ? Math.round((used / inventoryCapacity) * 100) : 0;
-  const consumption = getFoodConsumption(population);
+  const garrisonFood = Math.ceil(garrison / 2);
+  const consumption = getFoodConsumption(population) + garrisonFood;
   const buildingUpkeep = getTotalBuildingUpkeep(buildings);
   const garrisonUpkeep = getGarrisonUpkeep(garrison);
   const totalUpkeep = buildingUpkeep + garrisonUpkeep;
@@ -140,6 +141,15 @@ function BuildingCard({ building, state, onBuild, onDemolish, isSynergyBuilding 
         {building.requires && (
           <div>
             <span className="font-semibold">Requires:</span> {BUILDINGS[building.requires]?.name || building.requires}
+          </div>
+        )}
+        {building.meterBonus && (
+          <div>
+            <span className="font-semibold">Boosts:</span>{" "}
+            {Object.entries(building.meterBonus).map(([meter, amt]) => {
+              const icons = { treasury: "\u{1FA99}", people: "\u{1F33E}", military: "\u2694\uFE0F", faith: "\u26EA" };
+              return `${icons[meter] || ""} ${meter.charAt(0).toUpperCase() + meter.slice(1)} +${amt}`;
+            }).join(", ")}
           </div>
         )}
       </div>

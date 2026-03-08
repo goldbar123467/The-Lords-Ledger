@@ -2,7 +2,13 @@
  * buildings.js
  *
  * Building definitions for the Estate tab.
- * Each building has production, upkeep, prerequisites, and build limits.
+ * Each building has production, upkeep, prerequisites, build limits,
+ * and meterBonus — the per-season contribution to lord meters.
+ *
+ * Rarity determines bonus strength:
+ *   common = small contribution
+ *   uncommon = moderate contribution
+ *   rare = significant contribution
  */
 
 const BUILDINGS = {
@@ -19,6 +25,7 @@ const BUILDINGS = {
     maxCount: 2,
     requires: null,
     rarity: "common",
+    meterBonus: { people: 1 },
   },
   demesne_field: {
     id: "demesne_field",
@@ -33,6 +40,7 @@ const BUILDINGS = {
     maxCount: 2,
     requires: null,
     rarity: "uncommon",
+    meterBonus: { treasury: 1, people: 1 },
   },
   pasture: {
     id: "pasture",
@@ -47,6 +55,7 @@ const BUILDINGS = {
     maxCount: 2,
     requires: null,
     rarity: "common",
+    meterBonus: { people: 1 },
   },
   fishpond: {
     id: "fishpond",
@@ -61,6 +70,7 @@ const BUILDINGS = {
     maxCount: 2,
     requires: null,
     rarity: "common",
+    meterBonus: { people: 1 },
   },
   timber_lot: {
     id: "timber_lot",
@@ -75,6 +85,7 @@ const BUILDINGS = {
     maxCount: 2,
     requires: null,
     rarity: "common",
+    meterBonus: { military: 1 },
   },
   clay_pit: {
     id: "clay_pit",
@@ -89,6 +100,7 @@ const BUILDINGS = {
     maxCount: 2,
     requires: null,
     rarity: "common",
+    meterBonus: { treasury: 1 },
   },
   iron_mine: {
     id: "iron_mine",
@@ -103,6 +115,7 @@ const BUILDINGS = {
     maxCount: 2,
     requires: null,
     rarity: "rare",
+    meterBonus: { military: 2 },
   },
   quarry: {
     id: "quarry",
@@ -117,13 +130,14 @@ const BUILDINGS = {
     maxCount: 2,
     requires: null,
     rarity: "rare",
+    meterBonus: { military: 2 },
   },
   herb_garden: {
     id: "herb_garden",
     name: "Herb Garden",
     latin: "Hortus Herbarum",
     icon: "\u{1F33F}",
-    description: "Medicinal, small Faith boost",
+    description: "Medicinal herbs, valued by the Church",
     cost: 80,
     produces: { herbs: 2 },
     consumes: null,
@@ -138,7 +152,7 @@ const BUILDINGS = {
     name: "Apiary",
     latin: "Apiarium Mellis",
     icon: "\u{1F36F}",
-    description: "Luxury good, high trade value",
+    description: "Beeswax for church candles, honey for trade",
     cost: 90,
     produces: { honey: 2 },
     consumes: null,
@@ -146,6 +160,7 @@ const BUILDINGS = {
     maxCount: 2,
     requires: null,
     rarity: "uncommon",
+    meterBonus: { treasury: 1, faith: 1 },
   },
   fulling_mill: {
     id: "fulling_mill",
@@ -160,6 +175,7 @@ const BUILDINGS = {
     maxCount: 1,
     requires: "pasture",
     rarity: "rare",
+    meterBonus: { treasury: 3 },
   },
   brewery: {
     id: "brewery",
@@ -174,7 +190,7 @@ const BUILDINGS = {
     maxCount: 1,
     requires: null,
     rarity: "uncommon",
-    meterBonus: { people: 2 },
+    meterBonus: { people: 2, treasury: 1 },
   },
 };
 

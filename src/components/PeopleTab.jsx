@@ -1,16 +1,17 @@
 /**
  * PeopleTab.jsx
  *
- * Population management, labor allocation, and tax rate.
+ * Population management, tax rate, and church donations.
  */
 
-import { TAX_RATES, FOOD_PER_FAMILY } from "../data/economy.js";
+import { TAX_RATES, FOOD_PER_FAMILY, DONATION_TIERS } from "../data/economy.js";
 import { getTotalFood } from "../engine/economyEngine.js";
 
-export default function PeopleTab({ state, onSetTaxRate }) {
-  const { population, inventory, taxRate, meters } = state;
+export default function PeopleTab({ state, onSetTaxRate, onDonate }) {
+  const { population, inventory, taxRate, meters, denarii, churchDonation = 0, garrison = 0 } = state;
   const totalFood = getTotalFood(inventory);
-  const consumption = population * FOOD_PER_FAMILY;
+  const garrisonFood = Math.ceil(garrison / 2);
+  const consumption = population * FOOD_PER_FAMILY + garrisonFood;
   const surplus = totalFood - consumption;
 
   // Growth conditions check
@@ -53,7 +54,7 @@ export default function PeopleTab({ state, onSetTaxRate }) {
           </div>
         </div>
         <p className="text-sm mt-2" style={{ color: "#8b6914" }}>
-          Population grows by 1-2 families per season when there is a food surplus and People satisfaction is above 40.
+          Population may grow by 1-2 families each season when there is a food surplus and People satisfaction is above 40.
           Families leave when food runs out or People drops below 20.
         </p>
       </div>
@@ -96,7 +97,7 @@ export default function PeopleTab({ state, onSetTaxRate }) {
                 </div>
                 {config.peopleMod !== 0 && (
                   <div className="text-sm mt-0.5" style={{ color: config.peopleMod > 0 ? "#2d5a27" : "#c0392b" }}>
-                    People: {config.peopleMod > 0 ? "+" : ""}{config.peopleMod}
+                    People: {config.peopleMod > 0 ? "+" : ""}{config.peopleMod} (autumn)
                   </div>
                 )}
               </button>
@@ -105,44 +106,58 @@ export default function PeopleTab({ state, onSetTaxRate }) {
         </div>
       </div>
 
-      {/* Labor allocation - informational for now */}
+      {/* Church donations */}
       <div
-        className="rounded-lg border-2 p-4"
+        className="rounded-lg border-2 p-4 mb-4"
         style={{ backgroundColor: "#faf3e3", borderColor: "#c4a45a" }}
       >
         <h3
           className="font-heading text-sm font-bold uppercase tracking-wider mb-3"
-          style={{ color: "#5a3a28" }}
+          style={{ color: "#4a1a6b" }}
         >
-          {"\u{1F6E0}\uFE0F"} Labor Allocation
+          {"\u26EA"} Church Offering
         </h3>
-        <div className="grid grid-cols-3 gap-2 text-center text-sm">
-          <div className="p-2.5 rounded-md border" style={{ borderColor: "#c4a45a", backgroundColor: "#f4e4c1" }}>
-            <div className="font-heading font-semibold uppercase" style={{ color: "#5a3a28" }}>
-              Lord's Demesne
-            </div>
-            <div className="text-lg font-bold" style={{ color: "#2c1810" }}>40%</div>
-            <div style={{ color: "#8b6914" }}>Treasury income</div>
-          </div>
-          <div className="p-2.5 rounded-md border" style={{ borderColor: "#c4a45a", backgroundColor: "#f4e4c1" }}>
-            <div className="font-heading font-semibold uppercase" style={{ color: "#5a3a28" }}>
-              Peasant Fields
-            </div>
-            <div className="text-lg font-bold" style={{ color: "#2c1810" }}>40%</div>
-            <div style={{ color: "#8b6914" }}>People satisfaction</div>
-          </div>
-          <div className="p-2.5 rounded-md border" style={{ borderColor: "#c4a45a", backgroundColor: "#f4e4c1" }}>
-            <div className="font-heading font-semibold uppercase" style={{ color: "#5a3a28" }}>
-              Construction
-            </div>
-            <div className="text-lg font-bold" style={{ color: "#2c1810" }}>20%</div>
-            <div style={{ color: "#8b6914" }}>Building speed</div>
-          </div>
-        </div>
-        <p className="text-sm mt-2 italic" style={{ color: "#8b6914" }}>
-          The manor is peaceful this season. Your workers tend their duties without complaint.
+        <p className="text-sm mb-3" style={{ color: "#5a3a28" }}>
+          Donate denarii to the Church to strengthen the faith of your people.
+          Offerings are recognized when the season resolves.
         </p>
+
+        {churchDonation > 0 && (
+          <div
+            className="text-sm font-semibold mb-3 p-2 rounded-md"
+            style={{ backgroundColor: "#e8e0f0", color: "#4a1a6b" }}
+          >
+            Pledged this season: {churchDonation}d
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-2">
+          {DONATION_TIERS.map((tier) => {
+            const canAfford = denarii >= tier.amount;
+            return (
+              <button
+                key={tier.key}
+                onClick={() => onDonate(tier.amount)}
+                disabled={!canAfford}
+                className="p-3 rounded-md border-2 text-center cursor-pointer transition-all duration-200 min-h-[44px]"
+                style={{
+                  backgroundColor: canAfford ? "#4a1a6b" : "#c4a45a",
+                  borderColor: canAfford ? "#2c1046" : "#c4a45a",
+                  color: canAfford ? "#faf3e3" : "#e8d5a3",
+                  cursor: canAfford ? "pointer" : "not-allowed",
+                }}
+                onMouseEnter={(e) => { if (canAfford) e.currentTarget.style.backgroundColor = "#5e2a85"; }}
+                onMouseLeave={(e) => { if (canAfford) e.currentTarget.style.backgroundColor = "#4a1a6b"; }}
+              >
+                <div className="text-lg mb-0.5">{tier.icon}</div>
+                <div className="font-heading text-xs font-bold uppercase">{tier.label}</div>
+                <div className="text-sm mt-0.5">{tier.amount}d</div>
+              </button>
+            );
+          })}
+        </div>
       </div>
+
     </div>
   );
 }

@@ -111,20 +111,36 @@ export const TAX_RATES = {
   crushing: { rate: 8, label: "Crushing", peopleMod: -6, treasuryMod: 4 },
 };
 
-/** Castle level definitions */
+/** Castle level definitions (base costs — Easy mode overrides below) */
 export const CASTLE_LEVELS = {
   1: { name: "Motte-and-Bailey", defense: 20, cost: 0, stone: 0, timber: 0, iron: 0, buildTime: 0 },
-  2: { name: "Stone Keep",       defense: 50, cost: 400, stone: 20, timber: 15, iron: 0, buildTime: 3 },
-  3: { name: "Curtain Wall",     defense: 75, cost: 800, stone: 40, timber: 20, iron: 10, buildTime: 5 },
-  4: { name: "Concentric Castle", defense: 95, cost: 1500, stone: 80, timber: 30, iron: 20, buildTime: 8 },
+  2: { name: "Stone Keep",       defense: 50, cost: 150, stone: 6, timber: 6, iron: 0, buildTime: 0 },
+  3: { name: "Curtain Wall",     defense: 75, cost: 300, stone: 10, timber: 8, iron: 4, buildTime: 0 },
+  4: { name: "Concentric Castle", defense: 95, cost: 500, stone: 16, timber: 10, iron: 8, buildTime: 0 },
 };
 
-/** Defense upgrades */
+/** Easy mode castle levels — denarii only, no resources */
+export const CASTLE_LEVELS_EASY = {
+  1: { name: "Motte-and-Bailey", defense: 20, cost: 0, stone: 0, timber: 0, iron: 0, buildTime: 0 },
+  2: { name: "Stone Keep",       defense: 50, cost: 50, stone: 0, timber: 0, iron: 0, buildTime: 0 },
+  3: { name: "Curtain Wall",     defense: 75, cost: 50, stone: 0, timber: 0, iron: 0, buildTime: 0 },
+  4: { name: "Concentric Castle", defense: 95, cost: 50, stone: 0, timber: 0, iron: 0, buildTime: 0 },
+};
+
+/** Defense upgrades (base costs — Easy mode overrides below) */
 export const DEFENSE_UPGRADES = {
-  arrow_slits:    { id: "arrow_slits",    name: "Arrow Slits",           defense: 5,  cost: 60,  stone: 5,  iron: 0, timber: 0 },
-  drawbridge:     { id: "drawbridge",     name: "Drawbridge",            defense: 8,  cost: 100, stone: 0,  iron: 5, timber: 10 },
-  boiling_water:  { id: "boiling_water",  name: "Boiling Water Stations", defense: 6,  cost: 40,  stone: 0,  iron: 3, timber: 0 },
-  sally_port:     { id: "sally_port",     name: "Sally Port",            defense: 10, cost: 80,  stone: 10, iron: 5, timber: 0 },
+  arrow_slits:    { id: "arrow_slits",    name: "Arrow Slits",           defense: 5,  cost: 30,  stone: 3,  iron: 0, timber: 0 },
+  drawbridge:     { id: "drawbridge",     name: "Drawbridge",            defense: 8,  cost: 50,  stone: 0,  iron: 2, timber: 4 },
+  boiling_water:  { id: "boiling_water",  name: "Boiling Water Stations", defense: 6,  cost: 25,  stone: 0,  iron: 2, timber: 0 },
+  sally_port:     { id: "sally_port",     name: "Sally Port",            defense: 10, cost: 40,  stone: 4,  iron: 2, timber: 0 },
+};
+
+/** Easy mode defense upgrades — denarii only, no resources */
+export const DEFENSE_UPGRADES_EASY = {
+  arrow_slits:    { id: "arrow_slits",    name: "Arrow Slits",           defense: 5,  cost: 50,  stone: 0,  iron: 0, timber: 0 },
+  drawbridge:     { id: "drawbridge",     name: "Drawbridge",            defense: 8,  cost: 50,  stone: 0,  iron: 0, timber: 0 },
+  boiling_water:  { id: "boiling_water",  name: "Boiling Water Stations", defense: 6,  cost: 50,  stone: 0,  iron: 0, timber: 0 },
+  sally_port:     { id: "sally_port",     name: "Sally Port",            defense: 10, cost: 50,  stone: 0,  iron: 0, timber: 0 },
 };
 
 /** Garrison cost per soldier per season */
@@ -135,6 +151,19 @@ export const STARTING_INVENTORY_CAPACITY = 300;
 
 /** Food consumption: 1 food per family per season */
 export const FOOD_PER_FAMILY = 1;
+
+/** Cost to recruit one soldier */
+export const RECRUIT_COST = 10;
+
+/** Maximum garrison size */
+export const MAX_GARRISON = 25;
+
+/** Church donation tiers */
+export const DONATION_TIERS = [
+  { key: "small",    label: "Small Offering",   amount: 25,  icon: "\u{1F56F}\uFE0F" },
+  { key: "generous",  label: "Generous Tithe",   amount: 75,  icon: "\u26EA" },
+  { key: "grand",    label: "Grand Donation",   amount: 150, icon: "\u{1F3DB}\uFE0F" },
+];
 
 /** Difficulty configuration presets */
 export const DIFFICULTY_CONFIGS = {

@@ -28,7 +28,12 @@ import {
 
 import { simulateEconomy, canBuildBuilding, getTotalFood } from "./economyEngine.js";
 import BUILDINGS from "../data/buildings.js";
-import { EMPTY_INVENTORY, generateMarketPrices, DIFFICULTY_CONFIGS } from "../data/economy.js";
+import {
+  EMPTY_INVENTORY, generateMarketPrices, DIFFICULTY_CONFIGS,
+  CASTLE_LEVELS, CASTLE_LEVELS_EASY,
+  DEFENSE_UPGRADES, DEFENSE_UPGRADES_EASY,
+  RECRUIT_COST, MAX_GARRISON,
+} from "../data/economy.js";
 import { PERSPECTIVE_FLIPS } from "../data/perspectiveFlips.js";
 import { checkFlipTriggers, getInitialFlipStats, resolveFlipOption, computeFlipConsequences } from "./flipEngine.js";
 import { checkSynergies, getSynergyTradePriceBonus, getSynergyWoolSellBonus } from "./synergyEngine.js";
@@ -95,6 +100,7 @@ export const initialState = {
   laborAllocation: { demesne: 40, peasant: 40, construction: 20 },
   marketPrices: generateMarketPrices(),
   defenseUpgrades: [],
+  churchDonation: 0,
 
   // V2: UI state
   activeTab: "estate",
@@ -313,6 +319,7 @@ export function gameReducer(state, action) {
         laborAllocation: { demesne: 40, peasant: 40, construction: 20 },
         marketPrices: generateMarketPrices(),
         defenseUpgrades: [],
+        churchDonation: 0,
         activeTab: "estate",
         seasonReport: [],
         synergies: {
@@ -350,6 +357,7 @@ export function gameReducer(state, action) {
         ...state,
         denarii: state.denarii - def.cost,
         buildings: [...state.buildings, buildingId],
+        chronicle: addChronicle(state.chronicle, `Built a ${def.name} for ${def.cost}d.`, state.season, state.year, state.turn, "action"),
       };
     }
 
@@ -373,6 +381,7 @@ export function gameReducer(state, action) {
         ...state,
         buildings: newBuildings,
         denarii: state.denarii + refund,
+        chronicle: addChronicle(state.chronicle, `Demolished a ${def?.name || "building"}. Refunded ${refund}d.`, state.season, state.year, state.turn, "action"),
       };
     }
 
@@ -401,6 +410,7 @@ export function gameReducer(state, action) {
         ? prevSynergies.tradeTypes
         : [...prevSynergies.tradeTypes, resource];
 
+      const sellCfg = { grain: "Grain", livestock: "Livestock", fish: "Fish", timber: "Timber", clay: "Clay", iron: "Iron", stone: "Stone", wool: "Wool", cloth: "Cloth", honey: "Honey", herbs: "Herbs", ale: "Ale" };
       return {
         ...state,
         inventory: newInventory,
@@ -408,6 +418,7 @@ export function gameReducer(state, action) {
         food: getTotalFood(newInventory),
         tradeCount: (state.tradeCount || 0) + 1,
         synergies: { ...prevSynergies, woolTrades: newWoolTrades, tradeTypes: newTradeTypes },
+        chronicle: addChronicle(state.chronicle, `Sold ${sellQty} ${sellCfg[resource] || resource} for ${income}d.`, state.season, state.year, state.turn, "action"),
       };
     }
 
@@ -436,6 +447,7 @@ export function gameReducer(state, action) {
         ? prevSynergies.tradeTypes
         : [...prevSynergies.tradeTypes, resource];
 
+      const buyCfg = { grain: "Grain", livestock: "Livestock", fish: "Fish", timber: "Timber", clay: "Clay", iron: "Iron", stone: "Stone", salt: "Salt", tools: "Tools", spices: "Spices" };
       return {
         ...state,
         denarii: state.denarii - totalCost,
@@ -443,6 +455,7 @@ export function gameReducer(state, action) {
         food: getTotalFood(newInventory),
         tradeCount: (state.tradeCount || 0) + 1,
         synergies: { ...prevSynergies, spicePurchases: newSpicePurchases, tradeTypes: newTradeTypes },
+        chronicle: addChronicle(state.chronicle, `Bought ${buyQty} ${buyCfg[resource] || resource} for ${totalCost}d.`, state.season, state.year, state.turn, "action"),
       };
     }
 
@@ -454,6 +467,130 @@ export function gameReducer(state, action) {
       if (state.phase !== "management") return state;
       if (!["low", "medium", "high", "crushing"].includes(rate)) return state;
       return { ...state, taxRate: rate };
+    }
+
+    // -----------------------------------------------------------------------
+    // RECRUIT_SOLDIERS — Pay denarii to add soldiers to garrison
+    // -----------------------------------------------------------------------
+    case "RECRUIT_SOLDIERS": {
+      const { count } = action.payload ?? {};
+      if (state.phase !== "management") return state;
+      if (!count || count <= 0) return state;
+
+      const maxCanAfford = Math.floor(state.denarii / RECRUIT_COST);
+      const maxByLimit = MAX_GARRISON - state.garrison;
+      // Can't recruit more than 60% of population — the rest must work the fields
+      const maxByPop = Math.floor(state.population * 0.6) - state.garrison;
+      const actual = Math.min(count, maxCanAfford, maxByLimit, maxByPop);
+      if (actual <= 0) return state;
+
+      return {
+        ...state,
+        denarii: state.denarii - (actual * RECRUIT_COST),
+        garrison: state.garrison + actual,
+        chronicle: addChronicle(state.chronicle, `Recruited ${actual} ${actual === 1 ? "soldier" : "soldiers"} for ${actual * RECRUIT_COST}d.`, state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // DISMISS_SOLDIERS — Remove soldiers to save upkeep
+    // -----------------------------------------------------------------------
+    case "DISMISS_SOLDIERS": {
+      const { count } = action.payload ?? {};
+      if (state.phase !== "management") return state;
+      if (!count || count <= 0) return state;
+
+      const actual = Math.min(count, state.garrison);
+      if (actual <= 0) return state;
+
+      return {
+        ...state,
+        garrison: state.garrison - actual,
+        chronicle: addChronicle(state.chronicle, `Dismissed ${actual} ${actual === 1 ? "soldier" : "soldiers"}.`, state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // UPGRADE_CASTLE — Pay denarii + resources to upgrade castle level
+    // -----------------------------------------------------------------------
+    case "UPGRADE_CASTLE": {
+      if (state.phase !== "management") return state;
+      const castleLevels = state.difficulty === "easy" ? CASTLE_LEVELS_EASY : CASTLE_LEVELS;
+      const nextLevel = state.castleLevel + 1;
+      const nextCastle = castleLevels[nextLevel];
+      if (!nextCastle) return state;
+
+      if (state.denarii < nextCastle.cost) return state;
+      if ((state.inventory.stone || 0) < nextCastle.stone) return state;
+      if ((state.inventory.timber || 0) < nextCastle.timber) return state;
+      if ((state.inventory.iron || 0) < nextCastle.iron) return state;
+
+      const newInventory = {
+        ...state.inventory,
+        stone: (state.inventory.stone || 0) - nextCastle.stone,
+        timber: (state.inventory.timber || 0) - nextCastle.timber,
+        iron: (state.inventory.iron || 0) - nextCastle.iron,
+      };
+
+      return {
+        ...state,
+        denarii: state.denarii - nextCastle.cost,
+        castleLevel: nextLevel,
+        inventory: newInventory,
+        food: getTotalFood(newInventory),
+        chronicle: addChronicle(state.chronicle, `Upgraded castle to ${nextCastle.name} for ${nextCastle.cost}d.`, state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // INSTALL_DEFENSE — Buy and install a defense upgrade
+    // -----------------------------------------------------------------------
+    case "INSTALL_DEFENSE": {
+      const { upgradeId } = action.payload ?? {};
+      if (state.phase !== "management") return state;
+
+      const defenseTable = state.difficulty === "easy" ? DEFENSE_UPGRADES_EASY : DEFENSE_UPGRADES;
+      const upgrade = defenseTable[upgradeId];
+      if (!upgrade) return state;
+      if (state.defenseUpgrades.includes(upgradeId)) return state;
+
+      if (state.denarii < upgrade.cost) return state;
+      if ((state.inventory.stone || 0) < upgrade.stone) return state;
+      if ((state.inventory.iron || 0) < upgrade.iron) return state;
+      if ((state.inventory.timber || 0) < upgrade.timber) return state;
+
+      const newInventory = {
+        ...state.inventory,
+        stone: (state.inventory.stone || 0) - upgrade.stone,
+        iron: (state.inventory.iron || 0) - upgrade.iron,
+        timber: (state.inventory.timber || 0) - upgrade.timber,
+      };
+
+      return {
+        ...state,
+        denarii: state.denarii - upgrade.cost,
+        defenseUpgrades: [...state.defenseUpgrades, upgradeId],
+        inventory: newInventory,
+        food: getTotalFood(newInventory),
+        chronicle: addChronicle(state.chronicle, `Installed ${upgrade.name} for ${upgrade.cost}d.`, state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // DONATE_TO_CHURCH — Donate denarii for faith boost at season resolve
+    // -----------------------------------------------------------------------
+    case "DONATE_TO_CHURCH": {
+      const { amount } = action.payload ?? {};
+      if (state.phase !== "management") return state;
+      if (!amount || amount <= 0) return state;
+      if (state.denarii < amount) return state;
+
+      return {
+        ...state,
+        denarii: state.denarii - amount,
+        churchDonation: (state.churchDonation || 0) + amount,
+        chronicle: addChronicle(state.chronicle, `Donated ${amount}d to the Church.`, state.season, state.year, state.turn, "action"),
+      };
     }
 
     // -----------------------------------------------------------------------
@@ -478,7 +615,10 @@ export function gameReducer(state, action) {
         season,
         meters,
         activeMeterCount,
+        turn,
         difficulty: state.difficulty,
+        defenseUpgrades: state.defenseUpgrades,
+        churchDonation: state.churchDonation ?? 0,
       });
 
       // 2. Apply meter effects from economy
@@ -520,6 +660,7 @@ export function gameReducer(state, action) {
           gameOverReason: econGameOver,
           currentEvent: null,
           currentRandomEvent: null,
+          churchDonation: 0,
         };
       }
 
@@ -548,6 +689,7 @@ export function gameReducer(state, action) {
         currentEvent: seasonalEvent,
         usedSeasonalIds: nextUsedSeasonalIds,
         activeTab: "chronicle",
+        churchDonation: 0,
       };
     }
 

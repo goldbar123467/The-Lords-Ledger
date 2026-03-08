@@ -276,8 +276,28 @@ export function simulateEconomy(state) {
     meterEffects.people -= peopleDamage;
   }
 
-  // ----- 3. UPKEEP -----
-  const upkeep = runUpkeep(currentDenarii, buildings, garrison);
+  // ----- 2.5. GARRISON FOOD — soldiers eat too (skip before military tab unlocks at turn 6) -----
+  const militaryActive = (state.turn ?? 1) >= 6;
+  const garrisonFoodNeeded = militaryActive ? Math.ceil(garrison / 2) : 0;
+  if (garrisonFoodNeeded > 0) {
+    let garrisonRemaining = garrisonFoodNeeded;
+    for (const resource of FOOD_RESOURCES) {
+      if (garrisonRemaining <= 0) break;
+      const available = currentInventory[resource] || 0;
+      const eat = Math.min(available, garrisonRemaining);
+      currentInventory[resource] -= eat;
+      garrisonRemaining -= eat;
+    }
+    if (garrisonRemaining > 0) {
+      report.push(`Your ${garrison} soldiers needed ${garrisonFoodNeeded} food but supplies ran short.`);
+      meterEffects.military -= Math.round(2 * penaltyScale);
+    } else {
+      report.push(`Your garrison consumed ${garrisonFoodNeeded} food.`);
+    }
+  }
+
+  // ----- 3. UPKEEP (garrison upkeep waived before military tab unlocks) -----
+  const upkeep = runUpkeep(currentDenarii, buildings, militaryActive ? garrison : 0);
   currentDenarii = upkeep.denarii;
   report.push(...upkeep.report);
 
@@ -321,29 +341,30 @@ export function simulateEconomy(state) {
     meterEffects[m] += d;
   }
 
-  // ----- 6. METER ADJUSTMENTS -----
-  // Treasury meter reflects financial health
-  const netIncome = (taxIncome + passiveIncome) - getTotalUpkeep(buildings, garrison);
+  // ----- 6. METER ADJUSTMENTS (economy-driven, no arbitrary decay) -----
+  // Building meterBonus already applied in production section above.
+  // Each meter is now driven by the actual economic state.
+
+  // --- TREASURY: financial health ---
+  meterEffects.treasury += 1; // Baseline: rents and tolls
+  // Population economic activity — more families = more market trade
+  meterEffects.treasury += Math.min(2, Math.floor(currentPopulation / 10));
+  const netIncome = (taxIncome + passiveIncome + synergyIncome) - getTotalUpkeep(buildings, garrison);
   if (netIncome > 0) {
-    meterEffects.treasury += Math.min(5, Math.ceil(netIncome / 20));
+    meterEffects.treasury += Math.min(3, Math.ceil(netIncome / 15));
   } else if (netIncome < 0) {
-    meterEffects.treasury -= Math.min(5, Math.ceil(Math.abs(netIncome) / 20));
+    meterEffects.treasury -= Math.min(3, Math.ceil(Math.abs(netIncome) / 15));
   }
-
-  // If denarii hits 0, Treasury meter drops hard
   if (currentDenarii <= 0) {
-    meterEffects.treasury -= Math.round(15 * penaltyScale);
+    meterEffects.treasury -= Math.round(10 * penaltyScale);
+  } else if (currentDenarii < 100) {
+    meterEffects.treasury -= 2;
+  } else if (currentDenarii > 500) {
+    meterEffects.treasury += 2;
   }
 
-  // Baseline: estate collects some rents (replaces old +3 treasury passive)
-  meterEffects.treasury += 2;
-
-  // People: natural maintenance cost (complaints, disputes, wear on goodwill)
-  // Without active management, People meter drifts down over time
-  meterEffects.people -= Math.round(2 * penaltyScale);
-
-  // Food surplus boosts People, deficit hurts them
-  // Need genuine surplus (double the consumption) for a People boost
+  // --- PEOPLE: food, ale, starvation ---
+  meterEffects.people -= 1; // Complaints, disputes, natural wear on goodwill
   const totalFoodInInventory = getTotalFood(currentInventory);
   if (totalFoodInInventory > currentPopulation * 2) {
     meterEffects.people += 2;
@@ -353,19 +374,50 @@ export function simulateEconomy(state) {
   if (totalFoodInInventory === 0 && consumption.shortfall > 0) {
     meterEffects.people -= Math.round(3 * penaltyScale);
   }
+  // Ale boosts morale
+  if ((currentInventory.ale || 0) >= 3) {
+    meterEffects.people += 1;
+  }
+  // Salt preserves food and improves meals — people notice (consumed each season)
+  if ((currentInventory.salt || 0) > 0) {
+    meterEffects.people += 1;
+    currentInventory.salt -= 1;
+  }
+  // Tools improve building efficiency — treasury benefits (consumed each season)
+  if ((currentInventory.tools || 0) > 0) {
+    meterEffects.treasury += 1;
+    currentInventory.tools -= 1;
+  }
 
-  // Faith meter: the Church expects ongoing tithes and investment
-  meterEffects.faith -= Math.round(2 * penaltyScale);
-
-  // Military meter: soldiers need pay, walls need repair, readiness decays
-  meterEffects.military -= Math.round(2 * penaltyScale);
-
-  // Military meter: garrison presence offsets some decay
-  if (garrison > 0) {
+  // --- MILITARY: garrison, castle, defenses ---
+  meterEffects.military -= 2; // Readiness degrades: walls need repair, morale fades
+  if (garrison === 0) {
+    meterEffects.military -= Math.round(3 * penaltyScale);
+  } else if (garrison < 5) {
+    meterEffects.military -= 1;
+  } else {
     meterEffects.military += 1;
   }
-  if (garrison === 0) {
-    meterEffects.military -= Math.round(2 * penaltyScale);
+  // Castle and defenses provide modest stability
+  if (castleLevel > 1) {
+    meterEffects.military += 1;
+  }
+  const defenseCount = (state.defenseUpgrades ?? []).length;
+  if (defenseCount >= 2) {
+    meterEffects.military += 1;
+  }
+
+  // --- FAITH: donations, spices, ongoing expectations ---
+  meterEffects.faith -= 2; // The Church always demands tithes and devotion
+  // Church donations boost faith
+  const churchDonation = state.churchDonation ?? 0;
+  if (churchDonation > 0) {
+    meterEffects.faith += Math.min(8, Math.floor(churchDonation / 20));
+  }
+  // Spices used in church ceremonies (consumed each season)
+  if ((currentInventory.spices || 0) > 0) {
+    meterEffects.faith += 1;
+    currentInventory.spices -= 1;
   }
 
   // Population growth/decline
@@ -373,7 +425,7 @@ export function simulateEconomy(state) {
   const foodSurplus = totalFoodInInventory > currentPopulation;
   const peopleMeterValue = meters.people + meterEffects.people;
 
-  if (foodSurplus && peopleMeterValue > 40 && Math.random() < 0.3) {
+  if (foodSurplus && peopleMeterValue > 40 && Math.random() < 0.5) {
     populationChange = Math.random() < 0.5 ? 1 : 2;
   }
   // Synergy: Breadbasket bonus — extra chance for +1 population
@@ -386,10 +438,7 @@ export function simulateEconomy(state) {
     populationChange = -(Math.random() < 0.5 ? 1 : 2);
   }
 
-  // Only grow in spring/summer (seasonal realism)
-  if (populationChange > 0 && (season === "autumn" || season === "winter")) {
-    populationChange = 0;
-  }
+
 
   currentPopulation = Math.max(5, currentPopulation + populationChange);
   if (populationChange > 0) {

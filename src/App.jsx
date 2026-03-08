@@ -20,6 +20,7 @@ import GameOverScreen from "./components/GameOverScreen";
 import VictoryScreen from "./components/VictoryScreen";
 import FlipScreen from "./components/FlipScreen";
 import SynergyToast from "./components/SynergyToast";
+import TutorialHint from "./components/TutorialHint";
 
 const seasonalEvents = Object.values(seasonalEventsData).flat();
 const randomEvents = randomEventsData;
@@ -111,6 +112,26 @@ export default function App() {
 
   function handleSetTaxRate(rate) {
     dispatch({ type: "SET_TAX_RATE", payload: { rate } });
+  }
+
+  function handleRecruit(count) {
+    dispatch({ type: "RECRUIT_SOLDIERS", payload: { count } });
+  }
+
+  function handleDismiss(count) {
+    dispatch({ type: "DISMISS_SOLDIERS", payload: { count } });
+  }
+
+  function handleUpgradeCastle() {
+    dispatch({ type: "UPGRADE_CASTLE" });
+  }
+
+  function handleInstallDefense(upgradeId) {
+    dispatch({ type: "INSTALL_DEFENSE", payload: { upgradeId } });
+  }
+
+  function handleDonate(amount) {
+    dispatch({ type: "DONATE_TO_CHURCH", payload: { amount } });
   }
 
   // --- Flip handlers ---
@@ -228,6 +249,7 @@ export default function App() {
           denarii={denarii}
           food={food}
           population={population}
+          garrison={state.garrison}
           season={season}
           year={year}
           turn={turn}
@@ -266,6 +288,11 @@ export default function App() {
           />
         )}
 
+        {/* Tutorial hints for the active tab */}
+        {!isFlipPhase && isManagement && (
+          <TutorialHint tab={displayTab} turn={turn} />
+        )}
+
         {/* --- ESTATE TAB --- */}
         {!isFlipPhase && displayTab === "estate" && isManagement && (
           <EstateTab
@@ -287,7 +314,13 @@ export default function App() {
 
         {/* --- MILITARY TAB --- */}
         {!isFlipPhase && displayTab === "military" && isManagement && (
-          <MilitaryTab state={state} />
+          <MilitaryTab
+            state={state}
+            onRecruit={handleRecruit}
+            onDismiss={handleDismiss}
+            onUpgradeCastle={handleUpgradeCastle}
+            onInstallDefense={handleInstallDefense}
+          />
         )}
 
         {/* --- PEOPLE TAB --- */}
@@ -295,6 +328,7 @@ export default function App() {
           <PeopleTab
             state={state}
             onSetTaxRate={handleSetTaxRate}
+            onDonate={handleDonate}
           />
         )}
 

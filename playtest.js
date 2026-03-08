@@ -19,7 +19,7 @@ import seasonalEventsData from "./src/data/seasonalEvents.js";
 import randomEventsData from "./src/data/randomEvents.js";
 import { PERSPECTIVE_FLIPS } from "./src/data/perspectiveFlips.js";
 import BUILDINGS from "./src/data/buildings.js";
-import { FOOD_RESOURCES } from "./src/data/economy.js";
+import { FOOD_RESOURCES, DEFENSE_UPGRADES } from "./src/data/economy.js";
 
 // ---------------------------------------------------------------------------
 // Flatten seasonal events (same as App.jsx)
@@ -57,6 +57,9 @@ const STRATEGIES = {
     taxRate: "high",
     trades: false,
     optionPick: "first",
+    recruit: true,
+    upgradeCastle: true,
+    installDefenses: true,
   },
   pious: {
     builds: ["herb_garden", "strip_farm", "fishpond", "apiary"],
@@ -64,6 +67,7 @@ const STRATEGIES = {
     trades: true,
     buySpices: true,
     optionPick: "first",
+    donate: true,
   },
   random: {
     builds: "random",
@@ -213,6 +217,37 @@ function doManagementActions(state, strategy, buildQueue) {
       const res = buyable[Math.floor(Math.random() * buyable.length)];
       state = dispatch(state, { type: "BUY_RESOURCE", payload: { resource: res, quantity: Math.ceil(Math.random() * 3) } });
     }
+  }
+
+  // 4. Recruit soldiers
+  if (strategy.recruit && state.denarii >= 10) {
+    state = dispatch(state, { type: "RECRUIT_SOLDIERS", payload: { count: 2 } });
+  }
+  if (strategy.builds === "random" && Math.random() > 0.7 && state.denarii >= 10) {
+    state = dispatch(state, { type: "RECRUIT_SOLDIERS", payload: { count: Math.ceil(Math.random() * 3) } });
+  }
+
+  // 5. Upgrade castle
+  if (strategy.upgradeCastle) {
+    state = dispatch(state, { type: "UPGRADE_CASTLE" });
+  }
+
+  // 6. Install defense upgrades
+  if (strategy.installDefenses) {
+    for (const upg of Object.values(DEFENSE_UPGRADES)) {
+      if (!state.defenseUpgrades.includes(upg.id)) {
+        state = dispatch(state, { type: "INSTALL_DEFENSE", payload: { upgradeId: upg.id } });
+        break; // One per turn
+      }
+    }
+  }
+
+  // 7. Donate to church
+  if (strategy.donate && state.denarii >= 75) {
+    state = dispatch(state, { type: "DONATE_TO_CHURCH", payload: { amount: 75 } });
+  }
+  if (strategy.builds === "random" && Math.random() > 0.8 && state.denarii >= 25) {
+    state = dispatch(state, { type: "DONATE_TO_CHURCH", payload: { amount: 25 } });
   }
 
   return state;

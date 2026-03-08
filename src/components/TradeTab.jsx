@@ -90,6 +90,12 @@ function SellPanel({ inventory, marketPrices, onSell }) {
   );
 }
 
+const BUYABLE_HINTS = {
+  salt: "Preserves food \u2014 boosts People each season (consumed on use)",
+  tools: "Improves efficiency \u2014 boosts Treasury each season (consumed on use)",
+  spices: "Church ceremonies \u2014 boosts Faith each season (consumed on use)",
+};
+
 function BuyPanel({ denarii, marketPrices, onBuy }) {
   const buyableResources = Object.entries(marketPrices.buy || {}).filter(([, price]) => price > 0);
 
@@ -117,6 +123,11 @@ function BuyPanel({ denarii, marketPrices, onBuy }) {
                 <span className="text-base font-semibold" style={{ color: "#2c1810" }}>
                   {cfg?.label || resource}
                 </span>
+                {BUYABLE_HINTS[resource] && (
+                  <div className="text-xs" style={{ color: "#8b6914" }}>
+                    {BUYABLE_HINTS[resource]}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold" style={{ color: "#8b1a1a" }}>

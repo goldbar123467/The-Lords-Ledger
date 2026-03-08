@@ -14,6 +14,25 @@ const METER_CONFIG = {
   faith:    { label: "Faith",    icon: "\u26EA",  color: "#4a1a6b", lightColor: "#6b3fa0" },
 };
 
+const METER_WARNINGS = {
+  treasury: {
+    low: "Sell goods on the Trade tab or build resource-producing buildings.",
+    high: "Spend your denarii \u2014 donate to the church, buy goods, or recruit soldiers.",
+  },
+  people: {
+    low: "Lower taxes on the People tab and keep your food supply high.",
+    high: "Raise taxes on the People tab \u2014 high or crushing tax lowers satisfaction.",
+  },
+  military: {
+    low: "Recruit soldiers on the Military tab and keep your garrison fed.",
+    high: "Dismiss soldiers on the Military tab to let readiness decay.",
+  },
+  faith: {
+    low: "Donate to the church on the People tab and buy spices for ceremonies.",
+    high: "Stop church donations and let it settle \u2014 faith decays each season.",
+  },
+};
+
 function DeltaArrow({ delta }) {
   if (delta === 0) return null;
   const isUp = delta > 0;
@@ -126,6 +145,53 @@ function FlipStatBar({ flipStats }) {
   );
 }
 
+function MeterWarningBanner({ meters, activeMeterCount }) {
+  const meterNames = ["treasury", "people", "military", "faith"];
+  const warnings = [];
+
+  meterNames.forEach((name, i) => {
+    if (i >= activeMeterCount) return;
+    const value = meters[name];
+    const status = getMeterStatus(value);
+    if (status === "critical") {
+      warnings.push({
+        key: name,
+        label: METER_CONFIG[name].label,
+        direction: "low",
+        limit: 0,
+        advice: METER_WARNINGS[name].low,
+      });
+    } else if (status === "danger") {
+      warnings.push({
+        key: name,
+        label: METER_CONFIG[name].label,
+        direction: "high",
+        limit: 100,
+        advice: METER_WARNINGS[name].high,
+      });
+    }
+  });
+
+  if (warnings.length === 0) return null;
+
+  return (
+    <div
+      className="px-3 py-1.5 flex flex-col gap-1 border-t"
+      style={{ backgroundColor: "#f5d0d0", borderColor: "#c0392b" }}
+    >
+      {warnings.map((w) => (
+        <p
+          key={w.key}
+          className="text-xs sm:text-sm font-bold text-center"
+          style={{ color: "#8b1a1a" }}
+        >
+          ⚠️ {w.label} is dangerously {w.direction}! If it reaches {w.limit}, you lose! {w.advice}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function EconStat({ icon, label, value, warning }) {
   return (
     <div className="flex items-center gap-1.5">
@@ -150,6 +216,7 @@ export default function Dashboard({
   denarii,
   food,
   population,
+  garrison,
   season,
   year,
   turn,
@@ -189,6 +256,11 @@ export default function Dashboard({
         </div>
       )}
 
+      {/* Warning banners for meters at extremes */}
+      {!flipMode && (
+        <MeterWarningBanner meters={meters} activeMeterCount={activeMeterCount} />
+      )}
+
       {/* Row 2: Economy stats (hidden during flip) */}
       {!flipMode && (
         <div
@@ -198,6 +270,7 @@ export default function Dashboard({
           <EconStat icon={"\u{1FA99}"} label="Denarii" value={`${denarii}d`} warning={denarii <= 0} />
           <EconStat icon={"\u{1F35E}"} label="Food" value={food} warning={food <= 0} />
           <EconStat icon={"\u{1F3E0}"} label="Families" value={population} />
+          {garrison > 0 && <EconStat icon={"\u2694\uFE0F"} label="Garrison" value={garrison} />}
           <EconStat
             icon={SEASON_ICONS[season] || ""}
             label="Season"

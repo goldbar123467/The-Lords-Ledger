@@ -40,6 +40,28 @@ export default function TitleScreen({ onStart }) {
         <p className="text-sm mb-4" style={{ color: "#8b6914" }}>
           Every choice has consequences. There are no right answers — only trade-offs.
         </p>
+
+        {/* How to Play */}
+        <div
+          className="rounded-md border p-4 mb-5 text-left"
+          style={{ borderColor: "#c4a45a", backgroundColor: "#f4e4c1" }}
+        >
+          <h3
+            className="font-heading text-sm font-bold uppercase tracking-wider mb-2 text-center"
+            style={{ color: "#5a3a28" }}
+          >
+            {"\u{1F4DC}"} How to Play
+          </h3>
+          <ul className="text-sm space-y-1.5 list-none" style={{ color: "#3d2517" }}>
+            <li><strong>Goal:</strong> Survive 28 turns (7 years). Keep all four meters between 1 and 99 — if any hits 0 or 100, you lose.</li>
+            <li><strong>{"\u{1FA99}"} Treasury:</strong> Earn money by building, trading, and collecting taxes. Pay for buildings, soldiers, and upgrades.</li>
+            <li><strong>{"\u{1F33E}"} People:</strong> Keep your families fed and happy. Build farms, set fair taxes, and buy salt and ale.</li>
+            <li><strong>{"\u2694\uFE0F"} Military:</strong> Recruit soldiers and upgrade your castle to defend the realm. Unlocks on Turn 3.</li>
+            <li><strong>{"\u26EA"} Faith:</strong> Donate to the Church and buy spices for ceremonies. Unlocks on Turn 5.</li>
+            <li><strong>Each turn:</strong> Build, trade, and manage your estate, then click <em>Simulate Season</em> to advance. Events will challenge you — choose wisely!</li>
+          </ul>
+        </div>
+
         <p
           className="text-sm font-heading font-semibold uppercase tracking-wider mb-3"
           style={{ color: "#5a3a28" }}
