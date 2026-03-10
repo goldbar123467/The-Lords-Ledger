@@ -196,6 +196,36 @@ export default function App() {
   const [tavernOpen, setTavernOpen] = useState(false);
   const [watchtowerOpen, setWatchtowerOpen] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
+  const [saveFlash, setSaveFlash] = useState(null); // "saved" | "loaded" | "error"
+
+  const SAVE_KEY = "lords-ledger-save";
+
+  function handleSaveGame() {
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+      setSaveFlash("saved");
+      setTimeout(() => setSaveFlash(null), 1500);
+    } catch {
+      setSaveFlash("error");
+      setTimeout(() => setSaveFlash(null), 2000);
+    }
+  }
+
+  function handleLoadGame() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) { setSaveFlash("error"); setTimeout(() => setSaveFlash(null), 2000); return; }
+      const savedState = JSON.parse(raw);
+      dispatch({ type: "LOAD_SAVE", payload: { savedState } });
+      setSaveFlash("loaded");
+      setTimeout(() => setSaveFlash(null), 1500);
+    } catch {
+      setSaveFlash("error");
+      setTimeout(() => setSaveFlash(null), 2000);
+    }
+  }
+
+  const hasSavedGame = (() => { try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; } })();
 
   const handleSimulateSeason = useCallback(() => {
     if (isResolving) return;
@@ -255,32 +285,52 @@ export default function App() {
   if (phase === "title") {
     return (
       <div style={{ position: "relative" }}>
-        <button
-          onClick={toggleMute}
-          title={muted ? "Unmute music" : "Mute music"}
-          aria-label={muted ? "Unmute music" : "Mute music"}
-          style={{
-            position: "absolute",
-            top: "12px",
-            right: "12px",
-            zIndex: 50,
-            width: "36px",
-            height: "36px",
-            borderRadius: "50%",
-            border: "1.5px solid #6a5a42",
-            background: muted ? "#1a1610" : "rgba(196, 162, 74, 0.15)",
-            color: muted ? "#6a5a42" : "#c4a24a",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "16px",
-            lineHeight: 1,
-            transition: "all 0.2s",
-          }}
-        >
-          {muted ? "\u266A" : "\u266B"}
-        </button>
+        <div style={{
+          position: "absolute", top: "12px", right: "12px", zIndex: 50,
+          display: "flex", gap: "6px", alignItems: "center",
+        }}>
+          {hasSavedGame && (
+            <button
+              onClick={handleLoadGame}
+              title="Load saved game"
+              aria-label="Load saved game"
+              style={{
+                width: "36px", height: "36px", borderRadius: "50%",
+                border: "1.5px solid #6a5a42", background: "#1a1610",
+                color: "#c4a24a", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: "16px", lineHeight: 1, transition: "all 0.2s",
+              }}
+            >
+              {"\u2191"}
+            </button>
+          )}
+          <button
+            onClick={toggleMute}
+            title={muted ? "Unmute music" : "Mute music"}
+            aria-label={muted ? "Unmute music" : "Mute music"}
+            style={{
+              width: "36px", height: "36px", borderRadius: "50%",
+              border: "1.5px solid #6a5a42",
+              background: muted ? "#1a1610" : "rgba(196, 162, 74, 0.15)",
+              color: muted ? "#6a5a42" : "#c4a24a",
+              cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "16px", lineHeight: 1, transition: "all 0.2s",
+            }}
+          >
+            {muted ? "\u266A" : "\u266B"}
+          </button>
+        </div>
+        {saveFlash && (
+          <div style={{
+            position: "absolute", top: "56px", right: "12px", zIndex: 50,
+            fontSize: "11px", fontFamily: "Cinzel, serif",
+            color: saveFlash === "error" ? "#c62828" : "#8dba6e",
+          }}>
+            {saveFlash === "loaded" ? "Game Loaded!" : "Error"}
+          </div>
+        )}
         <TitleScreen onStart={handleStart} />
       </div>
     );
@@ -338,33 +388,70 @@ export default function App() {
 
       {/* Sticky header: Dashboard + TabBar */}
       <div className="sticky top-0 z-40">
-        {/* Music toggle */}
-        <button
-          onClick={toggleMute}
-          title={muted ? "Unmute music" : "Mute music"}
-          aria-label={muted ? "Unmute music" : "Mute music"}
-          style={{
-            position: "absolute",
-            top: "8px",
-            right: "8px",
-            zIndex: 50,
-            width: "32px",
-            height: "32px",
-            borderRadius: "50%",
-            border: "1.5px solid #6a5a42",
-            background: muted ? "#1a1610" : "rgba(196, 162, 74, 0.15)",
-            color: muted ? "#6a5a42" : "#c4a24a",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "14px",
-            lineHeight: 1,
-            transition: "all 0.2s",
-          }}
-        >
-          {muted ? "\u266A" : "\u266B"}
-        </button>
+        {/* Save / Load / Music controls */}
+        <div style={{
+          position: "absolute", top: "6px", right: "8px", zIndex: 50,
+          display: "flex", gap: "4px", alignItems: "center",
+        }}>
+          {saveFlash && (
+            <span style={{
+              fontSize: "10px",
+              fontFamily: "Cinzel, serif",
+              color: saveFlash === "error" ? "#c62828" : "#8dba6e",
+              marginRight: "2px",
+              animation: "tab-fade-in 0.2s",
+            }}>
+              {saveFlash === "saved" ? "Saved!" : saveFlash === "loaded" ? "Loaded!" : "Error"}
+            </span>
+          )}
+          <button
+            onClick={handleSaveGame}
+            title="Save game"
+            aria-label="Save game"
+            style={{
+              width: "28px", height: "28px", borderRadius: "50%",
+              border: "1.5px solid #6a5a42", background: "#1a1610",
+              color: "#c4a24a", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "13px", lineHeight: 1, transition: "all 0.2s",
+            }}
+          >
+            {"\u2193"}
+          </button>
+          <button
+            onClick={handleLoadGame}
+            title={hasSavedGame ? "Load saved game" : "No save found"}
+            aria-label="Load saved game"
+            style={{
+              width: "28px", height: "28px", borderRadius: "50%",
+              border: "1.5px solid #6a5a42",
+              background: hasSavedGame ? "#1a1610" : "#0f0d0a",
+              color: hasSavedGame ? "#c4a24a" : "#4a3a22",
+              cursor: hasSavedGame ? "pointer" : "not-allowed",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "13px", lineHeight: 1, transition: "all 0.2s",
+              opacity: hasSavedGame ? 1 : 0.5,
+            }}
+          >
+            {"\u2191"}
+          </button>
+          <button
+            onClick={toggleMute}
+            title={muted ? "Unmute music" : "Mute music"}
+            aria-label={muted ? "Unmute music" : "Mute music"}
+            style={{
+              width: "28px", height: "28px", borderRadius: "50%",
+              border: "1.5px solid #6a5a42",
+              background: muted ? "#1a1610" : "rgba(196, 162, 74, 0.15)",
+              color: muted ? "#6a5a42" : "#c4a24a",
+              cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "13px", lineHeight: 1, transition: "all 0.2s",
+            }}
+          >
+            {muted ? "\u266A" : "\u266B"}
+          </button>
+        </div>
         <Dashboard
           denarii={denarii}
           food={food}
