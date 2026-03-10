@@ -2413,17 +2413,34 @@ export default function BlacksmithTab({ state, dispatch }) {
     dispatch({ type: "BLACKSMITH_ADVANCE_WAT" });
   }, [dispatch]);
 
+  const handleDismissSupplyEvent = useCallback(() => {
+    dispatch({ type: "BLACKSMITH_DISMISS_SUPPLY_EVENT" });
+  }, [dispatch]);
+
+  const handleInvestIronVein = useCallback(() => {
+    dispatch({ type: "BLACKSMITH_INVEST_IRON_VEIN" });
+  }, [dispatch]);
+
   // Derived values
   const bs = state.blacksmith || {};
-  const forgeResources = bs.resources || {
-    iron: 20, steel: 5, coal: 50, leather: 10, wood: 15,
-  };
+  const inv = state.inventory || {};
+  const forgeResources = useMemo(() => ({
+    iron: inv.iron ?? 0,
+    steel: inv.steel ?? 0,
+    coal: inv.coal ?? 0,
+    leather: inv.leather ?? 0,
+    wood: inv.wood ?? 0,
+  }), [inv.iron, inv.steel, inv.coal, inv.leather, inv.wood]);
   const inventory = bs.inventory || [];
   const equipped = useMemo(() => bs.equipped || [], [bs.equipped]);
   const garrison = state.garrison || 0;
   const maxGarrison = 25;
   const isLit = forgeState.temperature !== "cold";
   const godricRec = useMemo(() => getGodricRecommendation(state), [state]);
+  const season = state.season || "spring";
+  const buyers = useMemo(() => getAvailableBuyers(season, state), [season, state]);
+  const supplyEvent = bs.activeSupplyEvent;
+  const forgingDisabled = supplyEvent?.effect === "forging_disabled" && (bs.supplyEventTurnsLeft || 0) > 0;
 
   // NPC derived state
   const respect = bs.godricRespect ?? 50;
@@ -2533,6 +2550,16 @@ export default function BlacksmithTab({ state, dispatch }) {
 
       {/* ═══ Content Area ═══ */}
       <div style={{ padding: "8px 16px" }}>
+        {/* Supply event banner (shows on all views) */}
+        {supplyEvent && (
+          <SupplyEventBanner
+            event={supplyEvent}
+            onDismiss={handleDismissSupplyEvent}
+            onInvest={handleInvestIronVein}
+            denarii={state.denarii || 0}
+          />
+        )}
+
         {currentView === "workshop" && (
           <Workshop
             forgeState={forgeState}
@@ -2551,12 +2578,27 @@ export default function BlacksmithTab({ state, dispatch }) {
         )}
 
         {currentView === "forging" && (
-          <ForgingGame
-            resources={forgeResources}
-            onComplete={handleForgingComplete}
-            onCancel={handleForgingCancel}
-            commissionItem={commissionItem}
-          />
+          forgingDisabled ? (
+            <div className="text-center" style={{ padding: "40px 0" }}>
+              <AlertTriangle size={32} style={{ color: FORGE_COLORS.emberDim, margin: "0 auto 12px" }} />
+              <h3 style={{ fontFamily: "Cinzel, serif", fontSize: "0.9rem", color: FORGE_COLORS.emberCore, marginBottom: 8 }}>
+                Forge Offline
+              </h3>
+              <p style={{ fontFamily: "Almendra, Crimson Text, serif", fontStyle: "italic", fontSize: "0.85rem", color: "#c8b090" }}>
+                &ldquo;{supplyEvent?.godricComment || "The bellows need repair."}&rdquo;
+              </p>
+              <p style={{ fontFamily: "Cinzel, serif", fontSize: "0.6rem", color: "#5a5550", marginTop: 8 }}>
+                Forging resumes in {bs.supplyEventTurnsLeft || 1} season{(bs.supplyEventTurnsLeft || 1) > 1 ? "s" : ""}.
+              </p>
+            </div>
+          ) : (
+            <ForgingGame
+              resources={forgeResources}
+              onComplete={handleForgingComplete}
+              onCancel={handleForgingCancel}
+              commissionItem={commissionItem}
+            />
+          )
         )}
 
         {currentView === "forge_result" && forgeResult && (
@@ -2568,21 +2610,38 @@ export default function BlacksmithTab({ state, dispatch }) {
         )}
 
         {currentView === "orders" && (
-          <CommissionDesk
-            resources={forgeResources}
-            denarii={state.denarii || 0}
-            onCommission={handleCommission}
-            godricRec={godricRec}
-          />
+          forgingDisabled ? (
+            <div className="text-center" style={{ padding: "40px 0" }}>
+              <AlertTriangle size={24} style={{ color: FORGE_COLORS.emberDim, margin: "0 auto 8px" }} />
+              <p style={{ fontFamily: "Cinzel, serif", fontSize: "0.75rem", color: FORGE_COLORS.emberCore }}>
+                Forge offline — no commissions until repairs are complete.
+              </p>
+            </div>
+          ) : (
+            <CommissionDesk
+              resources={forgeResources}
+              denarii={state.denarii || 0}
+              onCommission={handleCommission}
+              godricRec={godricRec}
+            />
+          )
         )}
 
         {currentView === "armory" && (
-          <ArmoryView
-            inventory={inventory}
-            equipped={equipped}
-            dispatch={dispatch}
-            garrison={garrison}
-          />
+          <>
+            <ArmoryView
+              inventory={inventory}
+              equipped={equipped}
+              dispatch={dispatch}
+              garrison={garrison}
+            />
+            <BuyerPanel
+              buyers={buyers}
+              inventory={inventory}
+              dispatch={dispatch}
+              salesThisSeason={bs.salesThisSeason || 0}
+            />
+          </>
         )}
 
         {currentView === "storefront" && (
@@ -2591,7 +2650,14 @@ export default function BlacksmithTab({ state, dispatch }) {
             denarii={state.denarii || 0}
             marketPrices={bs.marketPrices}
             dispatch={dispatch}
-            season={state.season || "spring"}
+            season={season}
+          />
+        )}
+
+        {currentView === "ledger" && (
+          <ForgeLedger
+            blacksmith={bs}
+            garrison={garrison}
           />
         )}
       </div>

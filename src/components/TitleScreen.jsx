@@ -38,7 +38,7 @@ export default function TitleScreen({ onStart }) {
         </div>
         <p className="text-base leading-relaxed mb-6" style={{ color: "#a89070" }}>
           The old lord has passed, and the estate is now yours. Manage your treasury,
-          keep your people fed, defend your borders, and honor the Church — for seven
+          keep your people fed, defend your borders, and honor the Church — for ten
           years, through spring planting and winter storms, through raids and feasts
           and the quiet decisions that shape a reign.
         </p>
