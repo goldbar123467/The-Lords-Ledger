@@ -197,7 +197,7 @@ export const DONATION_TIERS = [
 // ---------------------------------------------------------------------------
 
 /** Starting number of land plots */
-export const STARTING_TOTAL_PLOTS = 16;
+export const STARTING_TOTAL_PLOTS = 24;
 
 // ---------------------------------------------------------------------------
 // SEASONAL MODIFIERS
