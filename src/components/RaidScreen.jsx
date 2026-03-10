@@ -279,7 +279,7 @@ export default function RaidScreen({ raidState, garrison, military, onDefend, on
       if (result.denariiDelta > 0) lines.push(`+${result.denariiDelta}d recovered`);
       if (result.foodDelta > 0) lines.push(`+${result.foodDelta} food captured`);
       if (result.populationDelta > 0) lines.push(`+${result.populationDelta} families inspired`);
-      if (result.garrisonDelta > 0) lines.push(`+${result.garrisonDelta} garrison morale`);
+      if (result.garrisonDelta > 0) lines.push(`+${result.garrisonDelta} soldiers recruited`);
     } else {
       if (result.denariiDelta < 0) lines.push(`${result.denariiDelta}d stolen`);
       if (result.foodDelta < 0) lines.push(`${result.foodDelta} food pillaged`);

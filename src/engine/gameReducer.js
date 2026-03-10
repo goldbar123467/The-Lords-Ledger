@@ -404,6 +404,23 @@ function applyChoice(state, event, optionIndex, chronicleType) {
   const summary = buildCauseChainSummary(event, optionIndex);
   const newCauseChain = addCauseChain(causeChain, turn, season, year, summary);
 
+  // Reconcile typed garrison with flat garrison changes from events
+  const garrisonDelta = applied.garrison - state.garrison;
+  let updatedMilitary = state.military;
+  if (garrisonDelta !== 0 && updatedMilitary) {
+    const milGarrison = { ...updatedMilitary.garrison };
+    if (garrisonDelta > 0) {
+      // Event adds soldiers — add as levy
+      milGarrison.levy = (milGarrison.levy || 0) + garrisonDelta;
+    } else {
+      // Event removes soldiers — remove weakest first
+      updatedMilitary = { ...updatedMilitary, garrison: removeFromGarrison(milGarrison, Math.abs(garrisonDelta)) };
+    }
+    if (garrisonDelta > 0) {
+      updatedMilitary = { ...updatedMilitary, garrison: milGarrison };
+    }
+  }
+
   const newState = {
     ...state,
     denarii: applied.denarii,
@@ -411,6 +428,7 @@ function applyChoice(state, event, optionIndex, chronicleType) {
     garrison: applied.garrison,
     inventory: applied.inventory,
     food: applied.food,
+    military: updatedMilitary,
   };
   const gameOverReason = checkGameOver(newState);
 
@@ -427,6 +445,7 @@ function applyChoice(state, event, optionIndex, chronicleType) {
     garrison: applied.garrison,
     inventory: applied.inventory,
     food: applied.food,
+    military: updatedMilitary,
     resourceDeltas,
     chronicle: newChronicle,
     causeChain: newCauseChain,
@@ -2128,6 +2147,19 @@ export function gameReducer(state, action) {
       const resourceEffects = translateEffects(consequences);
       const applied = applyResourceEffects(state, resourceEffects, MAX_GARRISON);
 
+      // Reconcile typed garrison
+      const flipGarrisonDelta = applied.garrison - state.garrison;
+      let flipMilitary = state.military;
+      if (flipGarrisonDelta !== 0 && flipMilitary) {
+        const mg = { ...flipMilitary.garrison };
+        if (flipGarrisonDelta > 0) {
+          mg.levy = (mg.levy || 0) + flipGarrisonDelta;
+          flipMilitary = { ...flipMilitary, garrison: mg };
+        } else {
+          flipMilitary = { ...flipMilitary, garrison: removeFromGarrison(mg, Math.abs(flipGarrisonDelta)) };
+        }
+      }
+
       const newState = {
         ...state,
         denarii: applied.denarii,
@@ -2135,6 +2167,7 @@ export function gameReducer(state, action) {
         garrison: applied.garrison,
         inventory: applied.inventory,
         food: applied.food,
+        military: flipMilitary,
       };
       const gameOverReason = checkGameOver(newState);
 
