@@ -89,7 +89,7 @@ export const MOAT_TRACK = [
 export const MORALE_LEVELS = [
   { min: 0, max: 20, label: "Mutinous", modifier: -0.30, desertionChance: 0.10, color: "#c62828" },
   { min: 21, max: 40, label: "Disgruntled", modifier: -0.15, desertionChance: 0, color: "#d48a2a" },
-  { min: 41, max: 60, label: "Adequate", modifier: 0, desertionChance: 0, color: "#6a5a42" },
+  { min: 41, max: 60, label: "Adequate", modifier: 0, desertionChance: 0, color: "#a8a8b0" },
   { min: 61, max: 80, label: "Good", modifier: 0.10, desertionChance: 0, color: "#4a8a3a" },
   { min: 81, max: 100, label: "Fierce", modifier: 0.25, desertionChance: 0, color: "#c4a24a" },
 ];
