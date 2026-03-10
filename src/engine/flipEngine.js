@@ -7,6 +7,7 @@
 
 import { PERSPECTIVE_FLIPS } from "../data/perspectiveFlips.js";
 import { CYOA_FLIPS } from "../data/cyoaFlips.js";
+import { getBuildingType } from "./economyEngine.js";
 
 export const ALL_FLIPS = { ...PERSPECTIVE_FLIPS, ...CYOA_FLIPS };
 
@@ -57,8 +58,8 @@ export function checkFlipTriggers(state) {
 
       case "merchant_day":
         if (
-          buildings.includes("brewery") ||
-          buildings.includes("fulling_mill") ||
+          buildings.some((b) => getBuildingType(b) === "brewery") ||
+          buildings.some((b) => getBuildingType(b) === "fulling_mill") ||
           tradeCount >= 5
         ) {
           return flipId;
@@ -81,7 +82,7 @@ export function checkFlipTriggers(state) {
         return flipId; // Always triggers when minTurn met
 
       case "cyoa_merchant":
-        if (tradeCount >= 3 || buildings.includes("brewery") || buildings.includes("fulling_mill")) {
+        if (tradeCount >= 3 || buildings.some((b) => getBuildingType(b) === "brewery") || buildings.some((b) => getBuildingType(b) === "fulling_mill")) {
           return flipId;
         }
         break;

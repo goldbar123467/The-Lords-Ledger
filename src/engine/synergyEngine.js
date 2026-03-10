@@ -80,14 +80,15 @@ export function checkTierConditions(tierDef, state) {
 
   // foodBuildingCount (count of food-producing buildings)
   if (c.foodBuildingCount !== undefined) {
-    const count = buildings.filter((b) => FOOD_BUILDING_IDS.includes(b)).length;
+    const count = buildings.filter((b) => FOOD_BUILDING_IDS.includes(getBuildingType(b))).length;
     if (count < c.foodBuildingCount) return false;
   }
 
-  // defenseUpgradeCount
+  // defenseUpgradeCount — count fortification levels purchased
   if (c.defenseUpgradeCount !== undefined) {
-    const upgrades = state.defenseUpgrades ?? [];
-    if (upgrades.length < c.defenseUpgradeCount) return false;
+    const mil = state.military ?? {};
+    const fortLevels = (mil.walls || 0) + (mil.gate || 0) + (mil.moat || 0);
+    if (fortLevels < c.defenseUpgradeCount) return false;
   }
 
   // meterMin — skipped (meters removed, resource checks used instead)
@@ -97,7 +98,7 @@ export function checkTierConditions(tierDef, state) {
 
   // hasConverterBuilding (fulling_mill or brewery)
   if (c.hasConverterBuilding) {
-    const hasConverter = buildings.some((b) => b === "fulling_mill" || b === "brewery");
+    const hasConverter = buildings.some((b) => getBuildingType(b) === "fulling_mill" || getBuildingType(b) === "brewery");
     if (!hasConverter) return false;
   }
 
