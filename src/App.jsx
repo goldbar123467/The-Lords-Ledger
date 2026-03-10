@@ -1,8 +1,9 @@
-import { useReducer, useMemo, useState, useCallback } from "react";
+import { useReducer, useMemo, useState, useCallback, useEffect } from "react";
 import { gameReducer, initialState } from "./engine/gameReducer";
 import seasonalEventsData from "./data/seasonalEvents";
 import randomEventsData from "./data/randomEvents";
 import { ALL_FLIPS, computeFlipConsequences, isCyoaFlip, computeCyoaConsequences } from "./engine/flipEngine";
+import useMusic from "./hooks/useMusic";
 
 import TitleScreen from "./components/TitleScreen";
 import Dashboard from "./components/Dashboard";
@@ -35,6 +36,14 @@ const randomEvents = randomEventsData;
 
 export default function App() {
   const [state, dispatch] = useReducer(gameReducer, initialState);
+  const { muted, toggleMute, ensurePlaying } = useMusic();
+
+  // Start music on first click anywhere
+  useEffect(() => {
+    const handler = () => ensurePlaying();
+    document.addEventListener("click", handler, { once: true });
+    return () => document.removeEventListener("click", handler);
+  }, [ensurePlaying]);
 
   const {
     phase,
@@ -244,7 +253,37 @@ export default function App() {
 
   // --- Title Screen ---
   if (phase === "title") {
-    return <TitleScreen onStart={handleStart} />;
+    return (
+      <div style={{ position: "relative" }}>
+        <button
+          onClick={toggleMute}
+          title={muted ? "Unmute music" : "Mute music"}
+          aria-label={muted ? "Unmute music" : "Mute music"}
+          style={{
+            position: "absolute",
+            top: "12px",
+            right: "12px",
+            zIndex: 50,
+            width: "36px",
+            height: "36px",
+            borderRadius: "50%",
+            border: "1.5px solid #6a5a42",
+            background: muted ? "#1a1610" : "rgba(196, 162, 74, 0.15)",
+            color: muted ? "#6a5a42" : "#c4a24a",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "16px",
+            lineHeight: 1,
+            transition: "all 0.2s",
+          }}
+        >
+          {muted ? "\u266A" : "\u266B"}
+        </button>
+        <TitleScreen onStart={handleStart} />
+      </div>
+    );
   }
 
   // --- Game Over Screen ---
@@ -299,6 +338,33 @@ export default function App() {
 
       {/* Sticky header: Dashboard + TabBar */}
       <div className="sticky top-0 z-40">
+        {/* Music toggle */}
+        <button
+          onClick={toggleMute}
+          title={muted ? "Unmute music" : "Mute music"}
+          aria-label={muted ? "Unmute music" : "Mute music"}
+          style={{
+            position: "absolute",
+            top: "8px",
+            right: "8px",
+            zIndex: 50,
+            width: "32px",
+            height: "32px",
+            borderRadius: "50%",
+            border: "1.5px solid #6a5a42",
+            background: muted ? "#1a1610" : "rgba(196, 162, 74, 0.15)",
+            color: muted ? "#6a5a42" : "#c4a24a",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "14px",
+            lineHeight: 1,
+            transition: "all 0.2s",
+          }}
+        >
+          {muted ? "\u266A" : "\u266B"}
+        </button>
         <Dashboard
           denarii={denarii}
           food={food}
