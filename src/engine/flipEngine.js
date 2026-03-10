@@ -6,9 +6,15 @@
  */
 
 import { PERSPECTIVE_FLIPS } from "../data/perspectiveFlips.js";
+import { CYOA_FLIPS } from "../data/cyoaFlips.js";
+
+export const ALL_FLIPS = { ...PERSPECTIVE_FLIPS, ...CYOA_FLIPS };
 
 /** Priority order for trigger evaluation */
-const FLIP_PRIORITY = ["serf_week", "merchant_day", "noble_dilemma", "knight_gamble"];
+const FLIP_PRIORITY = [
+  "serf_week", "merchant_day", "noble_dilemma", "knight_gamble",
+  "cyoa_lord", "cyoa_merchant", "cyoa_monk", "cyoa_knight", "cyoa_serf",
+];
 
 /**
  * Checks whether any perspective flip should trigger this turn.
@@ -35,7 +41,7 @@ export function checkFlipTriggers(state) {
     // Already fired this playthrough
     if (perspectiveFlips[flipId]) continue;
 
-    const flip = PERSPECTIVE_FLIPS[flipId];
+    const flip = ALL_FLIPS[flipId];
     if (!flip) continue;
 
     // Must meet minimum turn
@@ -70,6 +76,30 @@ export function checkFlipTriggers(state) {
           return flipId;
         }
         break;
+
+      case "cyoa_lord":
+        return flipId; // Always triggers when minTurn met
+
+      case "cyoa_merchant":
+        if (tradeCount >= 3 || buildings.includes("brewery") || buildings.includes("fulling_mill")) {
+          return flipId;
+        }
+        break;
+
+      case "cyoa_monk":
+        return flipId; // Always triggers when minTurn met
+
+      case "cyoa_knight":
+        if (garrison > 5 || militaryEventEverFired) {
+          return flipId;
+        }
+        break;
+
+      case "cyoa_serf":
+        if (taxRate === "high" || taxRate === "crushing" || population < 15) {
+          return flipId;
+        }
+        break;
     }
   }
 
@@ -83,8 +113,11 @@ export function checkFlipTriggers(state) {
  * @returns {{ [statName]: number }}
  */
 export function getInitialFlipStats(flipId) {
-  const flip = PERSPECTIVE_FLIPS[flipId];
+  const flip = ALL_FLIPS[flipId];
   if (!flip) return {};
+
+  // CYOA flips have no character stats
+  if (flip.type === "cyoa" || !flip.characterStats) return {};
 
   const stats = {};
   for (const [key, config] of Object.entries(flip.characterStats)) {
@@ -148,6 +181,30 @@ export function resolveFlipOption(option, currentStats) {
     outcome: option.outcome,
     wasSuccess: null,
   };
+}
+
+/**
+ * Returns true if the given flip ID is a CYOA-style flip.
+ *
+ * @param {string} flipId
+ * @returns {boolean}
+ */
+export function isCyoaFlip(flipId) {
+  const flip = ALL_FLIPS[flipId];
+  return flip?.type === "cyoa";
+}
+
+/**
+ * Computes resource consequences for a CYOA flip based on the ending type reached.
+ *
+ * @param {string} flipId
+ * @param {string} endingType - "good" | "medium" | "bad"
+ * @returns {{ treasury?: number, people?: number }}
+ */
+export function computeCyoaConsequences(flipId, endingType) {
+  const flip = ALL_FLIPS[flipId];
+  if (!flip || flip.type !== "cyoa") return {};
+  return flip.consequences?.[endingType] || {};
 }
 
 /**

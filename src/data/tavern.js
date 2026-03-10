@@ -178,3 +178,176 @@ export const VISIT_MILESTONES = [
   { visits: 5, graffiti: "THE LORD\u2019S SEAT" },
   { visits: 10, message: "On the house, my lord. You\u2019ve earned it." },
 ];
+
+// ---------------------------------------------------------------------------
+// Marta the Merchant \u2014 Femme Sole
+// ---------------------------------------------------------------------------
+
+/**
+ * Market tips: strings or functions that take game state and return a string.
+ * 40% chance per interaction.
+ */
+export const MARTA_MARKET_TIPS = [
+  "Cloth fetches triple what raw wool brings. If you have a pasture, build a fulling mill. The margin is worth the upkeep.",
+  "Honey travels well and never spoils. Apiaries are cheap to maintain and the merchants at Champagne pay handsomely for it.",
+  (state) => {
+    const total = Object.values(state.inventory || {}).reduce((s, v) => s + v, 0);
+    const pct = Math.round((total / (state.inventoryCapacity || 300)) * 100);
+    return `Your inventory is ${pct}% full. When stores overflow, production goes to waste. Sell before you\u2019re stuffed \u2014 or build more storage.`;
+  },
+  "Iron is expensive to mine but every castle upgrade demands it. Control your own supply or you\u2019ll pay through the nose at market.",
+  (state) => {
+    const bUpkeep = (state.buildings || []).length * 3;
+    const gUpkeep = (state.garrison || 0) * 2;
+    return `I\u2019ve seen lords go bankrupt building everything at once. Your upkeep is roughly ${bUpkeep + gUpkeep}d per season \u2014 can your income cover that?`;
+  },
+  "The Church buys herbs and honey for their infirmaries. A steady supplier earns both coin and favor.",
+  "Grain is cheap. Ale is not. A brewery turns 2 grain into ale worth 5 times as much. That\u2019s not magic \u2014 that\u2019s commerce.",
+  "Timber and clay are builder\u2019s goods \u2014 you won\u2019t sell them for much, but without them you can\u2019t expand. Think of them as investment, not income.",
+  "Net income matters more than gross. A lord with 50d income and 45d upkeep is poorer than one with 20d income and 5d upkeep.",
+  "Buy low in spring, sell high before winter. Prices shift with the seasons \u2014 though you\u2019d have to watch the market closely to see it.",
+];
+
+/**
+ * Trade stories: historical anecdotes. 35% chance per interaction.
+ */
+export const MARTA_TRADE_STORIES = [
+  "I learned my craft at the Champagne Fairs \u2014 six weeks of trading with merchants from Venice, Bruges, Barcelona. Letters of credit instead of hauling coin. The Italians invented banking, you know. We just borrowed it.",
+  "In Cologne, the guild tried to bar me from trading. I invoked my right as femme sole \u2014 a woman trading alone, answerable to no husband. The magistrate upheld it. The guild master\u2019s face was worth more than any profit that year.",
+  "The Hanseatic League controls trade across the North Sea and the Baltic. Hundreds of towns, thousands of merchants, all bound by agreements. They don\u2019t need armies \u2014 they have monopolies. That\u2019s a different kind of power.",
+  "A merchant in Bruges told me about something called a \u2018bill of exchange.\u2019 You deposit money in one city and withdraw it in another without carrying a single coin on the road. Brilliant. The bandits hate it.",
+  "The just price doctrine says I must sell at a fair price \u2014 not whatever the market will bear. The Church enforces it. In practice, \u2018fair\u2019 means whatever the guild decides. Funny how that works.",
+  "Spices from the East \u2014 pepper, cinnamon, cloves \u2014 are worth more per ounce than silver. A single shipload of pepper can make a Venetian merchant richer than most lords. And here you are, selling grain.",
+  "Wool is England\u2019s greatest export. The Flemish weavers buy it raw and sell it back as finished cloth at ten times the price. If that doesn\u2019t teach you the value of manufacturing, nothing will.",
+  "I once saw a merchant fined and pilloried for selling short measures of ale. The guild inspector found his tankards had false bottoms. Trust is the only currency that matters in the long run.",
+];
+
+/**
+ * One-time offers. Each can appear only once per playthrough.
+ * canAccept(state) determines whether Accept button is shown.
+ */
+export const MARTA_OFFERS = [
+  {
+    id: "bulk_wool",
+    title: "Bulk Wool Deal",
+    description: "I have a buyer in Flanders offering 40d for 5 wool. Interested?",
+    costText: "5 wool",
+    rewardText: "+40d (normally ~30d)",
+    canAccept: (s) => (s.inventory?.wool ?? 0) >= 5,
+    cantAcceptText: "Come back when you have the goods.",
+  },
+  {
+    id: "spice_investment",
+    title: "Spice Investment",
+    description: "A shipment of pepper is coming through next season. I can reserve you a share for 75d now. You\u2019ll be able to sell it for 120d next season.",
+    warning: "There\u2019s always risk on the roads.",
+    costText: "75d now",
+    rewardText: "120d next season (85% chance)",
+    canAccept: (s) => s.denarii >= 75,
+    cantAcceptText: "You don\u2019t have the coin for this venture.",
+  },
+  {
+    id: "trade_route_tip",
+    title: "Trade Route Tip",
+    description: "For 30d, I\u2019ll share what I know about which goods fetch the best prices right now.",
+    costText: "30d",
+    rewardText: "Market intelligence",
+    canAccept: (s) => s.denarii >= 30,
+    cantAcceptText: "Information isn\u2019t free, my lord.",
+  },
+  {
+    id: "storage_deal",
+    title: "Storage Expansion",
+    description: "I know a man with an empty barn. For 50d, I can increase your storage capacity by 20 units. Interested?",
+    costText: "50d (one-time)",
+    rewardText: "+20 inventory capacity",
+    canAccept: (s) => s.denarii >= 50 && !(s.tavern?.martaStoragePurchased),
+    cantAcceptText: "You\u2019ve already expanded your storage through my contact.",
+  },
+];
+
+export const MARTA_SCRIBES_NOTE =
+  "The legal status of \u2018femme sole\u2019 allowed medieval women to own businesses, sign contracts, and sue in court \u2014 rights that married women (\u2018femme covert\u2019) did not have under the doctrine of coverture. Many of the most successful brewsters, silk workers, and traders in medieval cities were femme sole. Marta represents thousands of real women who built commercial empires within \u2014 and sometimes despite \u2014 the legal systems of their time.";
+
+// ---------------------------------------------------------------------------
+// Old Aldric the Veteran
+// ---------------------------------------------------------------------------
+
+/**
+ * Military counsel: strings or functions that take game state.
+ * 40% chance per interaction.
+ */
+export const ALDRIC_MILITARY_COUNSEL = [
+  (state) => `Your garrison stands at ${state.garrison ?? 0} men. Enough to hold the walls? Depends on the walls. A palisade needs more men to defend than stone. Upgrade when you can.`,
+  "Five soldiers cost less than one siege. Maintain your garrison even in peacetime. The lord who disbands his army to save coin pays with his life.",
+  "Walls don\u2019t fight. Men do. But men behind walls fight five times their number. That\u2019s the mathematics of defense \u2014 stone is the great equalizer.",
+  "A knight costs as much to equip as a small farm produces in a year. That\u2019s why kings tax \u2014 and that\u2019s why peasants resent it. Every sword on the wall is food off a table.",
+  "Iron is the spine of defense. Without it, no swords, no armor, no arrowheads, no gate reinforcements. If you\u2019re not mining iron, you\u2019re borrowing time.",
+  "Morale matters more than numbers. Ten men who believe in their lord will hold a gate longer than fifty who don\u2019t. Keep your people content or your soldiers will desert when it matters.",
+  "The best castle in Christendom falls if it runs out of food. Siege warfare is just starvation with patience. Your food stores ARE your defense.",
+  "I\u2019ve seen lords spend everything on soldiers and nothing on walls. I\u2019ve seen lords build grand castles with no one to defend them. Balance. Always balance.",
+  "Mercenaries fight for coin, not loyalty. They\u2019re useful in a crisis but they\u2019ll switch sides the moment your treasury runs dry. Build your own garrison.",
+  (state) => {
+    const remaining = 28 - (state.turn ?? 1);
+    return `Castle upgrades are expensive but permanent. Soldiers eat every season. Think about which investment pays off over ${remaining} more turns.`;
+  },
+];
+
+/**
+ * War stories: historical accounts. 35% chance per interaction.
+ */
+export const ALDRIC_WAR_STORIES = [
+  "I was at Acre. Three years of siege. The heat, the flies, the disease \u2014 more men died of fever than of arrows. When the city finally fell, I didn\u2019t feel victory. I felt tired. That\u2019s what war is: being tired and afraid for a very long time.",
+  "The castle at Ch\u00e2teau Gaillard was Richard the Lionheart\u2019s masterpiece \u2014 three rings of walls, built in two years, overlooking the Seine. The French took it in six months. They found a latrine chute that led inside the outer wall. A castle is only as strong as its weakest point.",
+  "At Cr\u00e9cy, English longbowmen cut down French knights like wheat. Fifteen thousand arrows per minute from six thousand bows. The age of the mounted knight ended that day, though it took a hundred years for anyone to admit it.",
+  "I knew a siege engineer who could calculate exactly how many days a castle\u2019s food stores would last by counting the smoke from their chimneys. \u2018More fires means more mouths,\u2019 he said. \u2018When the fires stop, they\u2019re eating the horses.\u2019 Grim arithmetic.",
+  "The Mongols \u2014 I never fought them, thank God \u2014 would divert rivers to flood castle foundations. They\u2019d catapult diseased corpses over walls. They understood that a siege is just a problem to solve, and they solved problems without mercy.",
+  "William the Conqueror built a motte-and-bailey at Hastings in two weeks. Wood and earth, not stone. Ugly but functional. By the time the English organized a counterattack, he was behind walls. Speed wins wars.",
+  "The Children\u2019s Crusade. Thousands of young people, some not much older than you, marched toward the Holy Land believing faith alone would open the gates of Jerusalem. Most never arrived. Some were sold into slavery. Faith without strategy is just hope \u2014 and hope is not a plan.",
+  "At the Siege of Rochester, King John\u2019s men tunneled under the castle tower and set fire to forty fat pigs to collapse the foundation. The tower fell. Forty pigs changed the course of English history. Never underestimate creative problem-solving.",
+];
+
+/**
+ * Training offers. Each can appear only once per playthrough.
+ */
+export const ALDRIC_TRAINING_OFFERS = [
+  {
+    id: "basic_drill",
+    title: "Basic Drill",
+    description: "Your men look soft. For 30d, I\u2019ll drill them for a week. They won\u2019t thank me, but they\u2019ll fight better.",
+    costText: "30d",
+    rewardText: "Garrison readiness for 3 seasons",
+    canAccept: (s) => s.denarii >= 30 && (s.garrison ?? 0) > 0,
+    cantAcceptText: "You need both coin and a garrison to drill.",
+  },
+  {
+    id: "wall_inspection",
+    title: "Wall Inspection",
+    description: "Let me walk your walls. I\u2019ll find the weak points before an enemy does. Cost you 20d for my time.",
+    costText: "20d",
+    rewardText: "Defense assessment",
+    canAccept: (s) => s.denarii >= 20,
+    cantAcceptText: "Even advice costs coin, my lord.",
+  },
+  {
+    id: "recruit_referral",
+    title: "Recruit Referral",
+    description: "I know a man \u2014 solid fighter, no lord to serve. He\u2019d join your garrison for 40d signing bonus.",
+    costText: "40d",
+    rewardText: "+2 garrison",
+    canAccept: (s) => s.denarii >= 40,
+    cantAcceptText: "Good soldiers cost good coin. Come back with 40d.",
+  },
+  {
+    id: "war_story_lesson",
+    title: "Garrison Morale",
+    description: "Gather your garrison tonight. I\u2019ll tell them about Acre. Men who understand what they\u2019re defending fight harder.",
+    costText: "Free",
+    rewardText: "+2 families (morale draws settlers)",
+    canAccept: (s) => (s.garrison ?? 0) > 0,
+    cantAcceptText: "You have no garrison to inspire.",
+  },
+];
+
+export const ALDRIC_SCRIBES_NOTE =
+  "Medieval soldiers were not the gleaming knights of legend. Most were ordinary men \u2014 farmers, tradesmen, younger sons \u2014 pressed into service by feudal obligation or drawn by the promise of pay and plunder. A typical soldier\u2019s life was monotony punctuated by terror: months of marching, digging, and waiting, then minutes of chaos. Those who survived carried the experience for the rest of their lives. Veterans like Aldric were repositories of hard-won knowledge in an age before military academies.";

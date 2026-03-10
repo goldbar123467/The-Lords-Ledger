@@ -100,6 +100,9 @@ export default function FlipScreen({
   onSelectOption,
   onContinue,
   onDismissSummary,
+  // CYOA props:
+  currentCyoaNodeId,
+  isCyoa,
 }) {
   if (!flipData) return null;
 
@@ -165,6 +168,58 @@ export default function FlipScreen({
   // FLIP DECISION
   // ---------------------------------------------------------------------------
   if (phase === "flip_decision") {
+    // CYOA mode: navigate branching node graph instead of linear decisions array
+    if (isCyoa && currentCyoaNodeId) {
+      const node = flipData.nodes[currentCyoaNodeId];
+      if (!node || node.isEnding) return null;
+
+      return (
+        <div className="mx-auto w-full max-w-xl rounded-lg border-2 p-4 sm:p-5 shadow-lg" style={cardStyle}>
+          <div
+            className="text-xs uppercase tracking-widest font-heading font-semibold mb-2"
+            style={{ color: colorScheme.accent }}
+          >
+            Choose Your Path
+          </div>
+          <h3
+            className="font-heading text-lg sm:text-xl font-bold mb-2"
+            style={{ color: colorScheme.text }}
+          >
+            {node.title}
+          </h3>
+          <p className="text-base leading-relaxed mb-4" style={{ color: colorScheme.text }}>
+            {node.description}
+          </p>
+
+          <div className="flex flex-col gap-2" role="group" aria-label="Choose your path">
+            {node.options.map((option, i) => (
+              <button
+                key={i}
+                onClick={() => onSelectOption(i)}
+                className="w-full text-left px-4 py-4 rounded-md border-2 transition-all duration-200 cursor-pointer min-h-[44px]"
+                style={{
+                  backgroundColor: colorScheme.background,
+                  borderColor: colorScheme.light,
+                  color: colorScheme.text,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = colorScheme.background + "dd";
+                  e.currentTarget.style.borderColor = colorScheme.accent;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = colorScheme.background;
+                  e.currentTarget.style.borderColor = colorScheme.light;
+                }}
+                aria-label={`Option ${i + 1}: ${option.text}`}
+              >
+                <div className="font-semibold text-base">{option.text}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     const decision = flipData.decisions[currentDecisionIndex];
     if (!decision) return null;
 
@@ -288,6 +343,111 @@ export default function FlipScreen({
   // FLIP SUMMARY
   // ---------------------------------------------------------------------------
   if (phase === "flip_summary") {
+    // CYOA ending mode: show the ending node with icon, historical connection, then estate consequences
+    if (isCyoa && currentCyoaNodeId) {
+      const endingNode = flipData.nodes[currentCyoaNodeId];
+
+      const endingStyles = {
+        good: { label: "Prosperous Ending", bgColor: "rgba(74, 138, 58, 0.15)", borderColor: "#4a8a3a" },
+        medium: { label: "Survival Ending", bgColor: "rgba(180, 140, 20, 0.15)", borderColor: "#b48c14" },
+        bad: { label: "Downfall Ending", bgColor: "rgba(198, 40, 40, 0.15)", borderColor: "#c62828" },
+      };
+      const endStyle = endingStyles[endingNode?.endingType] || endingStyles.medium;
+
+      return (
+        <div className="mx-auto w-full max-w-xl rounded-lg border-2 p-5 sm:p-6 shadow-lg" style={cardStyle}>
+          {/* Ending type badge */}
+          <div
+            className="inline-flex items-center gap-2 text-sm px-3 py-1 rounded-full border font-semibold mb-4"
+            style={{
+              borderColor: endStyle.borderColor,
+              backgroundColor: endStyle.bgColor,
+              color: endStyle.borderColor,
+            }}
+          >
+            <span className="text-lg">{endingNode?.icon}</span>
+            {endStyle.label}
+          </div>
+
+          <h2
+            className="font-heading text-2xl sm:text-3xl font-bold mb-3"
+            style={{ color: colorScheme.text }}
+          >
+            {endingNode?.title}
+          </h2>
+
+          <p className="text-base leading-relaxed mb-4" style={{ color: colorScheme.text }}>
+            {endingNode?.description}
+          </p>
+
+          {/* Historical Connection */}
+          {endingNode?.historicalConnection && (
+            <div
+              className="mb-4 p-3 rounded-md border text-sm leading-relaxed italic"
+              style={{
+                backgroundColor: "#231e16",
+                borderColor: "#6a5a42",
+                color: "#a89070",
+              }}
+            >
+              <span className="font-heading font-semibold not-italic" style={{ color: "#c4a24a" }}>
+                Historical Connection:
+              </span>{" "}
+              {endingNode.historicalConnection}
+            </div>
+          )}
+
+          {/* Return text */}
+          <p
+            className="italic text-base leading-relaxed mb-4"
+            style={{ color: colorScheme.accent }}
+          >
+            {flipData.returnText}
+          </p>
+
+          {/* Scribe's Note */}
+          <div
+            className="mb-4 p-3 rounded-md border text-sm leading-relaxed italic"
+            style={{
+              backgroundColor: "#231e16",
+              borderColor: "#6a5a42",
+              color: "#a89070",
+            }}
+          >
+            <span className="font-heading font-semibold not-italic" style={{ color: "#c4a24a" }}>
+              Scribe&apos;s Note:
+            </span>{" "}
+            {flipData.scribesNote}
+          </div>
+
+          {/* Consequence pills */}
+          <p
+            className="text-sm font-heading font-semibold text-center mb-1"
+            style={{ color: colorScheme.text }}
+          >
+            The consequences ripple back to your estate&hellip;
+          </p>
+          <ConsequencePills consequences={consequences} />
+
+          <div className="text-center mt-5">
+            <button
+              onClick={onDismissSummary}
+              className="px-8 py-3 rounded-md border-2 font-heading font-bold text-lg uppercase tracking-wider transition-all duration-200 cursor-pointer"
+              style={{
+                backgroundColor: colorScheme.accent,
+                borderColor: colorScheme.accent,
+                color: "#faf3e3",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = colorScheme.light; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = colorScheme.accent; }}
+            >
+              Return to Your Reign
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="mx-auto w-full max-w-xl rounded-lg border-2 p-5 sm:p-6 shadow-lg" style={cardStyle}>
         <div

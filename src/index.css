@@ -272,3 +272,58 @@ button:active:not(:disabled) {
 .quill-appear {
   animation: quill-appear 400ms ease forwards;
 }
+
+/* ============================================================
+   GREAT HALL STYLES
+   ============================================================ */
+
+/* Stone wall texture — repeating mortar lines over stone gradient */
+.hall-wall {
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 48px,
+      #1a1714 48px,
+      #1a1714 52px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 96px,
+      #1a1714 96px,
+      #1a1714 100px
+    ),
+    linear-gradient(
+      180deg,
+      #2a2520 0%,
+      #3d3630 50%,
+      #2a2520 100%
+    );
+}
+
+/* Torch flame flicker */
+@keyframes torchFlicker {
+  0%, 100% { opacity: 0.85; filter: brightness(1); }
+  15% { opacity: 0.92; filter: brightness(1.1); }
+  30% { opacity: 0.78; filter: brightness(0.95); }
+  50% { opacity: 0.95; filter: brightness(1.15); }
+  70% { opacity: 0.82; filter: brightness(0.9); }
+  85% { opacity: 0.90; filter: brightness(1.05); }
+}
+
+.torch-glow {
+  animation: torchFlicker 3s ease-in-out infinite;
+}
+
+/* NPC portrait mood animations */
+@keyframes portrait-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-1px); }
+  75% { transform: translateX(1px); }
+}
+
+@keyframes portrait-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}

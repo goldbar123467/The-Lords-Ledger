@@ -2,8 +2,7 @@ import { useReducer, useMemo, useState, useCallback } from "react";
 import { gameReducer, initialState } from "./engine/gameReducer";
 import seasonalEventsData from "./data/seasonalEvents";
 import randomEventsData from "./data/randomEvents";
-import { PERSPECTIVE_FLIPS } from "./data/perspectiveFlips";
-import { computeFlipConsequences } from "./engine/flipEngine";
+import { ALL_FLIPS, computeFlipConsequences, isCyoaFlip, computeCyoaConsequences } from "./engine/flipEngine";
 
 import TitleScreen from "./components/TitleScreen";
 import Dashboard from "./components/Dashboard";
@@ -23,6 +22,8 @@ import FlipScreen from "./components/FlipScreen";
 import SynergyToast from "./components/SynergyToast";
 import TutorialHint from "./components/TutorialHint";
 import Tavern from "./components/Tavern";
+import RaidScreen from "./components/RaidScreen";
+import GreatHall from "./components/GreatHall";
 
 
 const seasonalEvents = Object.values(seasonalEventsData).flat();
@@ -53,6 +54,8 @@ export default function App() {
     currentDecisionIndex,
     currentFlipOutcome,
     flipConsequenceFlags,
+    currentCyoaNodeId,
+    cyoaEndingType,
     pendingSynergyNotifications,
     synergies,
   } = state;
@@ -162,6 +165,15 @@ export default function App() {
     dispatch({ type: "DISMISS_SYNERGY_NOTIFICATION" });
   }
 
+  // --- Raid handlers ---
+  function handleRaidDefend() {
+    dispatch({ type: "RAID_DEFEND" });
+  }
+
+  function handleRaidContinue() {
+    dispatch({ type: "RAID_CONTINUE" });
+  }
+
   const [tavernOpen, setTavernOpen] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
 
@@ -181,17 +193,23 @@ export default function App() {
     phase === "seasonal_action" ||
     phase === "seasonal_resolve" ||
     phase === "random_event" ||
-    phase === "random_resolve";
+    phase === "random_resolve" ||
+    phase === "raid_warning" ||
+    phase === "raid_result";
+  const isRaidPhase =
+    phase === "raid_warning" ||
+    phase === "raid_result";
   const isFlipPhase =
     phase === "flip_intro" ||
     phase === "flip_decision" ||
     phase === "flip_outcome" ||
     phase === "flip_summary";
 
-  const flipData = currentFlipId ? PERSPECTIVE_FLIPS[currentFlipId] : null;
+  const flipData = currentFlipId ? ALL_FLIPS[currentFlipId] : null;
 
   const flipDisplayStats = useMemo(() => {
     if (!flipData || !currentFlipStats) return null;
+    if (flipData.type === "cyoa") return null; // CYOA has no character stats
     return Object.entries(flipData.characterStats).map(([key, config]) => ({
       key,
       label: config.label,
@@ -203,8 +221,11 @@ export default function App() {
 
   const flipConsequencesPreview = useMemo(() => {
     if (!currentFlipId || phase !== "flip_summary") return null;
+    if (isCyoaFlip(currentFlipId)) {
+      return computeCyoaConsequences(currentFlipId, cyoaEndingType);
+    }
     return computeFlipConsequences(currentFlipId, flipConsequenceFlags);
-  }, [currentFlipId, flipConsequenceFlags, phase]);
+  }, [currentFlipId, flipConsequenceFlags, phase, cyoaEndingType]);
 
   const displayTab = isEventPhase ? "chronicle" : activeTab;
 
@@ -243,6 +264,16 @@ export default function App() {
     >
       {/* Scribe's Note overlay */}
       <ScribesNote text={scribesNote} onDismiss={handleDismissScribesNote} />
+
+      {/* Raid overlay */}
+      {isRaidPhase && state.raids?.activeRaid && (
+        <RaidScreen
+          raidState={state.raids.activeRaid}
+          garrison={state.garrison}
+          onDefend={handleRaidDefend}
+          onContinue={handleRaidContinue}
+        />
+      )}
 
       {/* Sticky header: Dashboard + TabBar */}
       <div className="sticky top-0 z-40">
@@ -288,6 +319,8 @@ export default function App() {
             onSelectOption={handleFlipOption}
             onContinue={handleContinueFlip}
             onDismissSummary={handleDismissFlipSummary}
+            currentCyoaNodeId={currentCyoaNodeId}
+            isCyoa={currentFlipId ? isCyoaFlip(currentFlipId) : false}
           />
         )}
 
@@ -346,6 +379,11 @@ export default function App() {
             onSetTaxRate={handleSetTaxRate}
             onDonate={handleDonate}
           />
+        )}
+
+        {/* --- GREAT HALL TAB --- */}
+        {!isFlipPhase && displayTab === "hall" && isManagement && (
+          <GreatHall state={state} />
         )}
 
         {/* --- CHRONICLE TAB --- */}

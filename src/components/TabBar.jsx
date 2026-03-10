@@ -5,7 +5,7 @@
  * All tabs unlocked from turn 1 in the resource-based system.
  */
 
-import { Landmark, Map, ArrowLeftRight, Shield, Users, ScrollText } from "lucide-react";
+import { Landmark, Map, ArrowLeftRight, Shield, Users, ScrollText, Scale } from "lucide-react";
 
 const TAB_CONFIG = [
   { id: "estate",    label: "Estate",    Icon: Landmark },
@@ -13,6 +13,7 @@ const TAB_CONFIG = [
   { id: "trade",     label: "Trade",     Icon: ArrowLeftRight },
   { id: "military",  label: "Military",  Icon: Shield },
   { id: "people",    label: "People",    Icon: Users },
+  { id: "hall",      label: "Hall",      Icon: Scale },
   { id: "chronicle", label: "Chronicle", Icon: ScrollText },
 ];
 

@@ -12,6 +12,8 @@ import { useState, useMemo, useEffect } from "react"; // useMemo used in TavernW
 import KnightsGambit from "./KnightsGambit";
 import RatsInCellar from "./RatsInCellar";
 import BardsCorner from "./BardsCorner";
+import MartaMerchant from "./MartaMerchant";
+import OldAldric from "./OldAldric";
 import {
   TAVERN_SUBTITLES,
   WALL_STATIC_GRAFFITI,
@@ -45,6 +47,20 @@ const STATIONS = [
     subtitle: "Tales, riddles, and wisdom",
     icon: "\u266B",
     borderColor: "#6a4a8a",
+  },
+  {
+    id: "marta",
+    title: "Marta the Merchant",
+    subtitle: "Femme Sole \u2014 Licensed Trader",
+    icon: "\u2696",
+    borderColor: "#1a5a5a",
+  },
+  {
+    id: "aldric",
+    title: "Old Aldric",
+    subtitle: "Veteran of the Siege of Acre",
+    icon: "\u2694",
+    borderColor: "#8b1a1a",
   },
 ];
 
@@ -393,6 +409,30 @@ export default function Tavern({ state, dispatch, onClose }) {
     dispatch({ type: "TAVERN_BARD_RIDDLE_SOLVED" });
   }
 
+  function handleMartaAcceptOffer(offerId) {
+    dispatch({ type: "TAVERN_MARTA_ACCEPT_OFFER", payload: { offerId } });
+  }
+
+  function handleMartaDeclineOffer(offerId) {
+    dispatch({ type: "TAVERN_MARTA_DECLINE_OFFER", payload: { offerId } });
+  }
+
+  function handleMartaScribesNoteSeen() {
+    dispatch({ type: "TAVERN_MARTA_SCRIBES_NOTE_SEEN" });
+  }
+
+  function handleAldricAcceptOffer(offerId) {
+    dispatch({ type: "TAVERN_ALDRIC_ACCEPT_OFFER", payload: { offerId } });
+  }
+
+  function handleAldricDeclineOffer(offerId) {
+    dispatch({ type: "TAVERN_ALDRIC_DECLINE_OFFER", payload: { offerId } });
+  }
+
+  function handleAldricScribesNoteSeen() {
+    dispatch({ type: "TAVERN_ALDRIC_SCRIBES_NOTE_SEEN" });
+  }
+
   function handleStashClick() {
     if (!tavern.wallStashFound) {
       dispatch({ type: "TAVERN_WALL_STASH" });
@@ -450,6 +490,34 @@ export default function Tavern({ state, dispatch, onClose }) {
         <BardsCorner
           state={state}
           onRiddleSolved={handleRiddleSolved}
+          onBack={() => setActiveStation(null)}
+        />
+      </div>
+    );
+  }
+
+  if (activeStation === "marta") {
+    return (
+      <div className={entering ? "tavern-enter" : ""}>
+        <MartaMerchant
+          state={state}
+          onAcceptOffer={handleMartaAcceptOffer}
+          onDeclineOffer={handleMartaDeclineOffer}
+          onScribesNoteSeen={handleMartaScribesNoteSeen}
+          onBack={() => setActiveStation(null)}
+        />
+      </div>
+    );
+  }
+
+  if (activeStation === "aldric") {
+    return (
+      <div className={entering ? "tavern-enter" : ""}>
+        <OldAldric
+          state={state}
+          onAcceptOffer={handleAldricAcceptOffer}
+          onDeclineOffer={handleAldricDeclineOffer}
+          onScribesNoteSeen={handleAldricScribesNoteSeen}
           onBack={() => setActiveStation(null)}
         />
       </div>

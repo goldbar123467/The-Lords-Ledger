@@ -31,9 +31,11 @@ import {
   RECRUIT_COST, MAX_GARRISON,
 } from "../data/economy.js";
 import { PERSPECTIVE_FLIPS } from "../data/perspectiveFlips.js";
-import { checkFlipTriggers, getInitialFlipStats, resolveFlipOption, computeFlipConsequences } from "./flipEngine.js";
+import { ALL_FLIPS, checkFlipTriggers, getInitialFlipStats, computeCyoaConsequences, resolveFlipOption, computeFlipConsequences } from "./flipEngine.js";
 import { checkSynergies, getSynergyTradePriceBonus, getSynergyWoolSellBonus } from "./synergyEngine.js";
 import { SYNERGY_TIER_MAP } from "../data/synergies.js";
+import { getInitialRaidState, checkForRaid, resolveRaid, buildRaidChronicleText } from "./raidEngine.js";
+import { RAID_TYPES } from "../data/raids.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -92,7 +94,10 @@ export const initialState = {
   gameOverReason: null,
 
   // Perspective flip state
-  perspectiveFlips: { serf_week: false, merchant_day: false, noble_dilemma: false, knight_gamble: false },
+  perspectiveFlips: {
+    serf_week: false, merchant_day: false, noble_dilemma: false, knight_gamble: false,
+    cyoa_lord: false, cyoa_merchant: false, cyoa_monk: false, cyoa_knight: false, cyoa_serf: false,
+  },
   tradeCount: 0,
   militaryEventEverFired: false,
   currentFlipId: null,
@@ -100,6 +105,8 @@ export const initialState = {
   currentDecisionIndex: 0,
   flipConsequenceFlags: [],
   currentFlipOutcome: null,
+  currentCyoaNodeId: null,
+  cyoaEndingType: null,
 
   // Synergy system state (simplified — no meter-based tracking)
   synergies: {
@@ -111,6 +118,9 @@ export const initialState = {
     foodSurplusTurns: 0,
   },
   pendingSynergyNotifications: [],
+
+  // Raid system state
+  raids: getInitialRaidState(),
 
   // Tavern state
   tavern: {
@@ -127,6 +137,24 @@ export const initialState = {
     totalVisits: 0,
     gambitScribesNoteSeen: false,
     ratsScribesNoteSeen: false,
+    // Marta the Merchant
+    martaOffersUsed: [],
+    martaSpiceInvestment: false,
+    martaStoragePurchased: false,
+    martaScribesNoteSeen: false,
+    // Old Aldric
+    aldricOffersUsed: [],
+    aldricDrillActive: 0,
+    aldricScribesNoteSeen: false,
+  },
+
+  // Great Hall state (approval meters, reputation, ruling history)
+  greatHall: {
+    meters: { people: 50, treasury: 50, church: 50, military: 50 },
+    reputation: "Unknown Lord",
+    disputesResolved: 0,
+    rulingHistory: [],
+    activeDecrees: [],
   },
 };
 
@@ -327,6 +355,7 @@ export function gameReducer(state, action) {
           lowTaxTurns: 0, foodSurplusTurns: 0,
         },
         pendingSynergyNotifications: [],
+        raids: getInitialRaidState(),
         tavern: {
           gambitRoundsThisSeason: 0,
           gambitLastChoice: null,
@@ -341,6 +370,13 @@ export function gameReducer(state, action) {
           totalVisits: 0,
           gambitScribesNoteSeen: false,
           ratsScribesNoteSeen: false,
+          martaOffersUsed: [],
+          martaSpiceInvestment: false,
+          martaStoragePurchased: false,
+          martaScribesNoteSeen: false,
+          aldricOffersUsed: [],
+          aldricDrillActive: 0,
+          aldricScribesNoteSeen: false,
         },
       };
     }
@@ -695,9 +731,69 @@ export function gameReducer(state, action) {
         strangerAppearedThisSeason: false,
       };
 
+      // Resolve Marta's spice investment
+      let finalDenarii = econResult.denarii;
+      if (tavernSeasonReset.martaSpiceInvestment) {
+        if (Math.random() < 0.85) {
+          finalDenarii += 120;
+          nextChronicle = addChronicle(nextChronicle, "Marta\u2019s spice shipment arrived! +120d.", season, year, turn, "action");
+        } else {
+          nextChronicle = addChronicle(nextChronicle, "Marta\u2019s spice shipment was lost to bandits. Your 75d investment is gone.", season, year, turn, "event");
+        }
+        tavernSeasonReset.martaSpiceInvestment = false;
+      }
+
+      // Decrement Aldric's drill buff
+      if (tavernSeasonReset.aldricDrillActive > 0) {
+        tavernSeasonReset.aldricDrillActive -= 1;
+        if (tavernSeasonReset.aldricDrillActive === 0) {
+          nextChronicle = addChronicle(nextChronicle, "Aldric\u2019s training effect has faded.", season, year, turn, "system");
+        }
+      }
+
+      // --- RAID CHECK (after production, before seasonal events) ---
+      const prevRaids = state.raids ?? getInitialRaidState();
+      const raidsWithCooldowns = {
+        ...prevRaids,
+        criminalCooldown: Math.max(0, (prevRaids.criminalCooldown || 0) - 1),
+        scottishCooldown: Math.max(0, (prevRaids.scottishCooldown || 0) - 1),
+      };
+      const raidTrigger = checkForRaid(raidsWithCooldowns, turn);
+
+      if (raidTrigger) {
+        // Raid triggered — pause season at raid_warning phase
+        return {
+          ...state,
+          denarii: finalDenarii,
+          food: econResult.food,
+          population: econResult.population,
+          garrison: econResult.garrison,
+          inventory: econResult.inventory,
+          chronicle: nextChronicle,
+          seasonReport: econResult.report,
+          resourceDeltas: computeResourceDeltas(before, {
+            denarii: finalDenarii,
+            food: econResult.food,
+            population: econResult.population,
+            garrison: econResult.garrison,
+          }),
+          bankruptcyTurns,
+          phase: "raid_warning",
+          currentEvent: seasonalEvent,
+          usedSeasonalIds: nextUsedSeasonalIds,
+          activeTab: "chronicle",
+          churchDonation: 0,
+          tavern: tavernSeasonReset,
+          raids: {
+            ...raidsWithCooldowns,
+            activeRaid: { type: raidTrigger.type, phase: "warning", result: null },
+          },
+        };
+      }
+
       return {
         ...state,
-        denarii: econResult.denarii,
+        denarii: finalDenarii,
         food: econResult.food,
         population: econResult.population,
         garrison: econResult.garrison,
@@ -705,7 +801,7 @@ export function gameReducer(state, action) {
         chronicle: nextChronicle,
         seasonReport: econResult.report,
         resourceDeltas: computeResourceDeltas(before, {
-          denarii: econResult.denarii,
+          denarii: finalDenarii,
           food: econResult.food,
           population: econResult.population,
           garrison: econResult.garrison,
@@ -717,6 +813,135 @@ export function gameReducer(state, action) {
         activeTab: "chronicle",
         churchDonation: 0,
         tavern: tavernSeasonReset,
+        raids: { ...raidsWithCooldowns, activeRaid: null },
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // RAID_DEFEND — player clicks "Defend the Estate" on warning screen
+    // -----------------------------------------------------------------------
+    case "RAID_DEFEND": {
+      if (state.phase !== "raid_warning") return state;
+      const raids = state.raids ?? {};
+      const activeRaid = raids.activeRaid;
+      if (!activeRaid || activeRaid.phase !== "warning") return state;
+
+      const raidType = activeRaid.type;
+      const result = resolveRaid(raidType, state.garrison, state.castleLevel, state.inventory);
+      if (!result) return state;
+
+      // Determine scribe's note for first-time raids
+      const raidDef = RAID_TYPES[raidType];
+      const scribesKey = raidType === "criminal" ? "criminalScribesNoteSeen" : "scottishScribesNoteSeen";
+      const isFirstRaid = !raids[scribesKey];
+      const scribesNote = isFirstRaid ? raidDef.scribesNote : null;
+
+      return {
+        ...state,
+        phase: "raid_result",
+        scribesNote,
+        raids: {
+          ...raids,
+          activeRaid: { ...activeRaid, phase: "result", result },
+          [scribesKey]: true,
+        },
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // RAID_CONTINUE — player clicks "Continue" after seeing raid results
+    // -----------------------------------------------------------------------
+    case "RAID_CONTINUE": {
+      if (state.phase !== "raid_result") return state;
+      const raids = state.raids ?? {};
+      const activeRaid = raids.activeRaid;
+      if (!activeRaid || activeRaid.phase !== "result" || !activeRaid.result) return state;
+
+      const { type: raidType, result } = activeRaid;
+      const { season, year, turn } = state;
+
+      // Apply resource changes
+      let newDenarii = Math.max(0, state.denarii + result.denariiDelta);
+      let newPopulation = Math.max(0, state.population + result.populationDelta);
+      let newGarrison = Math.max(0, state.garrison + result.garrisonDelta);
+      let newInventory = { ...state.inventory };
+
+      // Apply food delta to grain
+      if (result.foodDelta !== 0) {
+        const currentGrain = newInventory.grain || 0;
+        newInventory.grain = Math.max(0, currentGrain + result.foodDelta);
+      }
+
+      // Apply trade good loss
+      if (result.tradeGoodLost) {
+        const { resource, amount } = result.tradeGoodLost;
+        newInventory[resource] = Math.max(0, (newInventory[resource] || 0) - amount);
+      }
+
+      const newFood = getTotalFood(newInventory);
+
+      // Build chronicle entry
+      const chronicleText = buildRaidChronicleText(raidType, result, season, year, state.garrison);
+      let nextChronicle = addChronicle(state.chronicle, chronicleText, season, year, turn, "event");
+
+      // Update raid statistics
+      const isCriminal = raidType === "criminal";
+      const updatedRaids = {
+        ...raids,
+        lastRaidTurn: turn,
+        lastRaidType: raidType,
+        criminalCooldown: isCriminal ? RAID_TYPES.criminal.cooldownTurns : raids.criminalCooldown,
+        scottishCooldown: !isCriminal ? RAID_TYPES.scottish.cooldownTurns : raids.scottishCooldown,
+        totalCriminalRaids: (raids.totalCriminalRaids || 0) + (isCriminal ? 1 : 0),
+        totalScottishRaids: (raids.totalScottishRaids || 0) + (!isCriminal ? 1 : 0),
+        criminalVictories: (raids.criminalVictories || 0) + (isCriminal && result.victory ? 1 : 0),
+        scottishVictories: (raids.scottishVictories || 0) + (!isCriminal && result.victory ? 1 : 0),
+        criminalDefeats: (raids.criminalDefeats || 0) + (isCriminal && !result.victory ? 1 : 0),
+        scottishDefeats: (raids.scottishDefeats || 0) + (!isCriminal && !result.victory ? 1 : 0),
+        totalDenariiLost: (raids.totalDenariiLost || 0) + (result.denariiDelta < 0 ? Math.abs(result.denariiDelta) : 0),
+        totalFoodLost: (raids.totalFoodLost || 0) + (result.foodDelta < 0 ? Math.abs(result.foodDelta) : 0),
+        totalDenariiRecovered: (raids.totalDenariiRecovered || 0) + (result.denariiDelta > 0 ? result.denariiDelta : 0),
+        activeRaid: null,
+      };
+
+      // Check game over after raid losses
+      const postRaidState = { population: newPopulation, bankruptcyTurns: state.bankruptcyTurns };
+      const raidGameOver = checkGameOver(postRaidState);
+      if (raidGameOver) {
+        return {
+          ...state,
+          denarii: newDenarii,
+          food: newFood,
+          population: newPopulation,
+          garrison: newGarrison,
+          inventory: newInventory,
+          chronicle: nextChronicle,
+          raids: updatedRaids,
+          phase: "game_over",
+          gameOverReason: raidGameOver,
+          currentEvent: null,
+          currentRandomEvent: null,
+        };
+      }
+
+      // Resume normal season flow — go to seasonal_action
+      return {
+        ...state,
+        denarii: newDenarii,
+        food: newFood,
+        population: newPopulation,
+        garrison: newGarrison,
+        inventory: newInventory,
+        chronicle: nextChronicle,
+        raids: updatedRaids,
+        phase: "seasonal_action",
+        activeTab: "chronicle",
+        resourceDeltas: {
+          denarii: newDenarii - state.denarii,
+          food: newFood - state.food,
+          population: newPopulation - state.population,
+          garrison: newGarrison - state.garrison,
+        },
       };
     }
 
@@ -949,15 +1174,47 @@ export function gameReducer(state, action) {
     // -----------------------------------------------------------------------
     case "DISMISS_FLIP_INTRO": {
       if (state.phase !== "flip_intro") return state;
+      const flipForIntro = ALL_FLIPS[state.currentFlipId];
+      if (flipForIntro?.type === "cyoa") {
+        return { ...state, phase: "flip_decision", currentCyoaNodeId: flipForIntro.startNode };
+      }
       return { ...state, phase: "flip_decision" };
     }
 
     case "SELECT_FLIP_OPTION": {
       if (state.phase !== "flip_decision") return state;
       const { optionIndex } = action.payload ?? {};
-      const flip = PERSPECTIVE_FLIPS[state.currentFlipId];
+      const flip = ALL_FLIPS[state.currentFlipId];
       if (!flip) return state;
 
+      // --- CYOA branching flow ---
+      if (flip.type === "cyoa") {
+        const node = flip.nodes[state.currentCyoaNodeId];
+        if (!node || node.isEnding) return state;
+        const option = node.options?.[optionIndex];
+        if (!option) return state;
+
+        const targetNode = flip.nodes[option.goto];
+        if (!targetNode) return state;
+
+        if (targetNode.isEnding) {
+          return {
+            ...state,
+            phase: "flip_summary",
+            currentCyoaNodeId: option.goto,
+            cyoaEndingType: targetNode.endingType,
+            currentFlipOutcome: null,
+          };
+        }
+
+        return {
+          ...state,
+          currentCyoaNodeId: option.goto,
+          // Stay in flip_decision phase - go directly to next scene
+        };
+      }
+
+      // --- Existing linear flow ---
       const decision = flip.decisions[state.currentDecisionIndex];
       if (!decision) return state;
 
@@ -981,7 +1238,7 @@ export function gameReducer(state, action) {
 
     case "CONTINUE_FLIP": {
       if (state.phase !== "flip_outcome") return state;
-      const flip = PERSPECTIVE_FLIPS[state.currentFlipId];
+      const flip = ALL_FLIPS[state.currentFlipId];
       if (!flip) return state;
 
       const nextIndex = state.currentDecisionIndex + 1;
@@ -1006,11 +1263,16 @@ export function gameReducer(state, action) {
       if (state.phase !== "flip_summary") return state;
 
       const { currentFlipId, flipConsequenceFlags, turn, chronicle } = state;
-      const flip = PERSPECTIVE_FLIPS[currentFlipId];
+      const flip = ALL_FLIPS[currentFlipId];
       if (!flip) return state;
 
-      // Compute consequences and translate to resource effects
-      const consequences = computeFlipConsequences(currentFlipId, flipConsequenceFlags);
+      // Compute consequences: CYOA uses endingType, linear uses consequence flags
+      let consequences;
+      if (flip.type === "cyoa") {
+        consequences = computeCyoaConsequences(currentFlipId, state.cyoaEndingType);
+      } else {
+        consequences = computeFlipConsequences(currentFlipId, flipConsequenceFlags);
+      }
       const resourceEffects = translateEffects(consequences);
       const applied = applyResourceEffects(state, resourceEffects, MAX_GARRISON);
 
@@ -1045,6 +1307,8 @@ export function gameReducer(state, action) {
           currentDecisionIndex: 0,
           flipConsequenceFlags: [],
           currentFlipOutcome: null,
+          currentCyoaNodeId: null,
+          cyoaEndingType: null,
         };
       }
 
@@ -1067,6 +1331,8 @@ export function gameReducer(state, action) {
           currentDecisionIndex: 0,
           flipConsequenceFlags: [],
           currentFlipOutcome: null,
+          currentCyoaNodeId: null,
+          cyoaEndingType: null,
           currentEvent: null,
           currentRandomEvent: null,
           scribesNote: null,
@@ -1095,6 +1361,8 @@ export function gameReducer(state, action) {
         currentDecisionIndex: 0,
         flipConsequenceFlags: [],
         currentFlipOutcome: null,
+        currentCyoaNodeId: null,
+        cyoaEndingType: null,
       };
     }
 
@@ -1266,6 +1534,195 @@ export function gameReducer(state, action) {
         ...state,
         tavern: { ...prevTab, strangerAppearedThisSeason: true },
         chronicle: addChronicle(state.chronicle, "A mysterious stranger offered you counsel.", state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // MARTA THE MERCHANT
+    // -----------------------------------------------------------------------
+
+    case "TAVERN_MARTA_SCRIBES_NOTE_SEEN": {
+      return {
+        ...state,
+        tavern: { ...state.tavern, martaScribesNoteSeen: true },
+      };
+    }
+
+    case "TAVERN_MARTA_ACCEPT_OFFER": {
+      if (state.phase !== "management") return state;
+      const { offerId } = action.payload ?? {};
+      const prevTm = state.tavern ?? {};
+      if ((prevTm.martaOffersUsed ?? []).includes(offerId)) return state;
+
+      const baseTavern = {
+        ...prevTm,
+        martaOffersUsed: [...(prevTm.martaOffersUsed ?? []), offerId],
+      };
+
+      switch (offerId) {
+        case "bulk_wool": {
+          if ((state.inventory?.wool ?? 0) < 5) return state;
+          const newInv = { ...state.inventory, wool: state.inventory.wool - 5 };
+          return {
+            ...state,
+            denarii: state.denarii + 40,
+            inventory: newInv,
+            food: getTotalFood(newInv),
+            tavern: baseTavern,
+            chronicle: addChronicle(state.chronicle, "Marta brokered a Flemish wool deal: sold 5 wool for 40d.", state.season, state.year, state.turn, "action"),
+          };
+        }
+        case "spice_investment": {
+          if (state.denarii < 75) return state;
+          return {
+            ...state,
+            denarii: state.denarii - 75,
+            tavern: { ...baseTavern, martaSpiceInvestment: true },
+            chronicle: addChronicle(state.chronicle, "Invested 75d in Marta\u2019s spice shipment. Returns expected next season.", state.season, state.year, state.turn, "action"),
+          };
+        }
+        case "trade_route_tip": {
+          if (state.denarii < 30) return state;
+          // Find best-priced trade good
+          const tradeGoods = ["wool", "cloth", "honey", "herbs", "ale"];
+          let bestGood = "cloth";
+          let bestPrice = 0;
+          for (const good of tradeGoods) {
+            const price = state.marketPrices?.sell?.[good] ?? 0;
+            if (price > bestPrice) {
+              bestPrice = price;
+              bestGood = good;
+            }
+          }
+          const tipText = `Marta whispers: "${bestGood.charAt(0).toUpperCase() + bestGood.slice(1)} fetches ${bestPrice}d at market right now. Best rate I\u2019ve seen."`;
+          return {
+            ...state,
+            denarii: state.denarii - 30,
+            tavern: baseTavern,
+            chronicle: addChronicle(state.chronicle, tipText, state.season, state.year, state.turn, "action"),
+          };
+        }
+        case "storage_deal": {
+          if (state.denarii < 50) return state;
+          if (prevTm.martaStoragePurchased) return state;
+          return {
+            ...state,
+            denarii: state.denarii - 50,
+            inventoryCapacity: (state.inventoryCapacity ?? 300) + 20,
+            tavern: { ...baseTavern, martaStoragePurchased: true },
+            chronicle: addChronicle(state.chronicle, "Marta arranged storage expansion. Inventory capacity +20.", state.season, state.year, state.turn, "action"),
+          };
+        }
+        default:
+          return state;
+      }
+    }
+
+    case "TAVERN_MARTA_DECLINE_OFFER": {
+      if (state.phase !== "management") return state;
+      const { offerId: declinedMartaId } = action.payload ?? {};
+      const prevTmd = state.tavern ?? {};
+      if ((prevTmd.martaOffersUsed ?? []).includes(declinedMartaId)) return state;
+      return {
+        ...state,
+        tavern: {
+          ...prevTmd,
+          martaOffersUsed: [...(prevTmd.martaOffersUsed ?? []), declinedMartaId],
+        },
+        chronicle: addChronicle(state.chronicle, "You declined Marta\u2019s trade offer.", state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // OLD ALDRIC THE VETERAN
+    // -----------------------------------------------------------------------
+
+    case "TAVERN_ALDRIC_SCRIBES_NOTE_SEEN": {
+      return {
+        ...state,
+        tavern: { ...state.tavern, aldricScribesNoteSeen: true },
+      };
+    }
+
+    case "TAVERN_ALDRIC_ACCEPT_OFFER": {
+      if (state.phase !== "management") return state;
+      const { offerId: aldricOfferId } = action.payload ?? {};
+      const prevTa2 = state.tavern ?? {};
+      if ((prevTa2.aldricOffersUsed ?? []).includes(aldricOfferId)) return state;
+
+      const baseAldricTavern = {
+        ...prevTa2,
+        aldricOffersUsed: [...(prevTa2.aldricOffersUsed ?? []), aldricOfferId],
+      };
+
+      switch (aldricOfferId) {
+        case "basic_drill": {
+          if (state.denarii < 30 || (state.garrison ?? 0) === 0) return state;
+          return {
+            ...state,
+            denarii: state.denarii - 30,
+            tavern: { ...baseAldricTavern, aldricDrillActive: 3 },
+            chronicle: addChronicle(state.chronicle, "Old Aldric drilled the garrison. Defense readiness improved for 3 seasons.", state.season, state.year, state.turn, "action"),
+          };
+        }
+        case "wall_inspection": {
+          if (state.denarii < 20) return state;
+          const garrison = state.garrison ?? 0;
+          const castleLvl = state.castleLevel ?? 1;
+          const defCount = (state.defenseUpgrades ?? []).length;
+          let report;
+          if (castleLvl === 1 && garrison < 5) {
+            report = "Aldric\u2019s report: Your defenses are dire. A wooden palisade and fewer than 5 men? Upgrade your castle and recruit immediately.";
+          } else if (castleLvl < 3 && defCount === 0) {
+            report = "Aldric\u2019s report: Stone walls would serve you better, and you\u2019ve no defensive installations. Consider a moat or arrow slits.";
+          } else if (garrison < 8) {
+            report = "Aldric\u2019s report: Your walls are adequate, but you need more men. A castle without soldiers is just an expensive barn.";
+          } else {
+            report = "Aldric\u2019s report: Your defenses are sound. Maintain garrison strength and upgrade when resources allow.";
+          }
+          return {
+            ...state,
+            denarii: state.denarii - 20,
+            tavern: baseAldricTavern,
+            chronicle: addChronicle(state.chronicle, report, state.season, state.year, state.turn, "action"),
+          };
+        }
+        case "recruit_referral": {
+          if (state.denarii < 40) return state;
+          return {
+            ...state,
+            denarii: state.denarii - 40,
+            garrison: (state.garrison ?? 0) + 2,
+            tavern: baseAldricTavern,
+            chronicle: addChronicle(state.chronicle, "Aldric recruited a seasoned soldier for the garrison. Garrison +2.", state.season, state.year, state.turn, "action"),
+          };
+        }
+        case "war_story_lesson": {
+          if ((state.garrison ?? 0) === 0) return state;
+          return {
+            ...state,
+            population: state.population + 2,
+            tavern: baseAldricTavern,
+            chronicle: addChronicle(state.chronicle, "Aldric told war stories to the garrison. Morale spread through the village. Population +2.", state.season, state.year, state.turn, "action"),
+          };
+        }
+        default:
+          return state;
+      }
+    }
+
+    case "TAVERN_ALDRIC_DECLINE_OFFER": {
+      if (state.phase !== "management") return state;
+      const { offerId: declinedAldricId } = action.payload ?? {};
+      const prevTad = state.tavern ?? {};
+      if ((prevTad.aldricOffersUsed ?? []).includes(declinedAldricId)) return state;
+      return {
+        ...state,
+        tavern: {
+          ...prevTad,
+          aldricOffersUsed: [...(prevTad.aldricOffersUsed ?? []), declinedAldricId],
+        },
+        chronicle: addChronicle(state.chronicle, "You declined Aldric\u2019s offer.", state.season, state.year, state.turn, "action"),
       };
     }
 

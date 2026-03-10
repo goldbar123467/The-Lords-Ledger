@@ -67,8 +67,54 @@ export default function MilitaryTab({ state, onRecruit, onDismiss, onUpgradeCast
     (inventory.timber || 0) >= nextCastle.timber &&
     (inventory.iron || 0) >= nextCastle.iron;
 
+  const criminalDefended = garrison >= 5;
+  const scottishDefended = garrison >= 10;
+
   return (
     <div className="w-full max-w-2xl mx-auto">
+      {/* Raid defense status */}
+      <div
+        className="rounded-lg p-4 mb-4"
+        style={{ backgroundColor: "#231e16", border: "1px solid #6a5a42" }}
+      >
+        <h3
+          className="text-sm font-bold uppercase tracking-wider mb-3"
+          style={{ fontFamily: "Cinzel, serif", color: "#c4a24a" }}
+        >
+          {"\u2694"} Raid Defense Status
+        </h3>
+        <div className="grid grid-cols-1 gap-2 text-base" style={{ color: "#a89070" }}>
+          <div className="flex items-center justify-between">
+            <span>
+              <span className="font-semibold" style={{ color: "#c8b090" }}>Outlaws:</span>{" "}
+              5 garrison
+            </span>
+            <span
+              className="font-bold text-sm uppercase tracking-wider"
+              style={{ color: criminalDefended ? "#4a8a3a" : "#c62828" }}
+            >
+              {criminalDefended ? "\u2713 DEFENDED" : "\u2717 VULNERABLE"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>
+              <span className="font-semibold" style={{ color: "#c8b090" }}>Scots:</span>{" "}
+              10 garrison
+            </span>
+            <span
+              className="font-bold text-sm uppercase tracking-wider"
+              style={{ color: scottishDefended ? "#4a8a3a" : "#c62828" }}
+            >
+              {scottishDefended ? "\u2713 DEFENDED" : "\u2717 VULNERABLE"}
+            </span>
+          </div>
+        </div>
+        <div className="mt-2 text-sm" style={{ color: "#a89070" }}>
+          <span className="font-semibold" style={{ color: "#c8b090" }}>Your garrison:</span>{" "}
+          <span style={{ color: "#e8c44a" }}>{garrison}</span>
+        </div>
+      </div>
+
       {/* Garrison panel */}
       <div
         className="rounded-lg p-4 mb-4"
