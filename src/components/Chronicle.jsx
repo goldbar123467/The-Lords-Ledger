@@ -1,16 +1,16 @@
 import { useEffect, useRef } from "react";
 
 const SEASON_ICONS = {
-  spring: "\u{1F331}",
-  summer: "\u2600\uFE0F",
-  autumn: "\u{1F342}",
-  winter: "\u2744\uFE0F",
+  spring: "\u2741",
+  summer: "\u2600",
+  autumn: "\u2767",
+  winter: "\u2744",
 };
 
 const TYPE_STYLES = {
-  action: { borderLeft: "3px solid #b8860b" },
-  event: { borderLeft: "3px solid #4a1a6b" },
-  system: { borderLeft: "3px solid #5a3a28", fontStyle: "italic" },
+  action: { borderLeft: "3px solid #c4a24a" },
+  event: { borderLeft: "3px solid #6a4a8a" },
+  system: { borderLeft: "3px solid #6a5a42", fontStyle: "italic" },
 };
 
 export default function Chronicle({ entries }) {
@@ -29,17 +29,17 @@ export default function Chronicle({ entries }) {
   return (
     <div
       className="w-full max-w-xl mx-auto mt-4 rounded-lg border-2 overflow-hidden"
-      style={{ borderColor: "#c4a45a", backgroundColor: "#faf3e3" }}
+      style={{ borderColor: "#6a5a42", backgroundColor: "#231e16" }}
     >
       <div
         className="px-4 py-2 border-b font-heading text-base font-semibold uppercase tracking-widest"
-        style={{ backgroundColor: "#e8d5a3", borderColor: "#c4a45a", color: "#5a3a28" }}
+        style={{ backgroundColor: "#1a1610", borderColor: "#6a5a42", color: "#c4a24a", fontFamily: "Cinzel, serif" }}
       >
         Chronicle of Your Reign
       </div>
       <div
         className="max-h-80 overflow-y-auto p-3 flex flex-col gap-2"
-        style={{ scrollbarGutter: "stable" }}
+        style={{ scrollbarGutter: "stable", backgroundColor: "#1a1610" }}
       >
         <div ref={topRef} />
         {reversed.map((entry, i) => {
@@ -49,9 +49,9 @@ export default function Chronicle({ entries }) {
             <div
               key={entries.length - 1 - i}
               className="pl-3 py-1.5 text-base leading-relaxed"
-              style={{ ...style, color: "#3d2517" }}
+              style={{ ...style, color: "#a89070" }}
             >
-              <span className="text-sm font-semibold mr-1.5" style={{ color: "#8b6914" }}>
+              <span className="text-sm font-semibold mr-1.5" style={{ color: "#c4a24a" }}>
                 {icon} Y{entry.year} {entry.season?.charAt(0).toUpperCase() + entry.season?.slice(1)}
               </span>
               <span>{entry.text}</span>

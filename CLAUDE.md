@@ -27,7 +27,7 @@ All game state lives in a single `useReducer` in `App.jsx`. The reducer (`src/en
 ```
 title → management → seasonal_action → seasonal_resolve → random_event → random_resolve → management (next turn)
                                                                                           ↗
-game_over (any meter hits 0 or 100)
+game_over (population = 0, or bankrupt 3 turns)
 victory (survived 28 turns)
 ```
 
@@ -37,35 +37,43 @@ During `management`, the player browses tabs (Estate, Trade, Military, People) a
 
 All engine files export **pure functions only** — no side effects, no I/O, no DOM access. Math.random() is the only exception (intentional RNG for event selection).
 
-- **gameReducer.js** — 20+ action types. Event data is injected via action payloads, not imported directly.
-- **economyEngine.js** — `simulateEconomy(state)` runs: production → consumption → upkeep → tax (Autumn only) → passive income → meter adjustments → population growth. `canBuildBuilding()` validates cost/prerequisites/limits.
-- **meterUtils.js** — `applyEffects()` clamps meters to [0,100] and ignores locked meters. `checkGameOver()` returns the first meter at 0 or 100.
-- **eventSelector.js** — Tutorial safety filtering: events in turns 1-4 must only reference unlocked meters. `requiresMeter` gate prevents military/faith events before those meters activate.
+- **gameReducer.js** — 20+ action types. Event data is injected via action payloads, not imported directly. Resource-based state (no abstract meters).
+- **economyEngine.js** — `simulateEconomy(state)` runs: production → consumption → upkeep → tax (Autumn only) → passive income → population growth. Returns updated resource values.
+- **meterUtils.js** — Despite the legacy name, this now contains resource utilities: `translateEffects()` converts old meter-format event effects to resource deltas, `applyResourceEffects()` applies them, `checkGameOver()` checks population/bankruptcy.
+- **eventSelector.js** — Simple event selection. `requiresMeter` gates converted to turn-based gates (military events after turn 3, faith events after turn 5).
 
-### Tutorial Meter Unlock
+### Resource System (replaces meters)
 
-Turns 1-2: treasury + people only. Turn 3: +military. Turn 5: +faith. Events and effects for locked meters are silently filtered/ignored.
+The game uses concrete resources instead of abstract meters:
+- **Denarii** — money for building, trading, paying soldiers
+- **Food** — grain + livestock + fish in inventory, consumed by population each season
+- **Population** — families on the estate, grow with food surplus, leave during famine/high taxes
+- **Garrison** — soldiers, cost upkeep and food, desert if unpaid/unfed
+
+Game over: population = 0 (depopulation) or denarii = 0 for 3+ consecutive turns (bankruptcy).
+
+Events still use old effect format `{ treasury: N, people: N }` which gets translated to resource deltas via `translateEffects()` in meterUtils.js.
 
 ### Tab Unlock
 
-Estate, People, Chronicle: turn 1. Trade: turn 3. Military: turn 5.
+All tabs available from turn 1.
 
 ### Data Layer (`src/data/`)
 
 - **buildings.js** — 12 buildings. Basic producers have `produces` only. Converters (fulling_mill, brewery) also have `consumes`. Max 2 of basic, 1 of advanced. Some require prerequisites.
 - **economy.js** — Resource types, base sell/buy prices, `generateMarketPrices()` (±20% fluctuation), tax rates, castle levels, defense upgrades, constants.
 - **seasonalEvents.js** — Object keyed by season (`{ spring: [...], summer: [...] }`). Flattened to array in App.jsx.
-- **randomEvents.js** — Flat array. Each event has optional `requiresMeter` gate.
-- **endings.js** — `failureNarratives[meter][zero|hundred]`, `victoryTitles[meter|balanced]`, `victorySummary(meters)`.
+- **randomEvents.js** — Flat array. Each event has optional `requiresMeter` gate (used for turn-based filtering).
+- **endings.js** — `failureNarratives.depopulation|bankruptcy`, `victoryTitles`, `getVictoryTitle(state)`, `victorySummary(state)`.
 
 ### Component Layer (`src/components/`)
 
-- **Dashboard.jsx** — Sticky top bar. Row 1: four core meters with flash animations. Row 2: denarii, food, population, season/year.
-- **TabBar.jsx** — Horizontal tabs below dashboard. Locked tabs shown grayed out.
+- **Dashboard.jsx** — Sticky top bar. Row 1: four resource stats (denarii, food, families, garrison) with deltas. Row 2: season/year info. Warning banners for critical resources.
+- **TabBar.jsx** — Horizontal tabs below dashboard. All tabs unlocked from turn 1.
 - **EstateTab.jsx** — Economy overview box + inventory display + building card grid (3-col on desktop).
 - **TradeTab.jsx** — Sell panel (from inventory) + buy panel (market goods). Quantity buttons: 1, 5, All.
 - **Chronicle.jsx** — Reverse-chronological scrolling log. Entry types: action (gold), event (purple), system (brown italic).
-- **EventCard.jsx** — Shows event title/description/options with indicator pills showing meter effects.
+- **EventCard.jsx** — Shows event title/description/options with indicator pills showing resource effects (translated from old meter format).
 
 ResourceBar.jsx and SeasonHeader.jsx are V1 components superseded by Dashboard.jsx but still in the repo.
 
@@ -81,7 +89,7 @@ ResourceBar.jsx and SeasonHeader.jsx are V1 components superseded by Dashboard.j
 
 **Market prices:** Regenerated via `generateMarketPrices()` at each turn advance.
 
-**Theming:** Medieval parchment aesthetic. Custom CSS variables in `src/index.css` via Tailwind's `@theme`. Fonts: Cinzel (headings), Crimson Text (body) from Google Fonts. Meter colors: treasury=#b8860b, people=#2d5a27, military=#8b1a1a, faith=#4a1a6b.
+**Theming:** Medieval parchment aesthetic. Custom CSS variables in `src/index.css` via Tailwind's `@theme`. Fonts: Cinzel (headings), Crimson Text (body) from Google Fonts.
 
 **Styling approach:** Inline `style={{}}` for theme colors, Tailwind utility classes for layout. This is intentional — the custom parchment palette doesn't map cleanly to Tailwind color utilities.
 
@@ -93,10 +101,14 @@ ResourceBar.jsx and SeasonHeader.jsx are V1 components superseded by Dashboard.j
 4. Add or update component in `src/components/`
 5. Wire dispatch handler in `App.jsx`
 
-## V2 Expansion Status
+## Current Status
 
-Steps 1-3 of the build order are complete (tabbed layout, chronicle migration, estate tab with economy engine). Remaining:
-- Trade tab: functional buy/sell UI is built
-- Military tab: display-only (garrison recruit/dismiss, castle upgrades not wired)
-- People tab: tax rate works, labor allocation is a stub
+Resource-based architecture complete (meters removed). All core systems functional:
+- Estate tab: building management with economy engine
+- Trade tab: buy/sell with market price fluctuation
+- Military tab: garrison recruit/dismiss, castle upgrades, defense installations
+- People tab: tax rate + church donations (faith → economic benefit)
+- Events: old meter effects auto-translated to resource effects via `translateEffects()`
+- Game over: population = 0 or 3 consecutive bankrupt turns
+- Victory: scored by wealth, population, garrison, buildings
 - Full 28-turn playthrough testing needed

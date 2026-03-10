@@ -12,6 +12,7 @@ import EstateTab from "./components/EstateTab";
 import TradeTab from "./components/TradeTab";
 import MilitaryTab from "./components/MilitaryTab";
 import PeopleTab from "./components/PeopleTab";
+import MapTab from "./components/MapTab";
 import Chronicle from "./components/Chronicle";
 import EventCard from "./components/EventCard";
 import ScribesNote from "./components/ScribesNote";
@@ -21,6 +22,7 @@ import VictoryScreen from "./components/VictoryScreen";
 import FlipScreen from "./components/FlipScreen";
 import SynergyToast from "./components/SynergyToast";
 import TutorialHint from "./components/TutorialHint";
+
 
 const seasonalEvents = Object.values(seasonalEventsData).flat();
 const randomEvents = randomEventsData;
@@ -33,19 +35,18 @@ export default function App() {
     turn,
     season,
     year,
-    meters,
-    meterDeltas,
     chronicle,
     currentEvent,
     currentRandomEvent,
     scribesNote,
-    activeMeterCount,
     gameOverReason,
     causeChain,
     activeTab,
     denarii,
     food,
     population,
+    resourceDeltas,
+    bankruptcyTurns,
     currentFlipId,
     currentFlipStats,
     currentDecisionIndex,
@@ -164,14 +165,13 @@ export default function App() {
   const handleSimulateSeason = useCallback(() => {
     if (isResolving) return;
     setIsResolving(true);
-    // Brief visual delay so the "Resolving..." state is visible
     requestAnimationFrame(() => {
       dispatch({ type: "SIMULATE_SEASON", payload });
       setIsResolving(false);
     });
   }, [isResolving, payload]);
 
-  // --- Computed values (must be before early returns for hooks rule) ---
+  // --- Computed values ---
   const isManagement = phase === "management";
   const isEventPhase =
     phase === "seasonal_action" ||
@@ -215,7 +215,7 @@ export default function App() {
       <GameOverScreen
         gameOverReason={gameOverReason}
         causeChain={causeChain}
-        meters={meters}
+        state={state}
         onPlayAgain={handlePlayAgain}
       />
     );
@@ -225,7 +225,7 @@ export default function App() {
   if (phase === "victory") {
     return (
       <VictoryScreen
-        meters={meters}
+        state={state}
         onPlayAgain={handlePlayAgain}
         activatedSynergies={synergies?.activated ?? []}
       />
@@ -235,7 +235,7 @@ export default function App() {
   return (
     <div
       className="min-h-screen flex flex-col"
-      style={{ backgroundColor: "#f4e4c1" }}
+      style={{ backgroundColor: "#0f0d0a" }}
     >
       {/* Scribe's Note overlay */}
       <ScribesNote text={scribesNote} onDismiss={handleDismissScribesNote} />
@@ -243,9 +243,6 @@ export default function App() {
       {/* Sticky header: Dashboard + TabBar */}
       <div className="sticky top-0 z-40">
         <Dashboard
-          meters={meters}
-          meterDeltas={meterDeltas}
-          activeMeterCount={activeMeterCount}
           denarii={denarii}
           food={food}
           population={population}
@@ -253,6 +250,8 @@ export default function App() {
           season={season}
           year={year}
           turn={turn}
+          resourceDeltas={resourceDeltas}
+          bankruptcyTurns={bankruptcyTurns}
           flipMode={isFlipPhase}
           flipStats={flipDisplayStats}
         />
@@ -268,7 +267,7 @@ export default function App() {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 px-4 py-4 pb-8">
+      <div key={displayTab} className="flex-1 px-4 py-4 pb-8 tab-fade-in">
 
         {/* --- FLIP PHASES --- */}
         {isFlipPhase && flipData && (
@@ -303,6 +302,11 @@ export default function App() {
           />
         )}
 
+        {/* --- MAP TAB --- */}
+        {!isFlipPhase && displayTab === "map" && isManagement && (
+          <MapTab state={state} />
+        )}
+
         {/* --- TRADE TAB --- */}
         {!isFlipPhase && displayTab === "trade" && isManagement && (
           <TradeTab
@@ -332,10 +336,9 @@ export default function App() {
           />
         )}
 
-        {/* --- CHRONICLE TAB (events + narrative log) --- */}
+        {/* --- CHRONICLE TAB --- */}
         {!isFlipPhase && displayTab === "chronicle" && (
           <>
-            {/* Event phases render inside the chronicle tab */}
             {phase === "seasonal_action" && currentEvent && (
               <EventCard
                 event={currentEvent}
@@ -366,7 +369,6 @@ export default function App() {
               />
             )}
 
-            {/* Chronicle log (always visible in this tab) */}
             <Chronicle entries={chronicle} />
           </>
         )}
@@ -378,33 +380,43 @@ export default function App() {
         onDismiss={handleDismissSynergyNotification}
       />
 
-      {/* Simulate Season button — visible during management phase (not during flips) */}
+      {/* Simulate Season button */}
       {isManagement && !isFlipPhase && (
         <div
-          className="sticky bottom-0 w-full px-4 py-3 border-t-2 text-center z-30"
-          style={{ backgroundColor: "#f0dca0", borderColor: "#c4a45a" }}
+          className="sticky bottom-0 w-full px-4 py-3 text-center z-30"
+          style={{ backgroundColor: "#0f0d0a", borderTop: "1px solid #8a7a3a" }}
         >
           <button
             onClick={handleSimulateSeason}
             disabled={isResolving}
-            className="px-10 py-3 rounded-md border-2 font-heading font-bold text-lg uppercase tracking-wider transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+            className={`px-10 py-3 rounded-md border-2 font-heading font-bold text-lg uppercase transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed${isResolving ? "" : " gold-glow"}`}
             style={{
-              backgroundColor: isResolving ? "#6b5210" : "#8b6914",
-              borderColor: "#5a3a28",
-              color: "#faf3e3",
+              background: isResolving
+                ? "linear-gradient(135deg, #5a1010 0%, #2a0505 50%, #5a1010 100%)"
+                : "linear-gradient(135deg, #8b1a1a 0%, #4a0a0a 50%, #8b1a1a 100%)",
+              border: "2px solid #c4a24a",
+              color: "#e8c44a",
+              fontFamily: "Cinzel Decorative, Cinzel, serif",
+              letterSpacing: "3px",
               cursor: isResolving ? "not-allowed" : "pointer",
             }}
             onMouseEnter={(e) => {
-              if (!isResolving) e.currentTarget.style.backgroundColor = "#a07d1c";
+              if (!isResolving) {
+                e.currentTarget.style.background = "linear-gradient(135deg, #c62828 0%, #6a1010 50%, #c62828 100%)";
+                e.currentTarget.style.textShadow = "0 0 8px rgba(232, 196, 74, 0.5)";
+              }
             }}
             onMouseLeave={(e) => {
-              if (!isResolving) e.currentTarget.style.backgroundColor = "#8b6914";
+              if (!isResolving) {
+                e.currentTarget.style.background = "linear-gradient(135deg, #8b1a1a 0%, #4a0a0a 50%, #8b1a1a 100%)";
+                e.currentTarget.style.textShadow = "none";
+              }
             }}
             aria-label={isResolving ? "Resolving season..." : "Simulate this season"}
           >
             {isResolving ? "Resolving..." : "Simulate Season"}
           </button>
-          <p className="text-sm mt-1" style={{ color: "#5a3a28" }}>
+          <p className="text-sm mt-1 italic" style={{ color: "#a89070" }}>
             Resolve production, consumption, and events for {season ? season.charAt(0).toUpperCase() + season.slice(1) : ""}, Year {year}
           </p>
         </div>

@@ -1,34 +1,32 @@
 import { failureNarratives } from "../data/endings";
 
-export default function GameOverScreen({ gameOverReason, causeChain, meters, onPlayAgain }) {
+export default function GameOverScreen({ gameOverReason, causeChain, state, onPlayAgain }) {
   if (!gameOverReason) return null;
 
-  const { meter, type } = gameOverReason;
-  const narrative = failureNarratives[meter]?.[type === "depleted" ? "zero" : "hundred"];
-
+  const narrative = failureNarratives[gameOverReason.type];
   if (!narrative) return null;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-start px-4 py-6"
-      style={{ backgroundColor: "#2c1810" }}
+      style={{ backgroundColor: "#0f0d0a" }}
     >
       <div
         className="w-full max-w-xl rounded-lg border-2 p-5 sm:p-8 shadow-2xl"
         style={{
-          backgroundColor: "#faf3e3",
+          backgroundColor: "#1a1610",
           borderColor: "#8b1a1a",
-          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
+          boxShadow: "0 8px 32px rgba(139, 26, 26, 0.3)",
         }}
       >
         <div className="text-center mb-4">
-          <div className="text-4xl mb-2">{"\u{1F480}"}</div>
+          <div className="text-4xl mb-2" style={{ color: "#c62828" }}>{"\u2620"}</div>
           <h2
             className="font-heading text-2xl sm:text-3xl font-bold"
-            style={{ color: "#8b1a1a" }}
+            style={{ color: "#c62828" }}
           >
             {narrative.title}
           </h2>
-          <p className="text-base font-semibold mt-1" style={{ color: "#5a3a28" }}>
+          <p className="text-base font-semibold mt-1" style={{ color: "#a89070" }}>
             {narrative.headline}
           </p>
         </div>
@@ -38,86 +36,96 @@ export default function GameOverScreen({ gameOverReason, causeChain, meters, onP
           style={{ backgroundColor: "#8b1a1a" }}
         />
 
-        <p className="text-base leading-relaxed mb-5" style={{ color: "#3d2517" }}>
+        <p className="text-base leading-relaxed mb-5" style={{ color: "#a89070" }}>
           {narrative.narrative}
         </p>
 
         {/* Chronicle of Ruin - Causal Chain */}
-        <div
-          className="rounded-md border-2 p-4 mb-5"
-          style={{ borderColor: "#8b1a1a", backgroundColor: "#fdf6e3" }}
-        >
-          <h3
-            className="font-heading text-base font-bold uppercase tracking-wider mb-3"
-            style={{ color: "#8b1a1a" }}
+        {causeChain && causeChain.length > 0 && (
+          <div
+            className="rounded-md border-2 p-4 mb-5"
+            style={{ borderColor: "#8b1a1a", backgroundColor: "#231e16" }}
           >
-            {"\u{1F4D6}"} Chronicle of Ruin
-          </h3>
-          <div className="flex flex-col gap-2">
-            {causeChain.map((entry, i) => (
-              <div key={i} className="flex items-start gap-2">
-                <div
-                  className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mt-0.5"
-                  style={{ backgroundColor: "#8b1a1a", color: "#faf3e3" }}
-                >
-                  {i + 1}
+            <h3
+              className="font-heading text-base font-bold uppercase tracking-wider mb-3"
+              style={{ color: "#c62828" }}
+            >
+              {"\u2620"} Chronicle of Ruin
+            </h3>
+            <div className="flex flex-col gap-2">
+              {causeChain.map((entry, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <div
+                    className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mt-0.5"
+                    style={{ backgroundColor: "#8b1a1a", color: "#faf3e3" }}
+                  >
+                    {i + 1}
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold" style={{ color: "#c4a24a" }}>
+                      Y{entry.year} {entry.season?.charAt(0).toUpperCase() + entry.season?.slice(1)}
+                    </span>
+                    <p className="text-sm leading-snug" style={{ color: "#a89070" }}>
+                      {entry.summary}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-xs font-semibold" style={{ color: "#8b6914" }}>
-                    Y{entry.year} {entry.season?.charAt(0).toUpperCase() + entry.season?.slice(1)}
-                  </span>
-                  <p className="text-sm leading-snug" style={{ color: "#3d2517" }}>
-                    {entry.summary}
-                  </p>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Historian's Lesson */}
         <div
           className="rounded-md border p-4 mb-5"
-          style={{ borderColor: "#8b6914", backgroundColor: "#fdf6e3" }}
+          style={{ borderColor: "#c4a24a", backgroundColor: "#231e16" }}
         >
           <h4
             className="font-heading text-sm font-bold uppercase tracking-wider mb-2"
-            style={{ color: "#8b6914" }}
+            style={{ color: "#c4a24a" }}
           >
-            {"\u{1F4DC}"} Historian's Lesson
+            Historian's Lesson
           </h4>
-          <p className="text-sm leading-relaxed" style={{ color: "#3d2517" }}>
+          <p className="text-sm leading-relaxed" style={{ color: "#a89070" }}>
             {narrative.historianLesson}
           </p>
         </div>
 
-        {/* Final meter values */}
-        <div className="grid grid-cols-4 gap-2 mb-5 text-center text-sm">
-          {["treasury", "people", "military", "faith"].map((m) => (
-            <div key={m} className="py-2 rounded-md border" style={{ borderColor: "#c4a45a", backgroundColor: "#f4e4c1" }}>
-              <div className="font-heading font-semibold uppercase" style={{ color: "#5a3a28" }}>
-                {m.charAt(0).toUpperCase() + m.slice(1)}
+        {/* Final resource values */}
+        {state && (
+          <div className="grid grid-cols-4 gap-2 mb-5 text-center text-sm">
+            {[
+              { key: "denarii", label: "Denarii", icon: "\u269C", value: `${state.denarii || 0}d` },
+              { key: "food", label: "Food", icon: "\u2727", value: state.food || 0 },
+              { key: "population", label: "Families", icon: "\u2302", value: state.population || 0 },
+              { key: "garrison", label: "Garrison", icon: "\u2694", value: state.garrison || 0 },
+            ].map((r) => (
+              <div key={r.key} className="py-2 rounded-md border" style={{ borderColor: "#6a5a42", backgroundColor: "#231e16" }}>
+                <div className="text-lg mb-0.5" style={{ color: "#c4a24a" }}>{r.icon}</div>
+                <div className="font-heading font-semibold uppercase" style={{ color: "#6a5a42" }}>
+                  {r.label}
+                </div>
+                <div className="text-lg font-bold" style={{ color: "#e8c44a" }}>
+                  {r.value}
+                </div>
               </div>
-              <div className="text-lg font-bold" style={{ color: m === meter ? "#8b1a1a" : "#2c1810" }}>
-                {meters[m]}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         <button
           onClick={onPlayAgain}
           className="w-full py-3 rounded-md border-2 font-heading font-bold text-base uppercase tracking-wider cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
           style={{
-            backgroundColor: "#8b6914",
-            borderColor: "#5a3a28",
-            color: "#faf3e3",
+            background: "linear-gradient(135deg, #8b1a1a, #c62828)",
+            borderColor: "#c4a24a",
+            color: "#e8c44a",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "#a07d1c";
+            e.currentTarget.style.background = "linear-gradient(135deg, #a02020, #d63030)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "#8b6914";
+            e.currentTarget.style.background = "linear-gradient(135deg, #8b1a1a, #c62828)";
           }}
         >
           Try Again

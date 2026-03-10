@@ -23,7 +23,7 @@ export function checkFlipTriggers(state) {
     turn,
     perspectiveFlips = {},
     taxRate,
-    meters = {},
+    population = 20,
     buildings = [],
     tradeCount = 0,
     castleLevel = 1,
@@ -41,10 +41,10 @@ export function checkFlipTriggers(state) {
     // Must meet minimum turn
     if (turn < flip.triggerConditions.minTurn) continue;
 
-    // Check flip-specific conditions
+    // Check flip-specific conditions (resource-based)
     switch (flipId) {
       case "serf_week":
-        if (taxRate === "high" || taxRate === "crushing" || meters.people < 35) {
+        if (taxRate === "high" || taxRate === "crushing" || population < 12) {
           return flipId;
         }
         break;
@@ -66,7 +66,7 @@ export function checkFlipTriggers(state) {
         break;
 
       case "knight_gamble":
-        if (garrison > 15 || meters.military > 70) {
+        if (garrison > 15) {
           return flipId;
         }
         break;

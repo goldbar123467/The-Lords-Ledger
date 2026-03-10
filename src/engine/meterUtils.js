@@ -1,105 +1,130 @@
 /**
  * meterUtils.js
  *
- * Pure utility functions for meter management in The Lord's Ledger.
+ * Resource-based game state checks for The Lord's Ledger.
+ * Replaces the old meter system (treasury/people/military/faith 0-100 bars)
+ * with direct resource checks (denarii, food, population, garrison).
+ *
  * No side effects, no I/O. All functions are deterministic.
  */
 
-// The canonical order and unlock progression for meters.
-// Turns 1-2: treasury + people only
-// Turns 3-4: + military
-// Turns 5+:  + faith
-const METER_ORDER = ["treasury", "people", "military", "faith"];
-
 /**
- * Returns the array of currently active meter names given the tutorial count.
+ * Translates old-format meter effects (from events) into resource deltas.
+ * This allows existing event data to work with the new resource system.
  *
- * @param {number} activeMeterCount - 2, 3, or 4
- * @returns {string[]}
+ * Old format: { treasury: 5, people: -3, military: 2, faith: -1 }
+ * New format: { denarii: 50, food: -9, garrison: 1 }
+ *
+ * Events can also use direct resource keys (denarii, food, population, garrison)
+ * which take priority and are passed through directly.
+ *
+ * @param {{ treasury?: number, people?: number, military?: number, faith?: number,
+ *           denarii?: number, food?: number, population?: number, garrison?: number }} effects
+ * @returns {{ denarii: number, food: number, population: number, garrison: number }}
  */
-export function getActiveMeterNames(activeMeterCount) {
-  return METER_ORDER.slice(0, activeMeterCount);
+export function translateEffects(effects) {
+  if (!effects) return { denarii: 0, food: 0, population: 0, garrison: 0 };
+
+  const result = { denarii: 0, food: 0, population: 0, garrison: 0 };
+
+  // Translate old meter keys to resource effects
+  if (effects.treasury) result.denarii += effects.treasury * 10;
+  if (effects.people) result.food += effects.people * 3;
+  if (effects.military) result.garrison += Math.round(effects.military / 3);
+  if (effects.faith) result.denarii += effects.faith * 5;
+
+  // Direct resource keys override/stack
+  if (effects.denarii) result.denarii += effects.denarii;
+  if (effects.food) result.food += effects.food;
+  if (effects.population) result.population += effects.population;
+  if (effects.garrison) result.garrison += effects.garrison;
+
+  return result;
 }
 
 /**
- * Applies a set of numeric effects to meters, clamping each result to [0, 100].
- * Effects for meters that are not yet active are silently ignored.
+ * Applies translated resource effects to the game state.
+ * Food effects are added to grain in inventory.
+ * Population and garrison are clamped to valid ranges.
  *
- * @param {{ treasury: number, people: number, military: number, faith: number }} meters
- * @param {{ treasury?: number, people?: number, military?: number, faith?: number }} effects
- * @param {number} activeMeterCount
- * @returns {{ treasury: number, people: number, military: number, faith: number }}
+ * @param {object} state - Current game state
+ * @param {{ denarii: number, food: number, population: number, garrison: number }} resourceEffects
+ * @param {number} maxGarrison - Maximum garrison size (default 25)
+ * @returns {{ denarii: number, population: number, garrison: number, inventory: object, food: number }}
  */
-export function applyEffects(meters, effects, activeMeterCount) {
-  const activeNames = getActiveMeterNames(activeMeterCount);
-  const next = { ...meters };
+export function applyResourceEffects(state, resourceEffects, maxGarrison = 25) {
+  const newDenarii = Math.max(0, state.denarii + resourceEffects.denarii);
+  const newPopulation = Math.max(0, state.population + resourceEffects.population);
+  const newGarrison = Math.max(0, Math.min(maxGarrison, state.garrison + resourceEffects.garrison));
 
-  for (const name of activeNames) {
-    if (effects[name] !== undefined) {
-      let raw = next[name] + effects[name];
-
-      // Regression to mean: extreme values resist further movement away from center.
-      // Positive effects dampened above 80; negative effects dampened below 20.
-      // 70% of excess/deficit sticks — enough to slow runaway while still
-      // allowing game over at 0 or 100 from sustained mismanagement.
-      if (raw > 80 && effects[name] > 0) {
-        const excess = raw - 80;
-        raw = 80 + Math.round(excess * 0.7);
-      }
-      if (raw < 20 && effects[name] < 0) {
-        const deficit = 20 - raw;
-        raw = 20 - Math.round(deficit * 0.7);
-      }
-
-      next[name] = Math.min(100, Math.max(0, raw));
-    }
+  // Food effects go into grain
+  let newInventory = state.inventory;
+  if (resourceEffects.food !== 0) {
+    const currentGrain = state.inventory.grain || 0;
+    const newGrain = Math.max(0, currentGrain + resourceEffects.food);
+    newInventory = { ...state.inventory, grain: newGrain };
   }
 
-  return next;
+  // Recalculate total food from inventory
+  const FOOD_RESOURCES = ["grain", "livestock", "fish"];
+  const newFood = FOOD_RESOURCES.reduce((sum, r) => sum + (newInventory[r] || 0), 0);
+
+  return {
+    denarii: newDenarii,
+    population: newPopulation,
+    garrison: newGarrison,
+    inventory: newInventory,
+    food: newFood,
+  };
 }
 
 /**
- * Checks whether any active meter has reached 0 (depletion) or 100 (overflow crisis).
- * Returns the first such violation found, or null if all is well.
+ * Checks whether the game should end based on resource state.
  *
- * @param {{ treasury: number, people: number, military: number, faith: number }} meters
- * @param {number} activeMeterCount
- * @returns {{ meter: string, value: number, type: "depleted" | "overflow" } | null}
+ * Game over conditions:
+ *   - Population reaches 0: everyone left or perished
+ *   - Bankrupt for 3+ consecutive turns: creditors seize the estate
+ *
+ * @param {object} state - Game state with population and bankruptcyTurns
+ * @returns {{ type: string, reason: string } | null}
  */
-export function checkGameOver(meters, activeMeterCount) {
-  const activeNames = getActiveMeterNames(activeMeterCount);
-
-  for (const name of activeNames) {
-    const value = meters[name];
-    if (value <= 0) {
-      return { meter: name, value: 0, type: "depleted" };
-    }
-    if (value >= 100) {
-      return { meter: name, value: 100, type: "overflow" };
-    }
+export function checkGameOver(state) {
+  if (state.population <= 0) {
+    return {
+      type: "depopulation",
+      reason: "All your families have abandoned or perished on your estate.",
+    };
   }
-
+  if ((state.bankruptcyTurns || 0) >= 3) {
+    return {
+      type: "bankruptcy",
+      reason: "Your creditors have seized the estate after seasons of empty coffers.",
+    };
+  }
   return null;
 }
 
 /**
- * Returns a descriptive status string for a single meter value.
+ * Translates old-format indicator objects to resource-based indicators.
+ * Used for EventCard display.
  *
- * Thresholds (tuned for the 0-100 scale):
- *   critical  — value < 15  (imminent collapse)
- *   danger    — value > 90  (runaway excess, crisis risk)
- *   warning   — value < 25 OR value > 80  (approaching extremes)
- *   normal    — everything else
- *
- * High-end thresholds raised so meters hovering 80-90 from regression
- * show a caution state, not the alarming pulse reserved for 90+.
- *
- * @param {number} value
- * @returns {"critical" | "danger" | "warning" | "normal"}
+ * @param {{ treasury?: string, people?: string, military?: string, faith?: string }} indicators
+ * @returns {{ denarii?: string, food?: string, garrison?: string }}
  */
-export function getMeterStatus(value) {
-  if (value < 15) return "critical";
-  if (value > 90) return "danger";
-  if (value < 25 || value > 80) return "warning";
-  return "normal";
+export function translateIndicators(indicators) {
+  if (!indicators) return null;
+
+  const result = {};
+  if (indicators.treasury) result.denarii = indicators.treasury;
+  if (indicators.people) result.food = indicators.people;
+  if (indicators.military) result.garrison = indicators.military;
+  if (indicators.faith) result.denarii = result.denarii || indicators.faith;
+
+  // Pass through direct resource indicators
+  if (indicators.denarii) result.denarii = indicators.denarii;
+  if (indicators.food) result.food = indicators.food;
+  if (indicators.population) result.population = indicators.population;
+  if (indicators.garrison) result.garrison = indicators.garrison;
+
+  return Object.keys(result).length > 0 ? result : null;
 }

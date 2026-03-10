@@ -33,9 +33,9 @@ export const PERSPECTIVE_FLIPS = {
         "You are Thomas, a villein on this very manor. You wake before dawn in a one-room cruck house. Your wife Maud is already stirring the fire. Your three children sleep on straw pallets. Today is Monday \u2014 the first of three days you owe working the lord\u2019s fields. Your own strip of land sits unplowed. Rain is coming.",
     },
     characterStats: {
-      hunger: { label: "Hunger", icon: "\uD83C\uDF5E", initial: 60, color: "#8b4513" },
-      energy: { label: "Energy", icon: "\uD83D\uDCAA", initial: 70, color: "#556b2f" },
-      family: { label: "Family", icon: "\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66", initial: 50, color: "#8b1a1a" },
+      hunger: { label: "Hunger", icon: "\u2727", initial: 60, color: "#8b4513" },
+      energy: { label: "Energy", icon: "\u2726", initial: 70, color: "#556b2f" },
+      family: { label: "Family", icon: "\u2302", initial: 50, color: "#8b1a1a" },
     },
     decisions: [
       // Decision 1: Morning Labor
@@ -247,9 +247,9 @@ export const PERSPECTIVE_FLIPS = {
         "You are Agnes, a widow who brews ale in the market town below the castle. Your husband died two years ago. You kept his brewing business \u2014 the only way to feed your three children. Today is market day, and your fresh batch is ready. But so is trouble.",
     },
     characterStats: {
-      coin: { label: "Coin", icon: "\uD83E\uDE99", initial: 30, color: "#8b6914" },
-      reputation: { label: "Reputation", icon: "\u2B50", initial: 50, color: "#2d5a27" },
-      safety: { label: "Safety", icon: "\uD83D\uDEE1\uFE0F", initial: 60, color: "#4a1a6b" },
+      coin: { label: "Coin", icon: "\u269C", initial: 30, color: "#8b6914" },
+      reputation: { label: "Reputation", icon: "\u2605", initial: 50, color: "#2d5a27" },
+      safety: { label: "Safety", icon: "\u2694", initial: 60, color: "#4a1a6b" },
     },
     decisions: [
       // Decision 1: The Ale-Taster
@@ -430,9 +430,9 @@ export const PERSPECTIVE_FLIPS = {
         "You are Lady Margaret, wife of the lord. Your husband has ridden north to answer the king\u2019s military summons. He left you in charge of the entire estate \u2014 over 100 servants, 20 peasant families, a garrison of soldiers, and a harvest to manage. You have no formal legal authority. But the estate doesn\u2019t run itself.",
     },
     characterStats: {
-      authority: { label: "Authority", icon: "\uD83D\uDC51", initial: 40, color: "#1a3a6b" },
-      household: { label: "Household", icon: "\uD83C\uDFF0", initial: 60, color: "#2d5a27" },
-      danger: { label: "Danger", icon: "\u26A0\uFE0F", initial: 20, color: "#8b1a1a" },
+      authority: { label: "Authority", icon: "\u265B", initial: 40, color: "#1a3a6b" },
+      household: { label: "Household", icon: "\u2302", initial: 60, color: "#2d5a27" },
+      danger: { label: "Danger", icon: "\u26A0", initial: 20, color: "#8b1a1a" },
     },
     decisions: [
       // Decision 1: The Steward's Report
@@ -604,9 +604,9 @@ export const PERSPECTIVE_FLIPS = {
         "You are Sir William, a knight holding two hides of land from the lord. The king has called his vassals to war. You must serve 40 days at your OWN expense \u2014 armor, weapons, warhorses, and food. Your harvest needs you at home. But a knight who refuses the summons loses everything.",
     },
     characterStats: {
-      honor: { label: "Honor", icon: "\u2694\uFE0F", initial: 50, color: "#8b1a1a" },
-      coin: { label: "Coin", icon: "\uD83E\uDE99", initial: 40, color: "#8b6914" },
-      health: { label: "Health", icon: "\u2764\uFE0F", initial: 80, color: "#2d5a27" },
+      honor: { label: "Honor", icon: "\u2694", initial: 50, color: "#8b1a1a" },
+      coin: { label: "Coin", icon: "\u269C", initial: 40, color: "#8b6914" },
+      health: { label: "Health", icon: "\u2665", initial: 80, color: "#2d5a27" },
     },
     decisions: [
       // Decision 1: Equipping for War

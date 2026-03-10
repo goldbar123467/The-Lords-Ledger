@@ -3,21 +3,17 @@
  *
  * useReducer-compatible reducer for The Lord's Ledger.
  *
- * V2 additions:
- *  - `management` phase: player browses tabs, builds, trades, etc.
- *  - `SIMULATE_SEASON` action: runs economic engine, then fires events
- *  - `BUILD_BUILDING` / `DEMOLISH_BUILDING`: estate management
- *  - `SET_TAB`: switch active tab
- *  - `SELL_RESOURCE` / `BUY_RESOURCE`: trade tab
- *  - Economy state: denarii, food, population, inventory, buildings, garrison, etc.
+ * Resource-based architecture: no abstract meters (treasury/people/military/faith).
+ * All game state is expressed through concrete resources:
+ *   denarii, food, population, garrison, inventory, buildings, castle, etc.
  *
  * State is plain-serializable JS — no class instances, no functions, no closures.
- * All transitions are pure: same action + same state = same result (modulo the
- * stochastic event selection, which intentionally uses Math.random()).
+ * All transitions are pure: same action + same state = same result (modulo RNG).
  */
 
 import {
-  applyEffects,
+  translateEffects,
+  applyResourceEffects,
   checkGameOver,
 } from "./meterUtils.js";
 
@@ -44,19 +40,6 @@ import { SYNERGY_TIER_MAP } from "../data/synergies.js";
 // ---------------------------------------------------------------------------
 
 const SEASONS = ["spring", "summer", "autumn", "winter"];
-
-const MILITARY_UNLOCK_TURN = 3;
-const FAITH_UNLOCK_TURN = 5;
-
-/** Turn at which each tab unlocks */
-const TAB_UNLOCK = {
-  estate: 1,
-  chronicle: 1,
-  people: 1,
-  trade: 3,
-  military: 5,
-};
-
 const MAX_TURNS = 28;
 const MAX_CAUSE_CHAIN = 4;
 
@@ -71,27 +54,13 @@ export const initialState = {
   season: "spring",
   year: 1,
 
-  // Core meters (unchanged from V1)
-  meters: {
-    treasury: 40,
-    people: 50,
-    military: 30,
-    faith: 45,
-  },
-  meterDeltas: {
-    treasury: 0,
-    people: 0,
-    military: 0,
-    faith: 0,
-  },
-
-  // V2: Economy state
+  // Resources (replaces abstract meters)
   denarii: 500,
   food: 200,
   population: 20,
   inventory: { ...EMPTY_INVENTORY, grain: 150, livestock: 30, fish: 20 },
   inventoryCapacity: 300,
-  buildings: [],       // Array of building IDs (e.g., ["strip_farm", "pasture"])
+  buildings: [],
   garrison: 5,
   castleLevel: 1,
   castleUpgradeProgress: 0,
@@ -102,13 +71,17 @@ export const initialState = {
   defenseUpgrades: [],
   churchDonation: 0,
 
-  // V2: UI state
-  activeTab: "estate",
+  // Resource deltas (for dashboard display)
+  resourceDeltas: { denarii: 0, food: 0, population: 0, garrison: 0 },
 
-  // V2: Season report (economic summary lines shown in chronicle)
+  // Bankruptcy tracking (3 consecutive turns at 0 denarii = game over)
+  bankruptcyTurns: 0,
+
+  // UI state
+  activeTab: "estate",
   seasonReport: [],
 
-  // Event system (unchanged from V1)
+  // Event system
   chronicle: [],
   currentEvent: null,
   currentRandomEvent: null,
@@ -116,10 +89,9 @@ export const initialState = {
   usedSeasonalIds: [],
   usedRandomIds: [],
   causeChain: [],
-  activeMeterCount: 2,
   gameOverReason: null,
 
-  // V3: Perspective flip state
+  // Perspective flip state
   perspectiveFlips: { serf_week: false, merchant_day: false, noble_dilemma: false, knight_gamble: false },
   tradeCount: 0,
   militaryEventEverFired: false,
@@ -129,23 +101,20 @@ export const initialState = {
   flipConsequenceFlags: [],
   currentFlipOutcome: null,
 
-  // V3b: Synergy system state
+  // Synergy system state (simplified — no meter-based tracking)
   synergies: {
     activated: [],
     tradeTypes: [],
     woolTrades: 0,
     spicePurchases: 0,
     lowTaxTurns: 0,
-    highPeopleTurns: 0,
-    highFaithTurns: 0,
     foodSurplusTurns: 0,
-    revoltTriggered: false,
   },
   pendingSynergyNotifications: [],
 };
 
 // ---------------------------------------------------------------------------
-// Internal helpers (all preserved from V1)
+// Internal helpers
 // ---------------------------------------------------------------------------
 
 function turnToSeasonYear(turn) {
@@ -153,12 +122,6 @@ function turnToSeasonYear(turn) {
   const seasonIndex = zeroIndexed % 4;
   const year = Math.floor(zeroIndexed / 4) + 1;
   return { season: SEASONS[seasonIndex], year };
-}
-
-function activeMeterCountForTurn(turn) {
-  if (turn >= FAITH_UNLOCK_TURN) return 4;
-  if (turn >= MILITARY_UNLOCK_TURN) return 3;
-  return 2;
 }
 
 function addChronicle(chronicle, text, season, year, turn, type = "system") {
@@ -174,17 +137,17 @@ function addCauseChain(causeChain, turn, season, year, summary) {
   return next.slice(-MAX_CAUSE_CHAIN);
 }
 
-function computeDeltas(before, after) {
+function computeResourceDeltas(before, after) {
   return {
-    treasury: after.treasury - before.treasury,
-    people: after.people - before.people,
-    military: after.military - before.military,
-    faith: after.faith - before.faith,
+    denarii: after.denarii - before.denarii,
+    food: after.food - before.food,
+    population: after.population - before.population,
+    garrison: after.garrison - before.garrison,
   };
 }
 
-function pickSeasonalEvent(season, usedSeasonalIds, activeMeterCount, allSeasonalEvents) {
-  const event = selectSeasonalEvent(season, usedSeasonalIds, activeMeterCount, allSeasonalEvents);
+function pickSeasonalEvent(season, usedSeasonalIds, turn, allSeasonalEvents) {
+  const event = selectSeasonalEvent(season, usedSeasonalIds, turn, allSeasonalEvents);
   if (!event) return { event: null, usedSeasonalIds };
 
   const forSeason = (allSeasonalEvents || []).filter((e) => e.season === season);
@@ -196,8 +159,8 @@ function pickSeasonalEvent(season, usedSeasonalIds, activeMeterCount, allSeasona
   return { event, usedSeasonalIds: nextUsed };
 }
 
-function pickRandomEvent(usedRandomIds, activeMeterCount, allRandomEvents) {
-  const event = selectRandomEvent(usedRandomIds, activeMeterCount, allRandomEvents);
+function pickRandomEvent(usedRandomIds, turn, allRandomEvents) {
+  const event = selectRandomEvent(usedRandomIds, turn, allRandomEvents);
   if (!event) return { event: null, usedRandomIds };
 
   const allUsed = (allRandomEvents || []).every((e) => usedRandomIds.includes(e.id));
@@ -228,13 +191,15 @@ function buildCauseChainSummary(event, optionIndex) {
   return `Turn choice at event ${event.id}`;
 }
 
+/**
+ * Apply an event choice: translate effects to resources, apply them, check game over.
+ */
 function applyChoice(state, event, optionIndex, chronicleType) {
-  const { meters, activeMeterCount, chronicle, causeChain, turn, season, year } = state;
+  const { chronicle, causeChain, turn, season, year } = state;
 
   const effects = getOptionEffects(event, optionIndex);
-  const newMeters = applyEffects(meters, effects, activeMeterCount);
-  const deltas = computeDeltas(meters, newMeters);
-  const gameOverReason = checkGameOver(newMeters, activeMeterCount);
+  const resourceEffects = translateEffects(effects);
+  const applied = applyResourceEffects(state, resourceEffects, MAX_GARRISON);
   const scribesNote = getScribesNote(event, optionIndex);
 
   const option = event.options?.[optionIndex];
@@ -245,9 +210,30 @@ function applyChoice(state, event, optionIndex, chronicleType) {
   const summary = buildCauseChainSummary(event, optionIndex);
   const newCauseChain = addCauseChain(causeChain, turn, season, year, summary);
 
+  const newState = {
+    ...state,
+    denarii: applied.denarii,
+    population: applied.population,
+    garrison: applied.garrison,
+    inventory: applied.inventory,
+    food: applied.food,
+  };
+  const gameOverReason = checkGameOver(newState);
+
+  const resourceDeltas = {
+    denarii: applied.denarii - state.denarii,
+    food: applied.food - state.food,
+    population: applied.population - state.population,
+    garrison: applied.garrison - state.garrison,
+  };
+
   return {
-    meters: newMeters,
-    meterDeltas: deltas,
+    denarii: applied.denarii,
+    population: applied.population,
+    garrison: applied.garrison,
+    inventory: applied.inventory,
+    food: applied.food,
+    resourceDeltas,
     chronicle: newChronicle,
     causeChain: newCauseChain,
     scribesNote,
@@ -257,11 +243,10 @@ function applyChoice(state, event, optionIndex, chronicleType) {
 
 /**
  * Returns which tabs are unlocked for a given turn.
+ * All tabs unlocked from turn 1 in resource-based mode.
  */
-export function getUnlockedTabs(turn) {
-  return Object.entries(TAB_UNLOCK)
-    .filter(([, unlockTurn]) => turn >= unlockTurn)
-    .map(([tab]) => tab);
+export function getUnlockedTabs() {
+  return ["estate", "map", "trade", "military", "people", "chronicle"];
 }
 
 // ---------------------------------------------------------------------------
@@ -272,7 +257,7 @@ export function gameReducer(state, action) {
   switch (action.type) {
 
     // -----------------------------------------------------------------------
-    // START / RESTART — V2: go to management phase, not seasonal_action
+    // START / RESTART
     // -----------------------------------------------------------------------
     case "START_GAME":
     case "PLAY_AGAIN": {
@@ -281,7 +266,6 @@ export function gameReducer(state, action) {
       const startInventory = { ...EMPTY_INVENTORY, ...config.startingInventory };
 
       const startTurn = 1;
-      const startActiveMeterCount = activeMeterCountForTurn(startTurn);
       const { season: startSeason, year: startYear } = turnToSeasonYear(startTurn);
 
       const openingText =
@@ -298,20 +282,17 @@ export function gameReducer(state, action) {
         turn: startTurn,
         season: startSeason,
         year: startYear,
-        activeMeterCount: startActiveMeterCount,
         currentEvent: null,
         usedSeasonalIds: [],
         usedRandomIds: [],
         chronicle,
-        meters: { ...config.startingMeters },
-        meterDeltas: { ...initialState.meterDeltas },
         denarii: config.startingDenarii,
         food: getTotalFood(startInventory),
         population: config.startingPopulation,
+        garrison: config.startingGarrison ?? 5,
         inventory: startInventory,
         inventoryCapacity: 300,
         buildings: [],
-        garrison: 5,
         castleLevel: 1,
         castleUpgradeProgress: 0,
         castleUpgrading: false,
@@ -322,17 +303,18 @@ export function gameReducer(state, action) {
         churchDonation: 0,
         activeTab: "estate",
         seasonReport: [],
+        resourceDeltas: { denarii: 0, food: 0, population: 0, garrison: 0 },
+        bankruptcyTurns: 0,
         synergies: {
           activated: [], tradeTypes: [], woolTrades: 0, spicePurchases: 0,
-          lowTaxTurns: 0, highPeopleTurns: 0, highFaithTurns: 0,
-          foodSurplusTurns: 0, revoltTriggered: false,
+          lowTaxTurns: 0, foodSurplusTurns: 0,
         },
         pendingSynergyNotifications: [],
       };
     }
 
     // -----------------------------------------------------------------------
-    // SET_TAB — Switch active tab during management phase
+    // SET_TAB
     // -----------------------------------------------------------------------
     case "SET_TAB": {
       const { tab } = action.payload ?? {};
@@ -341,7 +323,7 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
-    // BUILD_BUILDING — Construct a building on the estate
+    // BUILD_BUILDING
     // -----------------------------------------------------------------------
     case "BUILD_BUILDING": {
       const { buildingId } = action.payload ?? {};
@@ -362,7 +344,7 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
-    // DEMOLISH_BUILDING — Remove a building (by index in buildings array)
+    // DEMOLISH_BUILDING
     // -----------------------------------------------------------------------
     case "DEMOLISH_BUILDING": {
       const { buildingIndex } = action.payload ?? {};
@@ -372,7 +354,6 @@ export function gameReducer(state, action) {
       const newBuildings = [...state.buildings];
       newBuildings.splice(buildingIndex, 1);
 
-      // Refund half the cost
       const removedId = state.buildings[buildingIndex];
       const def = BUILDINGS[removedId];
       const refund = def ? Math.floor(def.cost / 2) : 0;
@@ -386,7 +367,7 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
-    // SELL_RESOURCE — Sell from inventory at market price
+    // SELL_RESOURCE
     // -----------------------------------------------------------------------
     case "SELL_RESOURCE": {
       const { resource, quantity } = action.payload ?? {};
@@ -423,7 +404,7 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
-    // BUY_RESOURCE — Buy from market into inventory
+    // BUY_RESOURCE
     // -----------------------------------------------------------------------
     case "BUY_RESOURCE": {
       const { resource, quantity } = action.payload ?? {};
@@ -432,7 +413,6 @@ export function gameReducer(state, action) {
       const price = state.marketPrices.buy?.[resource] || 0;
       if (price <= 0 || quantity <= 0) return state;
 
-      // Cap purchase quantity by what the player can afford
       const maxAfford = Math.floor(state.denarii / price);
       const buyQty = Math.min(quantity, maxAfford);
       if (buyQty <= 0) return state;
@@ -460,7 +440,7 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
-    // SET_TAX_RATE — Change tax rate during management
+    // SET_TAX_RATE
     // -----------------------------------------------------------------------
     case "SET_TAX_RATE": {
       const { rate } = action.payload ?? {};
@@ -470,7 +450,7 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
-    // RECRUIT_SOLDIERS — Pay denarii to add soldiers to garrison
+    // RECRUIT_SOLDIERS
     // -----------------------------------------------------------------------
     case "RECRUIT_SOLDIERS": {
       const { count } = action.payload ?? {};
@@ -479,7 +459,6 @@ export function gameReducer(state, action) {
 
       const maxCanAfford = Math.floor(state.denarii / RECRUIT_COST);
       const maxByLimit = MAX_GARRISON - state.garrison;
-      // Can't recruit more than 60% of population — the rest must work the fields
       const maxByPop = Math.floor(state.population * 0.6) - state.garrison;
       const actual = Math.min(count, maxCanAfford, maxByLimit, maxByPop);
       if (actual <= 0) return state;
@@ -493,7 +472,7 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
-    // DISMISS_SOLDIERS — Remove soldiers to save upkeep
+    // DISMISS_SOLDIERS
     // -----------------------------------------------------------------------
     case "DISMISS_SOLDIERS": {
       const { count } = action.payload ?? {};
@@ -511,7 +490,7 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
-    // UPGRADE_CASTLE — Pay denarii + resources to upgrade castle level
+    // UPGRADE_CASTLE
     // -----------------------------------------------------------------------
     case "UPGRADE_CASTLE": {
       if (state.phase !== "management") return state;
@@ -543,7 +522,7 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
-    // INSTALL_DEFENSE — Buy and install a defense upgrade
+    // INSTALL_DEFENSE
     // -----------------------------------------------------------------------
     case "INSTALL_DEFENSE": {
       const { upgradeId } = action.payload ?? {};
@@ -577,7 +556,7 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
-    // DONATE_TO_CHURCH — Donate denarii for faith boost at season resolve
+    // DONATE_TO_CHURCH
     // -----------------------------------------------------------------------
     case "DONATE_TO_CHURCH": {
       const { amount } = action.payload ?? {};
@@ -594,13 +573,16 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
-    // SIMULATE_SEASON — Run economic engine, then fire seasonal event
+    // SIMULATE_SEASON
     // -----------------------------------------------------------------------
     case "SIMULATE_SEASON": {
       if (state.phase !== "management") return state;
 
       const { seasonalEvents = [] } = action.payload ?? {};
-      const { turn, season, year, usedSeasonalIds, activeMeterCount, meters } = state;
+      const { turn, season, year, usedSeasonalIds } = state;
+
+      // Snapshot before economy
+      const before = { denarii: state.denarii, food: state.food, population: state.population, garrison: state.garrison };
 
       // 1. Run the full economic simulation
       const econResult = simulateEconomy({
@@ -613,49 +595,50 @@ export function gameReducer(state, action) {
         castleLevel: state.castleLevel,
         taxRate: state.taxRate,
         season,
-        meters,
-        activeMeterCount,
         turn,
         difficulty: state.difficulty,
         defenseUpgrades: state.defenseUpgrades,
         churchDonation: state.churchDonation ?? 0,
+        synergies: state.synergies,
       });
 
-      // 2. Apply meter effects from economy
-      const metersBeforeEcon = { ...meters };
-      const metersAfterEcon = applyEffects(meters, econResult.meterEffects, activeMeterCount);
-
-      // 3. Castle upgrade progress
-      let castleUpgradeProgress = state.castleUpgradeProgress;
-      let castleUpgrading = state.castleUpgrading;
-      let castleLevel = state.castleLevel;
-      if (castleUpgrading) {
-        castleUpgradeProgress += 1;
-        // Check completion (we'll implement full castle upgrades in Military tab)
+      // 2. Track bankruptcy
+      let bankruptcyTurns = state.bankruptcyTurns || 0;
+      if (econResult.denarii <= 0) {
+        bankruptcyTurns += 1;
+      } else {
+        bankruptcyTurns = 0;
       }
 
-      // 4. Add economic report to chronicle
+      // 3. Add economic report to chronicle
       let nextChronicle = state.chronicle;
       for (const line of econResult.report) {
         nextChronicle = addChronicle(nextChronicle, line, season, year, turn, "system");
       }
 
-      // 5. Check game over from economic effects
-      const econGameOver = checkGameOver(metersAfterEcon, activeMeterCount);
+      // 4. Check game over from economy
+      const afterState = {
+        population: econResult.population,
+        bankruptcyTurns,
+      };
+      const econGameOver = checkGameOver(afterState);
       if (econGameOver) {
         return {
           ...state,
-          meters: metersAfterEcon,
-          meterDeltas: computeDeltas(metersBeforeEcon, metersAfterEcon),
           denarii: econResult.denarii,
           food: econResult.food,
           population: econResult.population,
+          garrison: econResult.garrison,
           inventory: econResult.inventory,
           chronicle: nextChronicle,
           seasonReport: econResult.report,
-          castleUpgradeProgress,
-          castleUpgrading,
-          castleLevel,
+          resourceDeltas: computeResourceDeltas(before, {
+            denarii: econResult.denarii,
+            food: econResult.food,
+            population: econResult.population,
+            garrison: econResult.garrison,
+          }),
+          bankruptcyTurns,
           phase: "game_over",
           gameOverReason: econGameOver,
           currentEvent: null,
@@ -664,27 +647,30 @@ export function gameReducer(state, action) {
         };
       }
 
-      // 6. Pick the seasonal event
+      // 5. Pick the seasonal event
       const { event: seasonalEvent, usedSeasonalIds: nextUsedSeasonalIds } = pickSeasonalEvent(
         season,
         usedSeasonalIds,
-        activeMeterCount,
+        turn,
         seasonalEvents,
       );
 
       return {
         ...state,
-        meters: metersAfterEcon,
-        meterDeltas: computeDeltas(metersBeforeEcon, metersAfterEcon),
         denarii: econResult.denarii,
         food: econResult.food,
         population: econResult.population,
+        garrison: econResult.garrison,
         inventory: econResult.inventory,
         chronicle: nextChronicle,
         seasonReport: econResult.report,
-        castleUpgradeProgress,
-        castleUpgrading,
-        castleLevel,
+        resourceDeltas: computeResourceDeltas(before, {
+          denarii: econResult.denarii,
+          food: econResult.food,
+          population: econResult.population,
+          garrison: econResult.garrison,
+        }),
+        bankruptcyTurns,
         phase: "seasonal_action",
         currentEvent: seasonalEvent,
         usedSeasonalIds: nextUsedSeasonalIds,
@@ -694,7 +680,7 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
-    // SELECT_SEASONAL_ACTION (unchanged from V1)
+    // SELECT_SEASONAL_ACTION
     // -----------------------------------------------------------------------
     case "SELECT_SEASONAL_ACTION": {
       const { optionIndex } = action.payload ?? {};
@@ -704,19 +690,12 @@ export function gameReducer(state, action) {
 
       const partial = applyChoice(state, currentEvent, optionIndex, "action");
 
-      // Revolt tracking: if People meter drops to <=15
-      let synergiesAfterAction = state.synergies;
-      if (partial.meters.people <= 15 && partial.meters.people < state.meters.people) {
-        synergiesAfterAction = { ...synergiesAfterAction, revoltTriggered: true };
-      }
-
       if (partial.gameOverReason) {
         return {
           ...state,
           ...partial,
           phase: "game_over",
           currentEvent: null,
-          synergies: synergiesAfterAction,
         };
       }
 
@@ -724,22 +703,21 @@ export function gameReducer(state, action) {
         ...state,
         ...partial,
         phase: "seasonal_resolve",
-        synergies: synergiesAfterAction,
       };
     }
 
     // -----------------------------------------------------------------------
-    // CONTINUE_TO_RANDOM (unchanged from V1)
+    // CONTINUE_TO_RANDOM
     // -----------------------------------------------------------------------
     case "CONTINUE_TO_RANDOM": {
-      const { phase, usedRandomIds, activeMeterCount } = state;
+      const { phase, usedRandomIds, turn } = state;
       const { randomEvents = [] } = action.payload ?? {};
 
       if (phase !== "seasonal_resolve") return state;
 
       const { event: randomEvent, usedRandomIds: nextUsedRandomIds } = pickRandomEvent(
         usedRandomIds,
-        activeMeterCount,
+        turn,
         randomEvents,
       );
 
@@ -761,7 +739,7 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
-    // SELECT_RANDOM_RESPONSE (unchanged from V1)
+    // SELECT_RANDOM_RESPONSE
     // -----------------------------------------------------------------------
     case "SELECT_RANDOM_RESPONSE": {
       const { optionIndex } = action.payload ?? {};
@@ -771,19 +749,12 @@ export function gameReducer(state, action) {
 
       const partial = applyChoice(state, currentRandomEvent, optionIndex, "event");
 
-      // Revolt tracking: if People meter drops to <=15
-      let synergiesAfterRandom = state.synergies;
-      if (partial.meters.people <= 15 && partial.meters.people < state.meters.people) {
-        synergiesAfterRandom = { ...synergiesAfterRandom, revoltTriggered: true };
-      }
-
       if (partial.gameOverReason) {
         return {
           ...state,
           ...partial,
           phase: "game_over",
           currentRandomEvent: null,
-          synergies: synergiesAfterRandom,
         };
       }
 
@@ -792,13 +763,11 @@ export function gameReducer(state, action) {
         ...partial,
         phase: "random_resolve",
         militaryEventEverFired: state.militaryEventEverFired || (currentRandomEvent?.requiresMeter === "military"),
-        synergies: synergiesAfterRandom,
       };
     }
 
     // -----------------------------------------------------------------------
-    // ADVANCE_TURN — V2: go to management phase, no passive effects
-    //   (passive effects are now handled by SIMULATE_SEASON's economy engine)
+    // ADVANCE_TURN
     // -----------------------------------------------------------------------
     case "ADVANCE_TURN": {
       const { phase, turn, chronicle } = state;
@@ -823,48 +792,24 @@ export function gameReducer(state, action) {
 
       const nextTurn = turn + 1;
       const { season: nextSeason, year: nextYear } = turnToSeasonYear(nextTurn);
-      const nextActiveMeterCount = activeMeterCountForTurn(nextTurn);
 
-      // Tutorial-unlock chronicle entries
       let nextChronicle = chronicle;
-
-      if (nextTurn === MILITARY_UNLOCK_TURN) {
-        nextChronicle = addChronicle(
-          nextChronicle,
-          "Raiders have been spotted near your borders. You must now manage your military forces.",
-          nextSeason, nextYear, nextTurn, "system",
-        );
-      }
-
-      if (nextTurn === FAITH_UNLOCK_TURN) {
-        nextChronicle = addChronicle(
-          nextChronicle,
-          "The bishop arrives to inspect your chapel. The faith of your people now rests in your hands.",
-          nextSeason, nextYear, nextTurn, "system",
-        );
-      }
 
       // Generate new market prices for the new season
       const newMarketPrices = generateMarketPrices();
 
-      const zeroDeltas = { treasury: 0, people: 0, military: 0, faith: 0 };
+      const zeroDeltas = { denarii: 0, food: 0, population: 0, garrison: 0 };
 
       // --- Synergy consecutive counters ---
       const prevSyn = state.synergies ?? {};
       const taxIsLow = state.taxRate === "low" || state.taxRate === "medium";
       const newLowTaxTurns = taxIsLow ? (prevSyn.lowTaxTurns ?? 0) + 1 : 0;
-      const newHighPeopleTurns = (state.meters.people ?? 0) > 60
-        ? (prevSyn.highPeopleTurns ?? 0) + 1 : 0;
-      const newHighFaithTurns = (state.meters.faith ?? 0) > 70
-        ? (prevSyn.highFaithTurns ?? 0) + 1 : 0;
       const newFoodSurplusTurns = (state.food ?? 0) > 100
         ? (prevSyn.foodSurplusTurns ?? 0) + 1 : 0;
 
       const updatedSynergies = {
         ...prevSyn,
         lowTaxTurns: newLowTaxTurns,
-        highPeopleTurns: newHighPeopleTurns,
-        highFaithTurns: newHighFaithTurns,
         foodSurplusTurns: newFoodSurplusTurns,
       };
 
@@ -905,7 +850,6 @@ export function gameReducer(state, action) {
       const triggeredFlipId = checkFlipTriggers({
         ...state,
         turn: nextTurn,
-        activeMeterCount: nextActiveMeterCount,
       });
 
       if (triggeredFlipId) {
@@ -915,10 +859,9 @@ export function gameReducer(state, action) {
           turn: nextTurn,
           season: nextSeason,
           year: nextYear,
-          activeMeterCount: nextActiveMeterCount,
           chronicle: synChronicle,
           marketPrices: newMarketPrices,
-          meterDeltas: zeroDeltas,
+          resourceDeltas: zeroDeltas,
           currentEvent: null,
           currentRandomEvent: null,
           scribesNote: null,
@@ -940,12 +883,11 @@ export function gameReducer(state, action) {
         turn: nextTurn,
         season: nextSeason,
         year: nextYear,
-        activeMeterCount: nextActiveMeterCount,
         currentEvent: null,
         currentRandomEvent: null,
         scribesNote: null,
         chronicle: synChronicle,
-        meterDeltas: zeroDeltas,
+        resourceDeltas: zeroDeltas,
         marketPrices: newMarketPrices,
         activeTab: "estate",
         seasonReport: [],
@@ -955,14 +897,14 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
-    // DISMISS_SCRIBES_NOTE (unchanged from V1)
+    // DISMISS_SCRIBES_NOTE
     // -----------------------------------------------------------------------
     case "DISMISS_SCRIBES_NOTE": {
       return { ...state, scribesNote: null };
     }
 
     // -----------------------------------------------------------------------
-    // V3: Perspective Flip actions
+    // Perspective Flip actions
     // -----------------------------------------------------------------------
     case "DISMISS_FLIP_INTRO": {
       if (state.phase !== "flip_intro") return state;
@@ -1022,15 +964,24 @@ export function gameReducer(state, action) {
     case "DISMISS_FLIP_SUMMARY": {
       if (state.phase !== "flip_summary") return state;
 
-      const { currentFlipId, flipConsequenceFlags, turn, meters, activeMeterCount, chronicle } = state;
+      const { currentFlipId, flipConsequenceFlags, turn, chronicle } = state;
       const flip = PERSPECTIVE_FLIPS[currentFlipId];
       if (!flip) return state;
 
-      // Compute lord-meter consequences
+      // Compute consequences and translate to resource effects
       const consequences = computeFlipConsequences(currentFlipId, flipConsequenceFlags);
-      const newMeters = applyEffects(meters, consequences, activeMeterCount);
-      const deltas = computeDeltas(meters, newMeters);
-      const gameOverReason = checkGameOver(newMeters, activeMeterCount);
+      const resourceEffects = translateEffects(consequences);
+      const applied = applyResourceEffects(state, resourceEffects, MAX_GARRISON);
+
+      const newState = {
+        ...state,
+        denarii: applied.denarii,
+        population: applied.population,
+        garrison: applied.garrison,
+        inventory: applied.inventory,
+        food: applied.food,
+      };
+      const gameOverReason = checkGameOver(newState);
 
       // Chronicle entry
       const { season: flipSeason, year: flipYear } = turnToSeasonYear(turn);
@@ -1043,9 +994,8 @@ export function gameReducer(state, action) {
       if (gameOverReason) {
         return {
           ...state,
+          ...newState,
           phase: "game_over",
-          meters: newMeters,
-          meterDeltas: deltas,
           chronicle: nextChronicle,
           gameOverReason,
           perspectiveFlips: nextPerspectiveFlips,
@@ -1060,16 +1010,15 @@ export function gameReducer(state, action) {
       // Advance to next turn's management phase
       const advanceTurn = turn + 1;
 
-      // Victory check (the flip consumed a turn)
+      // Victory check
       if (turn >= MAX_TURNS) {
         const victoryText =
           "Seven years have passed. Your reign has endured through war, famine, and feast. " +
           "The chronicles will remember your name.";
         return {
           ...state,
+          ...newState,
           phase: "victory",
-          meters: newMeters,
-          meterDeltas: deltas,
           chronicle: addChronicle(nextChronicle, victoryText, flipSeason, flipYear, turn, "system"),
           perspectiveFlips: nextPerspectiveFlips,
           currentFlipId: null,
@@ -1084,33 +1033,14 @@ export function gameReducer(state, action) {
       }
 
       const { season: nextSeason, year: nextYear } = turnToSeasonYear(advanceTurn);
-      const nextActiveMeterCount = activeMeterCountForTurn(advanceTurn);
-
-      // Tutorial-unlock chronicle entries for the new turn
-      if (advanceTurn === MILITARY_UNLOCK_TURN) {
-        nextChronicle = addChronicle(
-          nextChronicle,
-          "Raiders have been spotted near your borders. You must now manage your military forces.",
-          nextSeason, nextYear, advanceTurn, "system",
-        );
-      }
-      if (advanceTurn === FAITH_UNLOCK_TURN) {
-        nextChronicle = addChronicle(
-          nextChronicle,
-          "The bishop arrives to inspect your chapel. The faith of your people now rests in your hands.",
-          nextSeason, nextYear, advanceTurn, "system",
-        );
-      }
 
       return {
         ...state,
+        ...newState,
         phase: "management",
         turn: advanceTurn,
         season: nextSeason,
         year: nextYear,
-        activeMeterCount: nextActiveMeterCount,
-        meters: newMeters,
-        meterDeltas: deltas,
         chronicle: nextChronicle,
         marketPrices: generateMarketPrices(),
         perspectiveFlips: nextPerspectiveFlips,
@@ -1119,7 +1049,6 @@ export function gameReducer(state, action) {
         currentEvent: null,
         currentRandomEvent: null,
         scribesNote: null,
-        // Reset flip state
         currentFlipId: null,
         currentFlipStats: null,
         currentDecisionIndex: 0,
@@ -1129,7 +1058,7 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
-    // V3b: Dismiss synergy notification (pop first from queue)
+    // Dismiss synergy notification
     // -----------------------------------------------------------------------
     case "DISMISS_SYNERGY_NOTIFICATION": {
       const queue = state.pendingSynergyNotifications ?? [];

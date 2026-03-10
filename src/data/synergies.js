@@ -12,7 +12,7 @@ export const SYNERGY_PATHS = {
   wool_baron: {
     id: "wool_baron",
     name: "The Wool Baron",
-    icon: "\u{1F411}",
+    icon: "\u223F",
     color: "#b8860b",
     tiers: [
       {
@@ -55,7 +55,7 @@ export const SYNERGY_PATHS = {
   breadbasket: {
     id: "breadbasket",
     name: "The Breadbasket",
-    icon: "\u{1F35E}",
+    icon: "\u2727",
     color: "#2d5a27",
     tiers: [
       {
@@ -98,7 +98,7 @@ export const SYNERGY_PATHS = {
   fortress: {
     id: "fortress",
     name: "The Fortress",
-    icon: "\u{1F3F0}",
+    icon: "\u265B",
     color: "#8b1a1a",
     tiers: [
       {
@@ -141,7 +141,7 @@ export const SYNERGY_PATHS = {
   pious_lord: {
     id: "pious_lord",
     name: "The Pious Lord",
-    icon: "\u26EA",
+    icon: "\u2626",
     color: "#4a1a6b",
     tiers: [
       {
@@ -184,7 +184,7 @@ export const SYNERGY_PATHS = {
   market_king: {
     id: "market_king",
     name: "The Market King",
-    icon: "\u{1FA99}",
+    icon: "\u269C",
     color: "#b8860b",
     tiers: [
       {
@@ -227,7 +227,7 @@ export const SYNERGY_PATHS = {
   peoples_lord: {
     id: "peoples_lord",
     name: "The People's Lord",
-    icon: "\u{1F33E}",
+    icon: "\u2727",
     color: "#2d5a27",
     tiers: [
       {
@@ -270,7 +270,7 @@ export const SYNERGY_PATHS = {
   iron_lord: {
     id: "iron_lord",
     name: "The Iron Lord",
-    icon: "\u2694\uFE0F",
+    icon: "\u2694",
     color: "#4a4a4a",
     tiers: [
       {

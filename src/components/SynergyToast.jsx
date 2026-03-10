@@ -28,9 +28,9 @@ function Tier1Toast({ notification, onDismiss }) {
     <div
       className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-lg border-2 shadow-lg flex items-center gap-3 cursor-pointer max-w-sm"
       style={{
-        backgroundColor: "#faf3e3",
-        borderColor: "#b8860b",
-        boxShadow: "0 4px 16px rgba(139, 105, 20, 0.3)",
+        backgroundColor: "#1a1610",
+        borderColor: "#c4a24a",
+        boxShadow: "0 4px 16px rgba(196, 162, 74, 0.3)",
         opacity,
         transition: "opacity 0.4s ease",
       }}
@@ -45,11 +45,11 @@ function Tier1Toast({ notification, onDismiss }) {
       <div>
         <p
           className="font-heading font-bold text-sm uppercase tracking-wider"
-          style={{ color: "#b8860b" }}
+          style={{ color: "#c4a24a" }}
         >
           Path Unlocked
         </p>
-        <p className="text-sm font-semibold" style={{ color: "#2c1810" }}>
+        <p className="text-sm font-semibold" style={{ color: "#e8c44a" }}>
           {notification.title}
         </p>
       </div>
@@ -69,8 +69,8 @@ function Tier2Card({ notification, onDismiss }) {
     <div
       className="fixed right-4 top-1/2 -translate-y-1/2 z-50 w-72 rounded-lg border-2 shadow-xl overflow-hidden cursor-pointer"
       style={{
-        backgroundColor: "#faf3e3",
-        borderColor: notification.pathColor || "#b8860b",
+        backgroundColor: "#1a1610",
+        borderColor: notification.pathColor || "#c4a24a",
         boxShadow: `0 8px 24px rgba(0,0,0,0.2)`,
         transform: `translateY(-50%) translateX(${translateX})`,
         transition: "transform 0.4s ease-out",
@@ -79,30 +79,30 @@ function Tier2Card({ notification, onDismiss }) {
       role="status"
       aria-live="polite"
     >
-      {/* Gold accent bar */}
-      <div className="h-1.5" style={{ backgroundColor: notification.pathColor || "#b8860b" }} />
+      {/* Accent bar */}
+      <div className="h-1.5" style={{ backgroundColor: notification.pathColor || "#c4a24a" }} />
       <div className="p-4">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-3xl">{notification.pathIcon}</span>
           <div>
             <p
               className="font-heading text-xs font-semibold uppercase tracking-wider"
-              style={{ color: notification.pathColor || "#b8860b" }}
+              style={{ color: notification.pathColor || "#c4a24a" }}
             >
               {notification.pathName}
             </p>
             <p
               className="font-heading font-bold text-base"
-              style={{ color: "#2c1810" }}
+              style={{ color: "#e8c44a" }}
             >
               {notification.title}
             </p>
           </div>
         </div>
-        <p className="text-sm leading-relaxed" style={{ color: "#3d2517" }}>
+        <p className="text-sm leading-relaxed" style={{ color: "#a89070" }}>
           {notification.description}
         </p>
-        <p className="text-xs mt-3 italic" style={{ color: "#8b6914" }}>
+        <p className="text-xs mt-3 italic" style={{ color: "#8a7a3a" }}>
           Tap to dismiss
         </p>
       </div>
@@ -132,8 +132,8 @@ function Tier3Overlay({ notification, onDismiss }) {
       <div
         className="w-full max-w-md rounded-lg border-2 overflow-hidden shadow-2xl"
         style={{
-          backgroundColor: "#2c1810",
-          borderColor: "#b8860b",
+          backgroundColor: "#0f0d0a",
+          borderColor: "#c4a24a",
           opacity,
           transform: `scale(${0.9 + 0.1 * opacity})`,
           transition: "opacity 0.5s ease, transform 0.5s ease",
@@ -144,20 +144,20 @@ function Tier3Overlay({ notification, onDismiss }) {
           <span className="text-5xl block mb-2">{notification.pathIcon}</span>
           <div className="flex justify-center gap-1 mb-2">
             {[1, 2, 3].map((s) => (
-              <span key={s} className="text-lg" style={{ color: "#b8860b" }}>
+              <span key={s} className="text-lg" style={{ color: "#c4a24a" }}>
                 {"\u2605"}
               </span>
             ))}
           </div>
           <p
             className="font-heading text-xs font-semibold uppercase tracking-widest mb-1"
-            style={{ color: "#b8860b" }}
+            style={{ color: "#c4a24a" }}
           >
             Strategy Path Mastered
           </p>
           <h2
             className="font-heading text-2xl sm:text-3xl font-bold"
-            style={{ color: "#b8860b" }}
+            style={{ color: "#c4a24a" }}
           >
             {notification.title}
           </h2>
@@ -165,7 +165,7 @@ function Tier3Overlay({ notification, onDismiss }) {
 
         {/* Body */}
         <div className="px-5 pb-4">
-          <p className="text-sm leading-relaxed text-center mb-4" style={{ color: "#e8d5b7" }}>
+          <p className="text-sm leading-relaxed text-center mb-4" style={{ color: "#a89070" }}>
             {notification.description}
           </p>
 
@@ -173,15 +173,15 @@ function Tier3Overlay({ notification, onDismiss }) {
           {notification.scribesNote && (
             <div
               className="rounded-md border p-3 mb-4"
-              style={{ borderColor: "#5a3a28", backgroundColor: "#3d2517" }}
+              style={{ borderColor: "#6a5a42", backgroundColor: "#1a1610" }}
             >
               <p
                 className="font-heading text-xs font-semibold uppercase tracking-wider mb-1"
-                style={{ color: "#b8860b" }}
+                style={{ color: "#c4a24a" }}
               >
                 Scribe&apos;s Note
               </p>
-              <p className="text-xs leading-relaxed italic" style={{ color: "#c4a45a" }}>
+              <p className="text-xs leading-relaxed italic" style={{ color: "#8a7a3a" }}>
                 {notification.scribesNote}
               </p>
             </div>
@@ -191,12 +191,12 @@ function Tier3Overlay({ notification, onDismiss }) {
             onClick={onDismiss}
             className="w-full py-3 rounded-md border-2 font-heading font-bold text-sm uppercase tracking-wider cursor-pointer transition-all duration-200"
             style={{
-              backgroundColor: "#b8860b",
-              borderColor: "#8b6914",
-              color: "#2c1810",
+              backgroundColor: "#c4a24a",
+              borderColor: "#8a7a3a",
+              color: "#0f0d0a",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#d4a017"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#b8860b"; }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#e8c44a"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#c4a24a"; }}
           >
             Continue Your Reign
           </button>

@@ -70,11 +70,8 @@ export function checkTierConditions(tierDef, state) {
   // lowTaxTurns (consecutive turns of low or medium tax)
   if (c.lowTaxTurns !== undefined && (synergies.lowTaxTurns ?? 0) < c.lowTaxTurns) return false;
 
-  // highPeopleTurns (consecutive turns with people meter > 60)
-  if (c.highPeopleTurns !== undefined && (synergies.highPeopleTurns ?? 0) < c.highPeopleTurns) return false;
-
-  // highFaithTurns (consecutive turns with faith meter > 70)
-  if (c.highFaithTurns !== undefined && (synergies.highFaithTurns ?? 0) < c.highFaithTurns) return false;
+  // highPeopleTurns — skipped (meters removed, population-based growth handles this)
+  // highFaithTurns — skipped (meters removed, church donations handle this)
 
   // foodSurplusTurns (consecutive turns with food > 100)
   if (c.foodSurplusTurns !== undefined && (synergies.foodSurplusTurns ?? 0) < c.foodSurplusTurns) return false;
@@ -91,13 +88,7 @@ export function checkTierConditions(tierDef, state) {
     if (upgrades.length < c.defenseUpgradeCount) return false;
   }
 
-  // meterMin: { faith: 60 }
-  if (c.meterMin) {
-    const meters = state.meters ?? {};
-    for (const [meter, min] of Object.entries(c.meterMin)) {
-      if ((meters[meter] ?? 0) < min) return false;
-    }
-  }
+  // meterMin — skipped (meters removed, resource checks used instead)
 
   // noRevolts
   if (c.noRevolts && synergies.revoltTriggered) return false;

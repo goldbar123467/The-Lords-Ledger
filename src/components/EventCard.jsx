@@ -1,25 +1,32 @@
+import { translateIndicators } from "../engine/meterUtils";
+
 const INDICATOR_LABELS = {
-  treasury: "\u{1FA99}",
-  people: "\u{1F33E}",
-  military: "\u2694\uFE0F",
-  faith: "\u26EA",
+  denarii: "\u269C",
+  food: "\u2727",
+  population: "\u2302",
+  garrison: "\u2694",
 };
 
 function IndicatorPills({ indicators }) {
   if (!indicators) return null;
+  const translated = translateIndicators(indicators);
+  if (!translated) return null;
   return (
     <div className="flex flex-wrap gap-1.5 mt-1">
-      {Object.entries(indicators).map(([meter, dir]) => (
+      {Object.entries(translated).map(([resource, dir]) => (
         <span
-          key={meter}
+          key={resource}
           className="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full border"
           style={{
-            borderColor: "#c4a45a",
-            backgroundColor: dir === "up" ? "#e8f5e9" : "#fce4ec",
-            color: dir === "up" ? "#2d5a27" : "#8b1a1a",
+            borderColor: dir === "up" ? "#4a8a3a" : "#c62828",
+            backgroundColor:
+              dir === "up"
+                ? "rgba(74, 138, 58, 0.15)"
+                : "rgba(198, 40, 40, 0.15)",
+            color: dir === "up" ? "#4a8a3a" : "#c62828",
           }}
         >
-          {INDICATOR_LABELS[meter] || meter}
+          {INDICATOR_LABELS[resource] || resource}
           {dir === "up" ? " \u2191" : " \u2193"}
         </span>
       ))}
@@ -34,26 +41,26 @@ export default function EventCard({ event, onChoose, phaseLabel }) {
     <div
       className="mx-auto w-full max-w-xl rounded-lg border-2 p-4 sm:p-5 shadow-lg"
       style={{
-        backgroundColor: "#faf3e3",
-        borderColor: "#c4a45a",
-        boxShadow: "4px 4px 12px rgba(44, 24, 16, 0.15)",
+        backgroundColor: "#231e16",
+        borderColor: "#8a7a3a",
+        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)",
       }}
     >
       {phaseLabel && (
         <div
           className="text-xs uppercase tracking-widest font-heading font-semibold mb-2"
-          style={{ color: "#8b6914" }}
+          style={{ color: "#c4a24a" }}
         >
           {phaseLabel}
         </div>
       )}
       <h3
         className="font-heading text-lg sm:text-xl font-bold mb-2"
-        style={{ color: "#2c1810" }}
+        style={{ fontFamily: "Cinzel, serif", color: "#e8c44a" }}
       >
         {event.title}
       </h3>
-      <p className="text-base leading-relaxed mb-4" style={{ color: "#3d2517" }}>
+      <p className="text-base leading-relaxed mb-4" style={{ color: "#a89070" }}>
         {event.description}
       </p>
       <div className="flex flex-col gap-2" role="group" aria-label="Choose your response">
@@ -61,19 +68,20 @@ export default function EventCard({ event, onChoose, phaseLabel }) {
           <button
             key={i}
             onClick={() => onChoose(i)}
-            className="w-full text-left px-4 py-4 rounded-md border-2 transition-all duration-200 cursor-pointer min-h-[44px]"
+            className="w-full text-left px-4 py-4 rounded-md border-2 cursor-pointer min-h-[44px]"
             style={{
-              backgroundColor: "#f4e4c1",
-              borderColor: "#b89a5a",
-              color: "#2c1810",
+              backgroundColor: "#1a1610",
+              borderColor: "#6a5a42",
+              color: "#c8b090",
+              transition: "all 200ms ease",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#e8d5a3";
-              e.currentTarget.style.borderColor = "#8b6914";
+              e.currentTarget.style.backgroundColor = "#2a2318";
+              e.currentTarget.style.borderColor = "#c4a24a";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#f4e4c1";
-              e.currentTarget.style.borderColor = "#b89a5a";
+              e.currentTarget.style.backgroundColor = "#1a1610";
+              e.currentTarget.style.borderColor = "#6a5a42";
             }}
             aria-label={`Option ${i + 1}: ${option.text}`}
           >

@@ -14,13 +14,13 @@ function SellPanel({ inventory, marketPrices, onSell }) {
   return (
     <div>
       <h4
-        className="font-heading text-base font-bold uppercase tracking-wider mb-2"
-        style={{ color: "#2d5a27" }}
+        className="text-base font-bold uppercase tracking-wider mb-2"
+        style={{ fontFamily: "Cinzel, serif", color: "#4a8a3a" }}
       >
         Sell Goods
       </h4>
       {sellableResources.length === 0 ? (
-        <p className="text-sm italic" style={{ color: "#8b6914" }}>
+        <p className="text-sm italic" style={{ color: "#8a7a3a" }}>
           Your stores are empty. Build production facilities on the Estate tab to generate goods for trade.
         </p>
       ) : (
@@ -31,22 +31,22 @@ function SellPanel({ inventory, marketPrices, onSell }) {
             return (
               <div
                 key={resource}
-                className="flex items-center justify-between p-2.5 rounded-md border"
-                style={{ borderColor: "#c4a45a", backgroundColor: "#f4e4c1" }}
+                className="flex items-center justify-between p-2.5 rounded-md"
+                style={{ border: "1px solid #6a5a42", backgroundColor: "#1a1610" }}
               >
                 <div className="flex items-center gap-2">
                   <span className="text-lg">{cfg?.icon}</span>
                   <div>
-                    <span className="text-base font-semibold" style={{ color: "#2c1810" }}>
+                    <span className="text-base font-semibold" style={{ color: "#c8b090" }}>
                       {cfg?.label || resource}
                     </span>
-                    <span className="text-sm ml-2" style={{ color: "#5a3a28" }}>
+                    <span className="text-sm ml-2" style={{ color: "#a89070" }}>
                       ({qty} in stock)
                     </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold" style={{ color: "#2d5a27" }}>
+                  <span className="text-sm font-semibold" style={{ color: "#4a8a3a" }}>
                     {price}d each
                   </span>
                   <div className="flex gap-1">
@@ -55,12 +55,16 @@ function SellPanel({ inventory, marketPrices, onSell }) {
                         key={amount}
                         disabled={qty < amount}
                         onClick={() => onSell(resource, amount)}
-                        className="min-w-[44px] min-h-[44px] px-3 py-2 rounded border text-sm font-heading font-semibold uppercase cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                        className="min-w-[44px] min-h-[44px] px-3 py-2 rounded text-sm font-semibold uppercase cursor-pointer transition-all duration-200"
                         style={{
-                          backgroundColor: "#8b6914",
-                          borderColor: "#5a3a28",
-                          color: "#faf3e3",
+                          fontFamily: "Cinzel, serif",
+                          backgroundColor: qty >= amount ? "#4a8a3a" : "#2a2318",
+                          border: qty >= amount ? "1px solid #2a5a2a" : "1px solid #3a3228",
+                          color: qty >= amount ? "#e8c44a" : "#6a5a42",
+                          cursor: qty >= amount ? "pointer" : "not-allowed",
                         }}
+                        onMouseEnter={(e) => { if (qty >= amount) e.currentTarget.style.backgroundColor = "#5a9a4a"; }}
+                        onMouseLeave={(e) => { if (qty >= amount) e.currentTarget.style.backgroundColor = "#4a8a3a"; }}
                         aria-label={`Sell ${amount} ${cfg?.label || resource}`}
                       >
                         {amount}
@@ -69,12 +73,16 @@ function SellPanel({ inventory, marketPrices, onSell }) {
                     <button
                       disabled={qty <= 0}
                       onClick={() => onSell(resource, qty)}
-                      className="min-w-[44px] min-h-[44px] px-3 py-2 rounded border text-sm font-heading font-semibold uppercase cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                      className="min-w-[44px] min-h-[44px] px-3 py-2 rounded text-sm font-semibold uppercase cursor-pointer transition-all duration-200"
                       style={{
-                        backgroundColor: "#8b6914",
-                        borderColor: "#5a3a28",
-                        color: "#faf3e3",
+                        fontFamily: "Cinzel, serif",
+                        backgroundColor: qty > 0 ? "#4a8a3a" : "#2a2318",
+                        border: qty > 0 ? "1px solid #2a5a2a" : "1px solid #3a3228",
+                        color: qty > 0 ? "#e8c44a" : "#6a5a42",
+                        cursor: qty > 0 ? "pointer" : "not-allowed",
                       }}
+                      onMouseEnter={(e) => { if (qty > 0) e.currentTarget.style.backgroundColor = "#5a9a4a"; }}
+                      onMouseLeave={(e) => { if (qty > 0) e.currentTarget.style.backgroundColor = "#4a8a3a"; }}
                       aria-label={`Sell all ${cfg?.label || resource}`}
                     >
                       All
@@ -102,8 +110,8 @@ function BuyPanel({ denarii, marketPrices, onBuy }) {
   return (
     <div>
       <h4
-        className="font-heading text-base font-bold uppercase tracking-wider mb-2"
-        style={{ color: "#8b1a1a" }}
+        className="text-base font-bold uppercase tracking-wider mb-2"
+        style={{ fontFamily: "Cinzel, serif", color: "#c62828" }}
       >
         Buy Goods
       </h4>
@@ -115,34 +123,38 @@ function BuyPanel({ denarii, marketPrices, onBuy }) {
           return (
             <div
               key={resource}
-              className="flex items-center justify-between p-2.5 rounded-md border"
-              style={{ borderColor: "#c4a45a", backgroundColor: "#f4e4c1" }}
+              className="flex items-center justify-between p-2.5 rounded-md"
+              style={{ border: "1px solid #6a5a42", backgroundColor: "#1a1610" }}
             >
               <div className="flex items-center gap-2">
                 <span className="text-lg">{cfg?.icon}</span>
-                <span className="text-base font-semibold" style={{ color: "#2c1810" }}>
+                <span className="text-base font-semibold" style={{ color: "#c8b090" }}>
                   {cfg?.label || resource}
                 </span>
                 {BUYABLE_HINTS[resource] && (
-                  <div className="text-xs" style={{ color: "#8b6914" }}>
+                  <div className="text-xs" style={{ color: "#8a7a3a" }}>
                     {BUYABLE_HINTS[resource]}
                   </div>
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold" style={{ color: "#8b1a1a" }}>
+                <span className="text-sm font-semibold" style={{ color: "#c62828" }}>
                   {price}d each
                 </span>
                 <div className="flex gap-1">
                   <button
                     disabled={!canAfford1}
                     onClick={() => onBuy(resource, 1)}
-                    className="min-w-[44px] min-h-[44px] px-3 py-2 rounded border text-sm font-heading font-semibold uppercase cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                    className="min-w-[44px] min-h-[44px] px-3 py-2 rounded text-sm font-semibold uppercase cursor-pointer transition-all duration-200"
                     style={{
-                      backgroundColor: "#5a3a28",
-                      borderColor: "#2c1810",
-                      color: "#faf3e3",
+                      fontFamily: "Cinzel, serif",
+                      backgroundColor: canAfford1 ? "#8b1a1a" : "#2a2318",
+                      border: canAfford1 ? "1px solid #5a1010" : "1px solid #3a3228",
+                      color: canAfford1 ? "#e8c44a" : "#6a5a42",
+                      cursor: canAfford1 ? "pointer" : "not-allowed",
                     }}
+                    onMouseEnter={(e) => { if (canAfford1) e.currentTarget.style.backgroundColor = "#a52020"; }}
+                    onMouseLeave={(e) => { if (canAfford1) e.currentTarget.style.backgroundColor = "#8b1a1a"; }}
                     aria-label={`Buy 1 ${cfg?.label || resource} for ${price}d`}
                   >
                     1
@@ -150,12 +162,16 @@ function BuyPanel({ denarii, marketPrices, onBuy }) {
                   <button
                     disabled={!canAfford5}
                     onClick={() => onBuy(resource, 5)}
-                    className="min-w-[44px] min-h-[44px] px-3 py-2 rounded border text-sm font-heading font-semibold uppercase cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                    className="min-w-[44px] min-h-[44px] px-3 py-2 rounded text-sm font-semibold uppercase cursor-pointer transition-all duration-200"
                     style={{
-                      backgroundColor: "#5a3a28",
-                      borderColor: "#2c1810",
-                      color: "#faf3e3",
+                      fontFamily: "Cinzel, serif",
+                      backgroundColor: canAfford5 ? "#8b1a1a" : "#2a2318",
+                      border: canAfford5 ? "1px solid #5a1010" : "1px solid #3a3228",
+                      color: canAfford5 ? "#e8c44a" : "#6a5a42",
+                      cursor: canAfford5 ? "pointer" : "not-allowed",
                     }}
+                    onMouseEnter={(e) => { if (canAfford5) e.currentTarget.style.backgroundColor = "#a52020"; }}
+                    onMouseLeave={(e) => { if (canAfford5) e.currentTarget.style.backgroundColor = "#8b1a1a"; }}
                     aria-label={`Buy 5 ${cfg?.label || resource} for ${price * 5}d`}
                   >
                     5
@@ -177,13 +193,13 @@ export default function TradeTab({ state, onSell, onBuy }) {
     <div className="w-full max-w-2xl mx-auto">
       {/* Denarii display */}
       <div
-        className="rounded-lg border-2 p-3 mb-4 text-center"
-        style={{ backgroundColor: "#faf3e3", borderColor: "#c4a45a" }}
+        className="rounded-lg p-3 mb-4 text-center"
+        style={{ backgroundColor: "#231e16", border: "1px solid #c4a24a" }}
       >
-        <span className="text-lg font-heading font-bold" style={{ color: "#8b6914" }}>
-          {"\u{1FA99}"} Treasury: {denarii}d
+        <span className="text-lg font-bold" style={{ fontFamily: "Cinzel, serif", color: "#e8c44a" }}>
+          Treasury: {denarii}d
         </span>
-        <p className="text-sm mt-1" style={{ color: "#8b6914" }}>
+        <p className="text-sm mt-1" style={{ color: "#8a7a3a" }}>
           Prices fluctuate each season. Buy low, sell high.
         </p>
       </div>

@@ -11,31 +11,35 @@
 // Consequence pills (reuses EventCard style)
 // ---------------------------------------------------------------------------
 
-const METER_LABELS = {
-  treasury: "\uD83E\uDE99 Treasury",
-  people: "\uD83C\uDF3E People",
-  military: "\u2694\uFE0F Military",
-  faith: "\u26EA Faith",
+import { translateEffects } from "../engine/meterUtils";
+
+const RESOURCE_LABELS = {
+  denarii: "\u269C Denarii",
+  food: "\u2727 Food",
+  population: "\u2302 Families",
+  garrison: "\u2694 Garrison",
 };
 
 function ConsequencePills({ consequences }) {
   if (!consequences) return null;
-  const entries = Object.entries(consequences).filter(([, v]) => v !== 0);
+  // Translate old meter-format consequences to resource format for display
+  const translated = translateEffects(consequences);
+  const entries = Object.entries(translated).filter(([, v]) => v !== 0);
   if (entries.length === 0) return null;
 
   return (
     <div className="flex flex-wrap gap-2 justify-center mt-3">
-      {entries.map(([meter, delta]) => (
+      {entries.map(([resource, delta]) => (
         <span
-          key={meter}
+          key={resource}
           className="inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full border font-semibold"
           style={{
-            borderColor: "#c4a45a",
-            backgroundColor: delta > 0 ? "#e8f5e9" : "#fce4ec",
-            color: delta > 0 ? "#2d5a27" : "#8b1a1a",
+            borderColor: delta > 0 ? "#4a8a3a" : "#c62828",
+            backgroundColor: delta > 0 ? "rgba(74, 138, 58, 0.15)" : "rgba(198, 40, 40, 0.15)",
+            color: delta > 0 ? "#4a8a3a" : "#c62828",
           }}
         >
-          {METER_LABELS[meter] || meter}
+          {RESOURCE_LABELS[resource] || resource}
           {delta > 0 ? ` +${delta}` : ` ${delta}`}
         </span>
       ))}
@@ -67,9 +71,9 @@ function StatChangeSummary({ prevStats, nextStats, characterStats }) {
           key={c.key}
           className="inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full border font-semibold"
           style={{
-            borderColor: c.color,
-            backgroundColor: c.delta > 0 ? "#e8f5e9" : "#fce4ec",
-            color: c.delta > 0 ? "#2d5a27" : "#8b1a1a",
+            borderColor: c.delta > 0 ? "#4a8a3a" : "#c62828",
+            backgroundColor: c.delta > 0 ? "rgba(74, 138, 58, 0.15)" : "rgba(198, 40, 40, 0.15)",
+            color: c.delta > 0 ? "#4a8a3a" : "#c62828",
           }}
         >
           {c.icon} {c.label} {c.delta > 0 ? `+${c.delta}` : c.delta}
@@ -105,7 +109,7 @@ export default function FlipScreen({
   const cardStyle = {
     backgroundColor: colorScheme.background,
     borderColor: colorScheme.accent,
-    boxShadow: `4px 4px 12px rgba(44, 24, 16, 0.15)`,
+    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)",
   };
 
   // ---------------------------------------------------------------------------
@@ -196,7 +200,7 @@ export default function FlipScreen({
                 color: colorScheme.text,
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#fff";
+                e.currentTarget.style.backgroundColor = colorScheme.background + "dd";
                 e.currentTarget.style.borderColor = colorScheme.accent;
               }}
               onMouseLeave={(e) => {
@@ -219,12 +223,12 @@ export default function FlipScreen({
           <div
             className="mt-4 p-3 rounded-md border text-sm leading-relaxed italic"
             style={{
-              backgroundColor: "#faf3e3",
-              borderColor: "#c4a45a",
-              color: "#5a3a28",
+              backgroundColor: "#231e16",
+              borderColor: "#6a5a42",
+              color: "#a89070",
             }}
           >
-            <span className="font-heading font-semibold not-italic" style={{ color: "#8b6914" }}>
+            <span className="font-heading font-semibold not-italic" style={{ color: "#c4a24a" }}>
               Scribe&apos;s Note:
             </span>{" "}
             {decision.scribesNote}
@@ -304,12 +308,12 @@ export default function FlipScreen({
         <div
           className="mb-4 p-3 rounded-md border text-sm leading-relaxed italic"
           style={{
-            backgroundColor: "#faf3e3",
-            borderColor: "#c4a45a",
-            color: "#5a3a28",
+            backgroundColor: "#231e16",
+            borderColor: "#6a5a42",
+            color: "#a89070",
           }}
         >
-          <span className="font-heading font-semibold not-italic" style={{ color: "#8b6914" }}>
+          <span className="font-heading font-semibold not-italic" style={{ color: "#c4a24a" }}>
             Scribe&apos;s Note:
           </span>{" "}
           {flipData.scribesNote}

@@ -20,23 +20,23 @@ export const ALL_RESOURCES = [
   "wool", "cloth", "honey", "herbs", "ale",
 ];
 
-/** Resource display config */
+/** Resource display config — no emoji, Unicode symbols only */
 export const RESOURCE_CONFIG = {
-  grain:     { icon: "\u{1F33E}", label: "Grain",     category: "food" },
-  livestock: { icon: "\u{1F404}", label: "Livestock",  category: "food" },
-  fish:      { icon: "\u{1F41F}", label: "Fish",       category: "food" },
-  timber:    { icon: "\u{1FAB5}", label: "Timber",     category: "raw" },
-  clay:      { icon: "\u{1F9F1}", label: "Clay",       category: "raw" },
-  iron:      { icon: "\u26CF\uFE0F",  label: "Iron",       category: "raw" },
-  stone:     { icon: "\u{1FAA8}", label: "Stone",      category: "raw" },
-  wool:      { icon: "\u{1F411}", label: "Wool",       category: "trade" },
-  cloth:     { icon: "\u{1F9F6}", label: "Cloth",      category: "trade" },
-  honey:     { icon: "\u{1F36F}", label: "Honey",      category: "trade" },
-  herbs:     { icon: "\u{1F33F}", label: "Herbs",      category: "trade" },
-  ale:       { icon: "\u{1F37A}", label: "Ale",        category: "trade" },
-  salt:      { icon: "\u{1F9C2}", label: "Salt",       category: "buyOnly" },
-  tools:     { icon: "\u{1F6E0}\uFE0F",  label: "Tools",      category: "buyOnly" },
-  spices:    { icon: "\u{1F9C8}", label: "Spices",     category: "buyOnly" },
+  grain:     { icon: "\u2727", label: "Grain",     category: "food" },
+  livestock: { icon: "\u2042", label: "Livestock",  category: "food" },
+  fish:      { icon: "\u2248", label: "Fish",       category: "food" },
+  timber:    { icon: "\u2261", label: "Timber",     category: "raw" },
+  clay:      { icon: "\u25A3", label: "Clay",       category: "raw" },
+  iron:      { icon: "\u2692", label: "Iron",       category: "raw" },
+  stone:     { icon: "\u25C6", label: "Stone",      category: "raw" },
+  wool:      { icon: "\u223F", label: "Wool",       category: "trade" },
+  cloth:     { icon: "\u2630", label: "Cloth",      category: "trade" },
+  honey:     { icon: "\u2736", label: "Honey",      category: "trade" },
+  herbs:     { icon: "\u2698", label: "Herbs",      category: "trade" },
+  ale:       { icon: "\u2615", label: "Ale",        category: "trade" },
+  salt:      { icon: "\u25CB", label: "Salt",       category: "buyOnly" },
+  tools:     { icon: "\u2692", label: "Tools",      category: "buyOnly" },
+  spices:    { icon: "\u2726", label: "Spices",     category: "buyOnly" },
 };
 
 /** Base sell prices (what the player gets when selling) */
@@ -103,12 +103,15 @@ export const EMPTY_INVENTORY = {
   ale: 0,
 };
 
-/** Tax rates: denarii per family per season */
+/** Tax rates: denarii per family per season.
+ *  populationMod: families gained/lost from satisfaction (+2 = +2 families next season chance).
+ *  Higher taxes bring more coin but drive people away.
+ */
 export const TAX_RATES = {
-  low:      { rate: 2, label: "Low",      peopleMod: 2,  treasuryMod: -2 },
-  medium:   { rate: 4, label: "Medium",   peopleMod: 0,  treasuryMod: 0 },
-  high:     { rate: 6, label: "High",     peopleMod: -3, treasuryMod: 2 },
-  crushing: { rate: 8, label: "Crushing", peopleMod: -6, treasuryMod: 4 },
+  low:      { rate: 2, label: "Low",      populationMod: 2,  description: "People stay, coin scarce" },
+  medium:   { rate: 4, label: "Medium",   populationMod: 0,  description: "Fair and balanced" },
+  high:     { rate: 6, label: "High",     populationMod: -2, description: "Good coin, some leave" },
+  crushing: { rate: 8, label: "Crushing", populationMod: -4, description: "Maximum coin, mass exodus" },
 };
 
 /** Castle level definitions (base costs — Easy mode overrides below) */
@@ -160,9 +163,9 @@ export const MAX_GARRISON = 25;
 
 /** Church donation tiers */
 export const DONATION_TIERS = [
-  { key: "small",    label: "Small Offering",   amount: 25,  icon: "\u{1F56F}\uFE0F" },
-  { key: "generous",  label: "Generous Tithe",   amount: 75,  icon: "\u26EA" },
-  { key: "grand",    label: "Grand Donation",   amount: 150, icon: "\u{1F3DB}\uFE0F" },
+  { key: "small",    label: "Small Offering",   amount: 25,  icon: "\u271D" },
+  { key: "generous",  label: "Generous Tithe",   amount: 75,  icon: "\u2626" },
+  { key: "grand",    label: "Grand Donation",   amount: 150, icon: "\u2720" },
 ];
 
 /** Difficulty configuration presets */
@@ -172,8 +175,8 @@ export const DIFFICULTY_CONFIGS = {
     description: "More resources, gentler penalties",
     startingDenarii: 700,
     startingInventory: { grain: 200, livestock: 50, fish: 30 },
-    startingMeters: { treasury: 50, people: 55, military: 35, faith: 50 },
     startingPopulation: 22,
+    startingGarrison: 5,
     penaltyScale: 0.5,
   },
   normal: {
@@ -181,8 +184,8 @@ export const DIFFICULTY_CONFIGS = {
     description: "The standard medieval experience",
     startingDenarii: 500,
     startingInventory: { grain: 150, livestock: 30, fish: 20 },
-    startingMeters: { treasury: 40, people: 50, military: 30, faith: 45 },
     startingPopulation: 20,
+    startingGarrison: 5,
     penaltyScale: 1.0,
   },
   hard: {
@@ -190,8 +193,8 @@ export const DIFFICULTY_CONFIGS = {
     description: "Fewer resources, harsher consequences",
     startingDenarii: 350,
     startingInventory: { grain: 100, livestock: 20, fish: 10 },
-    startingMeters: { treasury: 30, people: 45, military: 25, faith: 40 },
     startingPopulation: 18,
+    startingGarrison: 3,
     penaltyScale: 1.5,
   },
 };

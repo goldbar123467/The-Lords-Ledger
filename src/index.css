@@ -2,22 +2,40 @@
 
 @theme {
   --font-heading: "Cinzel", serif;
+  --font-display: "Cinzel Decorative", "Cinzel", serif;
   --font-body: "Crimson Text", serif;
-  --color-parchment: #f4e4c1;
-  --color-parchment-dark: #e8d5a3;
-  --color-parchment-light: #faf3e3;
-  --color-ink: #2c1810;
-  --color-ink-light: #5a3a28;
-  --color-treasury: #b8860b;
-  --color-treasury-light: #daa520;
-  --color-people: #2d5a27;
-  --color-people-light: #4a8c3f;
-  --color-military: #8b1a1a;
-  --color-military-light: #c0392b;
-  --color-faith: #4a1a6b;
-  --color-faith-light: #6b3fa0;
-  --color-danger: #c0392b;
-  --color-warning: #d4a017;
+
+  /* Backgrounds — dark, layered */
+  --color-bg-deepest: #0f0d0a;
+  --color-bg-dark: #1a1610;
+  --color-bg-card: #231e16;
+  --color-bg-card-hover: #2d2619;
+  --color-bg-elevated: #2a2318;
+
+  /* Royal accents */
+  --color-royal-red: #8b1a1a;
+  --color-royal-red-bright: #c62828;
+  --color-royal-blue: #1a3a6b;
+  --color-royal-blue-bright: #2962a8;
+
+  /* Gold/Tan */
+  --color-gold: #c4a24a;
+  --color-gold-bright: #e8c44a;
+  --color-gold-dim: #8a7a3a;
+  --color-tan: #a89070;
+  --color-tan-light: #c8b090;
+  --color-tan-dark: #6a5a42;
+
+  /* Status */
+  --color-food-green: #4a8a3a;
+  --color-danger-red: #c62828;
+  --color-faith-purple: #6a4a8a;
+
+  /* Rarity */
+  --color-rarity-common: #8a7a5a;
+  --color-rarity-uncommon: #2a7a4a;
+  --color-rarity-rare: #2a4a8a;
+  --color-rarity-legendary: #8a5a1a;
 }
 
 * {
@@ -32,8 +50,8 @@ body {
   margin: 0;
   padding: 0;
   font-family: var(--font-body);
-  background-color: var(--color-parchment);
-  color: var(--color-ink);
+  background-color: var(--color-bg-deepest);
+  color: var(--color-tan-light);
   min-height: 100vh;
 }
 
@@ -43,24 +61,56 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Focus-visible outlines for keyboard navigation */
 *:focus-visible {
-  outline: 3px solid var(--color-treasury);
+  outline: 3px solid var(--color-gold);
   outline-offset: 2px;
   border-radius: 4px;
 }
 
 button:focus-visible {
-  outline: 3px solid var(--color-treasury);
+  outline: 3px solid var(--color-gold);
   outline-offset: 2px;
 }
 
-/* Meter warning pulse */
-@keyframes meter-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+/* Critical resource pulse */
+@keyframes critical-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(198, 40, 40, 0.15); }
+  50% { box-shadow: 0 0 16px rgba(198, 40, 40, 0.35); }
 }
 
-.meter-pulse {
-  animation: meter-pulse 1.5s ease-in-out infinite;
+.critical-pulse {
+  animation: critical-pulse 3s ease-in-out infinite;
+}
+
+/* Gold border glow for simulate button */
+@keyframes gold-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(196, 162, 74, 0.2), inset 0 0 8px rgba(196, 162, 74, 0.05); }
+  50% { box-shadow: 0 0 20px rgba(196, 162, 74, 0.4), inset 0 0 12px rgba(196, 162, 74, 0.1); }
+}
+
+.gold-glow {
+  animation: gold-glow 3s ease-in-out infinite;
+}
+
+/* Tab content fade-in */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.tab-fade-in {
+  animation: fade-in 200ms ease;
+}
+
+/* Card stagger animation */
+@keyframes card-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Turn flash border */
+@keyframes turn-flash {
+  0% { box-shadow: inset 0 0 0 3px rgba(232, 196, 74, 0.6); }
+  100% { box-shadow: inset 0 0 0 3px rgba(232, 196, 74, 0); }
 }
 
 /* Button pressed feedback */
@@ -68,15 +118,41 @@ button:active:not(:disabled) {
   transform: scale(0.97);
 }
 
+/* Build button click flash */
+@keyframes btn-flash {
+  0% { background-color: rgba(255, 255, 255, 0.3); }
+  100% { background-color: transparent; }
+}
+
 ::-webkit-scrollbar {
   width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-parchment-dark);
+  background: var(--color-bg-deepest);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-ink-light);
+  background: var(--color-tan-dark);
   border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gold-dim);
+}
+
+/* Decorative rule with diamond center */
+.decorative-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.decorative-rule::before,
+.decorative-rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-gold-dim);
 }
