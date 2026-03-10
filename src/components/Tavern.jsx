@@ -399,6 +399,7 @@ export default function Tavern({ state, dispatch, onClose }) {
 
   function handleRatsResult(stats) {
     dispatch({ type: "TAVERN_RATS_RESULT", payload: stats });
+    setActiveStation(null);
   }
 
   function handleRatsScribesNoteSeen() {
