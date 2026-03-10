@@ -21,7 +21,7 @@
   <img src="https://img.shields.io/badge/JavaScript-ES2024-F7DF1E?style=flat-square&logo=javascript&logoColor=black" alt="JavaScript" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License" />
   <img src="https://img.shields.io/badge/Target_Audience-6th_Graders-e8c44a?style=flat-square" alt="6th Graders" />
-  <img src="https://img.shields.io/badge/Lines_of_Code-43%2C700+-c4a24a?style=flat-square" alt="43,700+ LOC" />
+  <img src="https://img.shields.io/badge/Lines_of_Code-46%2C600+-c4a24a?style=flat-square" alt="43,700+ LOC" />
 </p>
 
 <p align="center">
@@ -155,20 +155,34 @@ Every building includes a **historical note** written at 6th-grade reading level
 
 ### &#9876; Military & Defense
 
-- **Garrison:** Recruit up to 25 soldiers (10d each). Soldiers require upkeep (3d/soldier/season) and food.
-- **Castle Levels:** Upgrade from Motte-and-Bailey (20 defense) &#8594; Stone Keep &#8594; Curtain Wall &#8594; Concentric Castle (95 defense)
-- **Defense Upgrades:** Arrow Slits, Drawbridge, Boiling Water Stations, Sally Port
+Three soldier types with escalating cost and power:
+
+| Type | Recruit Cost | Upkeep/Season | Defense Value |
+|------|-------------|---------------|---------------|
+| **Levy** | 5d | 1d | 1 |
+| **Men-at-Arms** | 15d | 3d | 3 |
+| **Knights** | 50d | 8d | 8 |
+
+Three fortification tracks with tiered upgrades:
+
+| Track | Levels | Defense Range | Example |
+|-------|--------|---------------|---------|
+| **Walls** | 0&#8594;4 | 0&#8594;40 | Wooden Palisade &#8594; Concentric Walls |
+| **Gate** | 0&#8594;4 | 0&#8594;18 | Open Entrance &#8594; Fortified Gatehouse |
+| **Moat** | 0&#8594;3 | 0&#8594;15 | None &#8594; Flooded Moat |
+
+**Defense Rating** = (garrison defense + fortification defense) &#215; morale modifier + watchtower bonus. Morale ranges from Mutinous to Fierce, affected by pay, food, and combat.
 
 ### &#9876; Raid System
 
 Two threat types that scale with game progression:
 
-| Threat | First Appears | Garrison Needed | Stakes |
-|--------|--------------|-----------------|--------|
-| **Outlaws & Brigands** | Turn 4+ | 5 soldiers | Lose 30-50d, food, trade goods |
-| **Scottish Border Reivers** | Turn 8+ (forced at turn 16) | 10 soldiers | Lose 80-120d, massive food/population loss |
+| Threat | First Appears | Defense Needed | Stakes |
+|--------|--------------|----------------|--------|
+| **Outlaws & Brigands** | Turn 4+ | 25 defense rating | Lose 30-50d, food, trade goods |
+| **Scottish Border Reivers** | Turn 8+ (forced at turn 16) | 50 defense rating | Lose 80-120d, massive food/population loss |
 
-Raids are resolved by comparing garrison strength + castle defense against the raider force. Victory earns bounty rewards; defeat is devastating. Zero garrison means automatic loss — *"There was no one to defend the estate."*
+Raids are resolved by comparing your **defense rating** against the threat threshold. Victory earns bounty rewards; defeat is devastating. Zero garrison means automatic loss — *"There was no one to defend the estate."*
 
 ### &#9819; Great Hall
 
@@ -279,12 +293,12 @@ The project deploys to **Vercel** with zero configuration. Push to `main` and it
 
 ### State Management
 
-All game state lives in a **single `useReducer`** in `App.jsx`. The reducer (`gameReducer.js`, 3,654 lines) handles 20+ action types and is the single source of truth for every state transition.
+All game state lives in a **single `useReducer`** in `App.jsx`. The reducer (`gameReducer.js`, 3,697 lines) handles 70+ action types and is the single source of truth for every state transition.
 
 ```
 App.jsx (useReducer)
   |
-  +-- gameReducer.js -----> 20+ action types (BUILD, TRADE, RECRUIT, SET_TAX, SIMULATE_SEASON...)
+  +-- gameReducer.js -----> 70+ action types (BUILD, TRADE, RECRUIT, SET_TAX, SIMULATE_SEASON...)
   +-- economyEngine.js ---> Pure simulation: production -> consumption -> upkeep -> tax -> growth
   +-- eventSelector.js ---> Season-aware event selection with turn-based gating
   +-- raidEngine.js ------> Raid resolution: garrison + castle defense vs raider strength
@@ -311,7 +325,7 @@ src/
  +-- index.css                  # Tailwind 4 config + custom medieval theme (CSS vars, fonts)
  |
  +-- engine/                    # Pure functions only -- no side effects, no DOM access
- |    +-- gameReducer.js        # Central state machine (3,654 lines, 20+ actions)
+ |    +-- gameReducer.js        # Central state machine (3,697 lines, 20+ actions)
  |    +-- economyEngine.js      # Seasonal simulation engine (658 lines)
  |    +-- eventSelector.js      # Event selection with turn gates
  |    +-- raidEngine.js         # Raid combat resolution
