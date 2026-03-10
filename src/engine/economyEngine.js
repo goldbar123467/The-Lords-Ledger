@@ -5,12 +5,15 @@
  * No side effects, no I/O. All functions are deterministic given inputs.
  *
  * The simulate() function runs the full season resolution:
- * 1. Production — buildings produce into inventory
- * 2. Consumption — population eats food
+ * 1. Production — buildings produce into inventory (with seasonal/condition/synergy modifiers)
+ * 2. Consumption — population eats food (with seasonal consumption modifier)
  * 3. Upkeep — building + garrison costs deducted from denarii
  * 4. Tax collection (Autumn only)
  * 5. Passive income (market tolls, mill fees)
  * 6. Population changes based on food/tax conditions
+ *
+ * Buildings can be either string IDs (legacy) or objects { type, condition, ... }.
+ * Use getBuildingType() to normalize.
  *
  * Returns the new economic state + a report array of chronicle lines.
  */
@@ -22,14 +25,30 @@ import {
   GARRISON_UPKEEP_PER_SOLDIER,
   FOOD_PER_FAMILY,
   DIFFICULTY_CONFIGS,
+  SEASON_FARM_MULTIPLIERS,
+  SEASON_CONSUMPTION_MULTIPLIERS,
+  STARTING_TOTAL_PLOTS,
+  REPAIR_COST_PER_POINT,
 } from "../data/economy.js";
 import { getSynergyPassiveIncome, hasSynergyPopulationBonus } from "./synergyEngine.js";
 
+// ---------------------------------------------------------------------------
+// Building type helpers (handle both string[] and object[] formats)
+// ---------------------------------------------------------------------------
+
 /**
- * Count how many of a given building ID the player has built.
+ * Extract the building type ID from a building entry.
+ * Handles both legacy string format and new object format.
+ */
+export function getBuildingType(building) {
+  return typeof building === "string" ? building : building.type;
+}
+
+/**
+ * Count how many of a given building type the player has built.
  */
 function countBuilding(buildings, buildingId) {
-  return buildings.filter((b) => b === buildingId).length;
+  return buildings.filter((b) => getBuildingType(b) === buildingId).length;
 }
 
 /**
@@ -40,7 +59,7 @@ export function getInventoryUsed(inventory) {
 }
 
 /**
- * Get total food in inventory (grain + livestock + fish).
+ * Get total food in inventory (grain + livestock + fish + flour).
  */
 export function getTotalFood(inventory) {
   return FOOD_RESOURCES.reduce((sum, r) => sum + (inventory[r] || 0), 0);
@@ -50,8 +69,9 @@ export function getTotalFood(inventory) {
  * Calculate total building upkeep per season.
  */
 export function getTotalBuildingUpkeep(buildings) {
-  return buildings.reduce((sum, id) => {
-    const def = BUILDINGS[id];
+  return buildings.reduce((sum, b) => {
+    if (b.freeUpkeep) return sum;
+    const def = BUILDINGS[getBuildingType(b)];
     return sum + (def ? def.upkeep : 0);
   }, 0);
 }
@@ -59,15 +79,19 @@ export function getTotalBuildingUpkeep(buildings) {
 /**
  * Calculate total garrison upkeep per season.
  */
-export function getGarrisonUpkeep(garrison) {
+export function getGarrisonUpkeep(garrison, military) {
+  if (military?.garrison) {
+    const g = military.garrison;
+    return (g.levy || 0) * 1 + (g.menAtArms || 0) * 3 + (g.knights || 0) * 8;
+  }
   return garrison * GARRISON_UPKEEP_PER_SOLDIER;
 }
 
 /**
  * Calculate total upkeep (buildings + garrison).
  */
-export function getTotalUpkeep(buildings, garrison) {
-  return getTotalBuildingUpkeep(buildings) + getGarrisonUpkeep(garrison);
+export function getTotalUpkeep(buildings, garrison, military) {
+  return getTotalBuildingUpkeep(buildings) + getGarrisonUpkeep(garrison, military);
 }
 
 /**
@@ -85,30 +109,140 @@ export function getTaxIncome(population, taxRate, season) {
  */
 export function getPassiveIncome(castleLevel, buildings) {
   const baseTolls = castleLevel * 5;
-  const millFees = buildings.filter((b) =>
-    b === "fulling_mill" || b === "brewery"
-  ).length * 4;
+  const millFees = buildings.filter((b) => {
+    const t = getBuildingType(b);
+    return t === "fulling_mill" || t === "brewery" || t === "mill";
+  }).length * 4;
   return baseTolls + millFees;
 }
 
+// ---------------------------------------------------------------------------
+// Land system
+// ---------------------------------------------------------------------------
+
+/**
+ * Calculate total plots used by all buildings.
+ */
+export function getUsedPlots(buildings) {
+  return buildings.reduce((sum, b) => {
+    const def = BUILDINGS[getBuildingType(b)];
+    return sum + (def?.plots ?? 1);
+  }, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Building condition helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Get the output multiplier for a building's current condition.
+ * Good (75-100): 1.0, Fair (50-74): 0.75, Poor (25-49): 0.5, Ruined (0-24): 0
+ */
+export function getConditionMultiplier(condition) {
+  if (condition >= 75) return 1.0;
+  if (condition >= 50) return 0.75;
+  if (condition >= 25) return 0.5;
+  return 0;
+}
+
+/**
+ * Calculate repair cost for a building instance.
+ */
+export function getRepairCost(building) {
+  const def = BUILDINGS[getBuildingType(building)];
+  if (!def) return 0;
+  const condition = typeof building === "string" ? 100 : (building.condition ?? 100);
+  const pointsToRepair = 100 - condition;
+  if (pointsToRepair <= 0) return 0;
+  const costPerPoint = REPAIR_COST_PER_POINT[def.rarity] ?? REPAIR_COST_PER_POINT.common;
+  return Math.max(1, Math.ceil(pointsToRepair * costPerPoint));
+}
+
+/**
+ * Calculate the synergy bonus for a building from its buildingSynergies array.
+ * Checks if the synergy partner is present in the player's buildings.
+ */
+function getBuildingSynergyBonus(building, allBuildings) {
+  const def = BUILDINGS[getBuildingType(building)];
+  if (!def?.buildingSynergies?.length) return 0;
+
+  let totalBonus = 0;
+  for (const syn of def.buildingSynergies) {
+    const hasPartner = allBuildings.some((b) => getBuildingType(b) === syn.with);
+    if (hasPartner) totalBonus += syn.bonus;
+  }
+  return totalBonus;
+}
+
+/**
+ * Get active building synergies for display.
+ * Returns array of { buildingType, partnerType, bonus, desc, active }.
+ */
+export function getActiveBuildingSynergies(buildings) {
+  const synergies = [];
+  const typeSet = new Set(buildings.map((b) => getBuildingType(b)));
+
+  for (const building of buildings) {
+    const def = BUILDINGS[getBuildingType(building)];
+    if (!def?.buildingSynergies?.length) continue;
+
+    for (const syn of def.buildingSynergies) {
+      // Avoid duplicate display (only show from one direction)
+      if (synergies.some((s) => s.buildingType === def.id && s.partnerType === syn.with)) continue;
+      synergies.push({
+        buildingType: def.id,
+        partnerType: syn.with,
+        bonus: syn.bonus,
+        desc: syn.desc,
+        active: typeSet.has(syn.with),
+      });
+    }
+  }
+
+  return synergies;
+}
+
+// ---------------------------------------------------------------------------
+// Production
+// ---------------------------------------------------------------------------
+
 /**
  * Calculate total production from all buildings.
- * Returns { produced: { resource: amount }, consumed: { resource: amount } }.
- * For converter buildings (fulling mill, brewery), only produces if inputs are available.
+ * Applies condition, seasonal, and building synergy modifiers.
+ * Returns { produced, consumed, inventory, report }.
  */
-function runProduction(buildings, inventory, inventoryCapacity) {
+function runProduction(buildings, inventory, inventoryCapacity, season) {
   const produced = {};
   const consumed = {};
   let currentInventory = { ...inventory };
   let currentUsed = getInventoryUsed(currentInventory);
   const report = [];
+  const seasonMult = SEASON_FARM_MULTIPLIERS[season] ?? 1.0;
 
   // First pass: basic producers (no consumes)
-  for (const buildingId of buildings) {
-    const def = BUILDINGS[buildingId];
+  for (const building of buildings) {
+    const typeId = getBuildingType(building);
+    const def = BUILDINGS[typeId];
     if (!def || def.consumes) continue;
 
-    for (const [resource, amount] of Object.entries(def.produces)) {
+    // Condition modifier (object format only; strings default to 100%)
+    const condition = typeof building === "string" ? 100 : (building.condition ?? 100);
+    const condMod = getConditionMultiplier(condition);
+
+    // Skip ruined buildings
+    if (condMod === 0) {
+      report.push(`Your ${def.name} is in ruins and produced nothing.`);
+      continue;
+    }
+
+    // Seasonal modifier (farms only)
+    const farmMod = def.isFarm ? seasonMult : 1.0;
+
+    // Building synergy bonus
+    const synergyBonus = getBuildingSynergyBonus(building, buildings);
+
+    for (const [resource, baseAmount] of Object.entries(def.produces)) {
+      const amount = Math.max(1, Math.round(baseAmount * condMod * farmMod * (1 + synergyBonus)));
       const space = inventoryCapacity - currentUsed;
       const actualAmount = Math.min(amount, space);
       if (actualAmount > 0) {
@@ -120,16 +254,25 @@ function runProduction(buildings, inventory, inventoryCapacity) {
   }
 
   // Second pass: converter buildings (consumes input, produces output)
-  for (const buildingId of buildings) {
-    const def = BUILDINGS[buildingId];
+  for (const building of buildings) {
+    const typeId = getBuildingType(building);
+    const def = BUILDINGS[typeId];
     if (!def || !def.consumes) continue;
+
+    // Condition modifier
+    const condition = typeof building === "string" ? 100 : (building.condition ?? 100);
+    const condMod = getConditionMultiplier(condition);
+    if (condMod === 0) {
+      report.push(`Your ${def.name} is in ruins and cannot process materials.`);
+      continue;
+    }
 
     // Check if all inputs are available
     let canProduce = true;
     for (const [resource, amount] of Object.entries(def.consumes)) {
       if ((currentInventory[resource] || 0) < amount) {
         canProduce = false;
-        report.push(`Your ${def.name} sits idle — not enough ${resource}.`);
+        report.push(`Your ${def.name} sits idle \u2014 not enough ${resource}.`);
         break;
       }
     }
@@ -141,8 +284,9 @@ function runProduction(buildings, inventory, inventoryCapacity) {
         currentInventory[resource] -= amount;
         currentUsed -= amount;
       }
-      // Produce outputs
-      for (const [resource, amount] of Object.entries(def.produces)) {
+      // Produce outputs (scaled by condition)
+      for (const [resource, baseAmount] of Object.entries(def.produces)) {
+        const amount = Math.max(1, Math.round(baseAmount * condMod));
         const space = inventoryCapacity - currentUsed;
         const actualAmount = Math.min(amount, space);
         if (actualAmount > 0) {
@@ -164,15 +308,19 @@ function runProduction(buildings, inventory, inventoryCapacity) {
 
 /**
  * Consume food for the population.
+ * Applies seasonal consumption modifier (winter = 1.5x).
  * Returns { inventory, foodEaten, shortfall, report }.
  */
-function runConsumption(inventory, population, maxFoodLoss) {
-  const needed = maxFoodLoss ? Math.min(population * FOOD_PER_FAMILY, maxFoodLoss) : population * FOOD_PER_FAMILY;
+function runConsumption(inventory, population, maxFoodLoss, season) {
+  const consumptionMult = SEASON_CONSUMPTION_MULTIPLIERS[season] ?? 1.0;
+  const baseNeeded = population * FOOD_PER_FAMILY;
+  const seasonalNeeded = Math.ceil(baseNeeded * consumptionMult);
+  const needed = maxFoodLoss ? Math.min(seasonalNeeded, maxFoodLoss) : seasonalNeeded;
   let remaining = needed;
   const nextInventory = { ...inventory };
   const report = [];
 
-  // Consume food in order: grain first, then livestock, then fish
+  // Consume food in order: grain, livestock, fish, flour
   for (const resource of FOOD_RESOURCES) {
     if (remaining <= 0) break;
     const available = nextInventory[resource] || 0;
@@ -187,7 +335,8 @@ function runConsumption(inventory, population, maxFoodLoss) {
   if (shortfall > 0) {
     report.push(`Your ${population} families needed ${needed} food but only had ${foodEaten}. ${shortfall} families went hungry!`);
   } else {
-    report.push(`Your ${population} families consumed ${foodEaten} food.`);
+    const seasonNote = consumptionMult > 1.0 ? ` (winter rations: \u00D7${consumptionMult})` : "";
+    report.push(`Your ${population} families consumed ${foodEaten} food${seasonNote}.`);
   }
 
   return { inventory: nextInventory, foodEaten, shortfall, report };
@@ -197,9 +346,9 @@ function runConsumption(inventory, population, maxFoodLoss) {
  * Deduct upkeep costs from denarii.
  * Returns { denarii, unpaidUpkeep, report }.
  */
-function runUpkeep(denarii, buildings, garrison) {
+function runUpkeep(denarii, buildings, garrison, military) {
   const buildingCost = getTotalBuildingUpkeep(buildings);
-  const garrisonCost = getGarrisonUpkeep(garrison);
+  const garrisonCost = getGarrisonUpkeep(garrison, military);
   const totalCost = buildingCost + garrisonCost;
   const report = [];
 
@@ -243,7 +392,7 @@ export function simulateEconomy(state) {
   let currentGarrison = garrison;
 
   // ----- 1. PRODUCTION -----
-  const production = runProduction(buildings, inventory, inventoryCapacity);
+  const production = runProduction(buildings, inventory, inventoryCapacity, season);
   let currentInventory = production.inventory;
   report.push(...production.report);
 
@@ -254,10 +403,25 @@ export function simulateEconomy(state) {
     report.push(`Your buildings produced: ${prodStr}.`);
   }
 
+  // ----- 1.5. LEVY LABOR PENALTY -----
+  const levyCount = state.military?.garrison?.levy || 0;
+  const levyThreshold = Math.floor(currentPopulation * 0.25);
+  const excessLevy = Math.max(0, levyCount - levyThreshold);
+  if (excessLevy > 0) {
+    const penaltyRate = excessLevy * 0.10;
+    const totalFoodProduced = FOOD_RESOURCES.reduce((sum, r) => sum + (production.produced[r] || 0), 0);
+    const foodPenalty = Math.min(totalFoodProduced, Math.ceil(totalFoodProduced * penaltyRate));
+    if (foodPenalty > 0) {
+      const grainRemoval = Math.min(currentInventory.grain || 0, foodPenalty);
+      currentInventory = { ...currentInventory, grain: (currentInventory.grain || 0) - grainRemoval };
+      report.push(`${excessLevy} levy conscripts beyond safe limit reduced food harvest by ${Math.round(penaltyRate * 100)}% (-${grainRemoval} grain).`);
+    }
+  }
+
   // ----- 2. CONSUMPTION -----
   const difficulty = state.difficulty || "normal";
   const maxFoodLoss = (difficulty === "easy" || difficulty === "normal") ? 25 : null;
-  const consumption = runConsumption(currentInventory, currentPopulation, maxFoodLoss);
+  const consumption = runConsumption(currentInventory, currentPopulation, maxFoodLoss, season);
   currentInventory = consumption.inventory;
   report.push(...consumption.report);
 
@@ -295,7 +459,7 @@ export function simulateEconomy(state) {
   }
 
   // ----- 3. UPKEEP -----
-  const upkeep = runUpkeep(currentDenarii, buildings, currentGarrison);
+  const upkeep = runUpkeep(currentDenarii, buildings, currentGarrison, state);
   currentDenarii = upkeep.denarii;
   report.push(...upkeep.report);
 
@@ -355,7 +519,7 @@ export function simulateEconomy(state) {
   const hasAle = (currentInventory.ale || 0) >= 3;
   if (hasAle) {
     currentInventory.ale -= 3;
-    report.push("Your people enjoyed 3 ale — morale is high!");
+    report.push("Your people enjoyed 3 ale \u2014 morale is high!");
   }
 
   // Salt consumed — preserves food
@@ -446,6 +610,7 @@ export function canBuildBuilding(buildingId, state) {
   if (!def) return { canBuild: false, reason: "Unknown building" };
 
   const { denarii, buildings } = state;
+  const totalPlots = state.totalPlots ?? STARTING_TOTAL_PLOTS;
 
   // Check cost
   if (denarii < def.cost) {
@@ -458,9 +623,15 @@ export function canBuildBuilding(buildingId, state) {
     return { canBuild: false, reason: `Maximum ${def.maxCount} built` };
   }
 
+  // Check land plots
+  const usedPlots = getUsedPlots(buildings);
+  if (usedPlots + (def.plots ?? 1) > totalPlots) {
+    return { canBuild: false, reason: `Need ${def.plots ?? 1} plot${(def.plots ?? 1) > 1 ? "s" : ""} (${totalPlots - usedPlots} available)` };
+  }
+
   // Check prerequisites
   if (def.requires) {
-    const hasPrereq = buildings.some((b) => b === def.requires);
+    const hasPrereq = buildings.some((b) => getBuildingType(b) === def.requires);
     if (!hasPrereq) {
       const prereqDef = BUILDINGS[def.requires];
       return { canBuild: false, reason: `Requires ${prereqDef?.name || def.requires}` };
@@ -473,9 +644,9 @@ export function canBuildBuilding(buildingId, state) {
 /**
  * Calculate the net income per season (not including tax).
  */
-export function getNetIncome(buildings, garrison, castleLevel) {
+export function getNetIncome(buildings, garrison, castleLevel, military) {
   const passiveIncome = getPassiveIncome(castleLevel, buildings);
-  const totalUpkeep = getTotalUpkeep(buildings, garrison);
+  const totalUpkeep = getTotalUpkeep(buildings, garrison, military);
   return passiveIncome - totalUpkeep;
 }
 

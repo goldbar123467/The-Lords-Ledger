@@ -6,13 +6,15 @@
  * Row 2: Season info, turn progress bar
  */
 
-import { Coins, Wheat, Users, Swords } from "lucide-react";
+import { Coins, Wheat, Users, Swords, Cross, Church } from "lucide-react";
 
 const RESOURCE_THEMES = {
   denarii: { color: "#c4a24a", Icon: Coins },
   food: { color: "#4a8a3a", Icon: Wheat },
   families: { color: "#2962a8", Icon: Users },
   garrison: { color: "#8b1a1a", Icon: Swords },
+  faith: { color: "#7eb8d4", Icon: Cross },
+  piety: { color: "#b89adb", Icon: Church },
 };
 
 const SEASON_SYMBOLS = {
@@ -167,7 +169,7 @@ function ResourceWarningBanner({ denarii, food, population, garrison, bankruptcy
 }
 
 function TurnProgressBar({ turn }) {
-  const progress = ((turn - 1) / 27) * 100;
+  const progress = ((turn - 1) / 39) * 100;
 
   return (
     <div
@@ -212,6 +214,8 @@ export default function Dashboard({
   food,
   population,
   garrison,
+  faith,
+  piety,
   season,
   year,
   turn,
@@ -264,6 +268,16 @@ export default function Dashboard({
             warning={garrison <= 0}
             delta={deltas.garrison}
           />
+          <ResourceStat
+            resourceKey="faith"
+            label="Faith"
+            value={faith}
+          />
+          <ResourceStat
+            resourceKey="piety"
+            label="Piety"
+            value={piety}
+          />
         </div>
       )}
 
@@ -303,7 +317,7 @@ export default function Dashboard({
                 letterSpacing: "1px",
               }}
             >
-              {seasonLabel}, Year {year} (Turn {turn}/28)
+              {seasonLabel}, Year {year} (Turn {turn}/40)
             </span>
           </div>
           <TurnProgressBar turn={turn} />

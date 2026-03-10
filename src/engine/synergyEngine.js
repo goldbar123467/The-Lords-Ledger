@@ -7,12 +7,14 @@
  */
 
 import { SYNERGY_PATH_LIST, SYNERGY_TIER_MAP, FOOD_BUILDING_IDS } from "../data/synergies.js";
+import { getBuildingType } from "./economyEngine.js";
 
 /**
  * Count how many of a given building ID the player has built.
+ * Handles both legacy string[] and new object[] formats.
  */
 function countBuilding(buildings, buildingId) {
-  return buildings.filter((b) => b === buildingId).length;
+  return buildings.filter((b) => getBuildingType(b) === buildingId).length;
 }
 
 /**
@@ -262,7 +264,7 @@ export function getSynergyBuildings(activated, playerBuildings) {
     // Buildings explicitly named in conditions
     if (c.buildings) {
       for (const buildingId of Object.keys(c.buildings)) {
-        if (playerBuildings.includes(buildingId)) {
+        if (playerBuildings.some((b) => getBuildingType(b) === buildingId)) {
           ids.add(buildingId);
         }
       }
@@ -271,14 +273,15 @@ export function getSynergyBuildings(activated, playerBuildings) {
     // Food buildings
     if (c.foodBuildingCount) {
       for (const b of playerBuildings) {
-        if (FOOD_BUILDING_IDS.includes(b)) ids.add(b);
+        if (FOOD_BUILDING_IDS.includes(getBuildingType(b))) ids.add(getBuildingType(b));
       }
     }
 
     // Converter buildings
     if (c.hasConverterBuilding) {
       for (const b of playerBuildings) {
-        if (b === "fulling_mill" || b === "brewery") ids.add(b);
+        const t = getBuildingType(b);
+        if (t === "fulling_mill" || t === "brewery") ids.add(t);
       }
     }
   }

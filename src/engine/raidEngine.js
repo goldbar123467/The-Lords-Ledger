@@ -98,9 +98,12 @@ export function checkForRaid(raids, turn) {
 
 /**
  * Resolve a raid and compute gains/losses.
+ * Uses defense rating system: total defense vs. threshold.
  *
  * @param {string} raidType - "criminal" or "scottish"
- * @param {number} garrison - Player's current garrison
+ * @param {number} defenseRating - Player's total defense rating
+ * @param {number} defenseThreshold - Required defense to repel the raid
+ * @param {number} garrison - Player's total garrison count (for narrative)
  * @param {number} castleLevel - Player's castle level
  * @param {object} inventory - Player's inventory
  * @returns {{ victory: boolean, partial: boolean, defenseRatio: number,
@@ -108,15 +111,14 @@ export function checkForRaid(raids, turn) {
  *             garrisonDelta: number, tradeGoodLost: { resource: string, amount: number } | null,
  *             narrativeLine: string, raidName: string }}
  */
-export function resolveRaid(raidType, garrison, castleLevel, inventory) {
+export function resolveRaid(raidType, defenseRating, defenseThreshold, garrison, castleLevel, inventory) {
   const def = RAID_TYPES[raidType];
   if (!def) return null;
 
-  const required = def.garrisonRequired;
   const raidName = pickRandom(def.names);
 
-  // VICTORY
-  if (garrison >= required) {
+  // VICTORY — defense rating meets or exceeds threshold
+  if (defenseRating >= defenseThreshold) {
     const gains = def.gains;
     return {
       victory: true,
@@ -132,8 +134,8 @@ export function resolveRaid(raidType, garrison, castleLevel, inventory) {
     };
   }
 
-  // DEFEAT — calculate losses
-  const defenseRatio = garrison > 0 ? garrison / required : 0;
+  // DEFEAT — calculate losses based on how close defense was
+  const defenseRatio = defenseRating > 0 ? defenseRating / defenseThreshold : 0;
   const lossMultiplier = 1 - defenseRatio;
 
   const losses = def.losses;
@@ -199,7 +201,7 @@ export function resolveRaid(raidType, garrison, castleLevel, inventory) {
   }
 
   // Partial defense message
-  const partial = garrison > 0 && garrison < required;
+  const partial = defenseRating > 0 && defenseRating < defenseThreshold;
 
   return {
     victory: false,
@@ -218,12 +220,9 @@ export function resolveRaid(raidType, garrison, castleLevel, inventory) {
 /**
  * Build chronicle text for a raid outcome.
  */
-export function buildRaidChronicleText(raidType, result, season, year, garrison) {
-  const def = RAID_TYPES[raidType];
-  const required = def.garrisonRequired;
-
+export function buildRaidChronicleText(raidType, result, season, year, garrison, defenseRating, defenseThreshold) {
   if (result.victory) {
-    const parts = [`${result.raidName} attacked the estate. Your garrison of ${garrison} soldiers repelled the assault.`];
+    const parts = [`${result.raidName} attacked the estate. Your defenses held (rating ${defenseRating} vs ${defenseThreshold} required).`];
     if (result.denariiDelta > 0) parts.push(`Recovered ${result.denariiDelta}d in plunder`);
     if (result.foodDelta > 0) parts.push(`${result.foodDelta} food in captured supplies`);
     parts.push("The people celebrate.");
@@ -233,7 +232,7 @@ export function buildRaidChronicleText(raidType, result, season, year, garrison)
   // Defeat
   const parts = [`${result.raidName} raided the estate.`];
   if (garrison > 0) {
-    parts.push(`Your garrison of ${garrison} soldiers was outnumbered (${required} required).`);
+    parts.push(`Your defenses were insufficient (rating ${defenseRating} vs ${defenseThreshold} required).`);
   } else {
     parts.push("There was no garrison to defend.");
   }

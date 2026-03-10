@@ -1,21 +1,66 @@
 /**
  * GreatHall.jsx
  *
- * Phase 1 — The Hall Itself
- * A stone-walled hall with animated torches, meter display bar,
- * throne room with Steward Edmund, petition queue, and atmospheric
- * cycling text. Internal navigation for future views (audience,
- * decrees, council, feast).
+ * Phases 1-4 — The Great Hall
+ * Stone hall shell with animated torches + 5 sub-views:
+ *   Throne (dispute queue), Audience (NPC conversations), Decrees (issue laws),
+ *   Council (advisor debate), Feast (multi-step celebration).
+ * Phase 4: Context-aware Edmund dialogue, trust/mood system, reputation evolution.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
-  Scale, Users, ScrollText, Landmark, Utensils, ChevronRight,
+  Scale, Users, ScrollText, Landmark, Utensils, ChevronRight, Shield,
+  AlertTriangle, Star, BookOpen, TrendingUp, TrendingDown,
 } from "lucide-react";
 import {
-  AMBIENT_TEXTS, EDMUND_GREETINGS, QUEUE_ITEMS,
-  METER_CONFIG, DEFAULT_METERS,
+  AMBIENT_TEXTS,
+  DEFAULT_METERS,
+  selectEdmundLine,
+  getTrustTier,
+  getEdmundMood,
+  REPUTATION_TRACKS,
+  COMPOUND_RULES,
 } from "../data/greatHall";
+import DISPUTES from "../data/disputes";
+import AUDIENCE_ENCOUNTERS from "../data/audience";
+import { DECREE_OPTIONS, COUNCIL_TOPICS, FEAST_DATA } from "../data/decrees";
+import DisputeScreen from "./DisputeScreen";
+import AudienceChamber from "./AudienceChamber";
+import DecreeDesk from "./DecreeDesk";
+import CouncilChamber from "./CouncilChamber";
+import FeastHall from "./FeastHall";
+
+// ─── Color palette (readable) ──────────────────────────────────
+
+const C = {
+  // Backgrounds — solid, layered for depth
+  bgDeep:     "#0f0d0a",
+  bgDark:     "#1a1610",
+  bgCard:     "#231e16",
+  bgCardHov:  "#2d2619",
+  bgElevated: "#2a2318",
+
+  // Borders
+  border:     "#4a3f30",
+  borderDim:  "#3d3428",
+
+  // Gold
+  gold:       "#d4a44c",
+  goldBright: "#e8c44a",
+  goldDim:    "#8a7a3a",
+
+  // Red accents
+  red:        "#8b1a1a",
+  redBright:  "#c62828",
+  redGlow:    "rgba(139, 26, 26, 0.3)",
+
+  // Text — readable hierarchy
+  textBright: "#ede0c8",   // primary headings, important values
+  text:       "#d4c4a0",   // body text, NPC dialogue
+  textMid:    "#b8a880",   // secondary labels, subtitles
+  textDim:    "#907e60",   // tertiary, hints, timestamps
+};
 
 // ─── Internal navigation config ────────────────────────────────
 
@@ -25,6 +70,7 @@ const HALL_VIEWS = [
   { id: "decrees",  label: "Decrees",  Icon: ScrollText },
   { id: "council",  label: "Council",  Icon: Landmark },
   { id: "feast",    label: "Feast",    Icon: Utensils },
+  { id: "summary",  label: "Summary",  Icon: BookOpen },
 ];
 
 // ─── Sub-components ────────────────────────────────────────────
@@ -44,8 +90,8 @@ function NpcPortrait({ initial, socialClass = "steward", mood = "neutral", size 
     sad:     "#6688aa",
     nervous: "#ccaa44",
     hopeful: "#44aa88",
-    neutral: "#d4a44c",
-    dutiful: "#a89070",
+    neutral: C.gold,
+    dutiful: C.textMid,
   };
 
   return (
@@ -60,68 +106,12 @@ function NpcPortrait({ initial, socialClass = "steward", mood = "neutral", size 
         justifyContent: "center",
         fontFamily: "Cinzel Decorative, Cinzel, serif",
         fontSize: size * 0.35,
-        color: "#e8dcc8",
+        color: C.textBright,
         background: bgMap[socialClass] || bgMap.peasant,
         flexShrink: 0,
       }}
     >
       {initial}
-    </div>
-  );
-}
-
-/** Single meter progress bar with label and value */
-function MeterBar({ label, value, color }) {
-  const isLow = value < 20;
-  const isHigh = value > 80;
-
-  return (
-    <div style={{ flex: "1 1 120px", minWidth: 110 }}>
-      <div className="flex items-center justify-between" style={{ marginBottom: 3 }}>
-        <span
-          style={{
-            fontFamily: "Cinzel, serif",
-            fontSize: "0.6rem",
-            color,
-            letterSpacing: "1px",
-            textTransform: "uppercase",
-          }}
-        >
-          {label}
-        </span>
-        <span style={{ fontSize: "0.65rem", color: "#a89070", fontFamily: "Cinzel, serif" }}>
-          {value}
-        </span>
-      </div>
-      <div
-        style={{
-          height: 7,
-          borderRadius: 4,
-          overflow: "hidden",
-          backgroundColor: "#1a1714",
-          border: isLow
-            ? "1px solid rgba(198,40,40,0.5)"
-            : isHigh
-            ? "1px solid rgba(74,138,58,0.5)"
-            : "1px solid #2a2520",
-          boxShadow: isLow
-            ? "0 0 6px rgba(198,40,40,0.2)"
-            : isHigh
-            ? "0 0 6px rgba(74,138,58,0.2)"
-            : "none",
-        }}
-      >
-        <div
-          style={{
-            height: "100%",
-            borderRadius: 4,
-            width: `${value}%`,
-            backgroundColor: color,
-            transition: "width 600ms ease",
-            boxShadow: `0 0 4px ${color}40`,
-          }}
-        />
-      </div>
     </div>
   );
 }
@@ -133,7 +123,6 @@ function Torch() {
       className="torch-glow"
       style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
     >
-      {/* Flame */}
       <div
         style={{
           width: 14,
@@ -144,7 +133,6 @@ function Torch() {
           filter: "blur(1px)",
         }}
       />
-      {/* Bracket */}
       <div
         style={{
           width: 4,
@@ -157,13 +145,462 @@ function Torch() {
   );
 }
 
+// ─── Trust Bar (small inline) ────────────────────────────────────
+
+function TrustBar({ trust }) {
+  const tier = getTrustTier(trust);
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div className="flex items-center justify-between" style={{ marginBottom: 3 }}>
+        <span
+          style={{
+            fontFamily: "Cinzel, serif",
+            fontSize: "0.6rem",
+            color: C.textDim,
+            letterSpacing: "1px",
+            textTransform: "uppercase",
+          }}
+        >
+          Trust: {tier.label}
+        </span>
+        <span
+          style={{
+            fontFamily: "Crimson Text, serif",
+            fontSize: "0.75rem",
+            color: tier.color,
+          }}
+        >
+          {trust}/100
+        </span>
+      </div>
+      <div
+        style={{
+          width: "100%",
+          height: 4,
+          backgroundColor: C.bgDeep,
+          borderRadius: 2,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${trust}%`,
+            height: "100%",
+            backgroundColor: tier.color,
+            borderRadius: 2,
+            transition: "width 400ms ease, background-color 400ms ease",
+          }}
+        />
+      </div>
+      <p
+        style={{
+          fontFamily: "Crimson Text, serif",
+          fontSize: "0.7rem",
+          color: C.textDim,
+          fontStyle: "italic",
+          margin: "3px 0 0",
+        }}
+      >
+        {tier.desc}
+      </p>
+    </div>
+  );
+}
+
+// ─── Edmund Mood Indicator ──────────────────────────────────────
+
+function MoodBadge({ mood }) {
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        fontFamily: "Cinzel, serif",
+        fontSize: "0.55rem",
+        color: mood.color,
+        letterSpacing: "1px",
+        textTransform: "uppercase",
+        border: `1px solid ${mood.color}40`,
+        borderRadius: 3,
+        padding: "1px 6px",
+        marginLeft: 8,
+      }}
+    >
+      {mood.label}
+    </span>
+  );
+}
+
+// ─── Phase 5: Hall Event Banner (Crisis/Peak) ──────────────────
+
+function HallEventBanner({ event, onDismiss }) {
+  const isCrisis = event.type === "crisis";
+  const borderColor = isCrisis ? "#c44444" : "#44aa66";
+  const bgColor = isCrisis ? "rgba(139, 26, 26, 0.15)" : "rgba(68, 170, 102, 0.15)";
+  const IconComp = isCrisis ? AlertTriangle : Star;
+  const label = isCrisis ? "CRISIS" : "PEAK";
+
+  // Format effects for display
+  const effectParts = Object.entries(event.effects || {})
+    .filter(([, v]) => v !== 0)
+    .map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)} ${v > 0 ? "+" : ""}${v}`);
+
+  return (
+    <div
+      style={{
+        border: `2px solid ${borderColor}`,
+        borderRadius: 8,
+        backgroundColor: bgColor,
+        padding: 16,
+        marginBottom: 16,
+        animation: "npcFadeIn 0.5s ease",
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 8,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: `${borderColor}30`,
+            border: `1px solid ${borderColor}60`,
+            flexShrink: 0,
+          }}
+        >
+          <IconComp size={24} style={{ color: borderColor }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2" style={{ marginBottom: 4 }}>
+            <span
+              style={{
+                fontFamily: "Cinzel, serif",
+                fontSize: "0.6rem",
+                color: borderColor,
+                letterSpacing: "2px",
+                textTransform: "uppercase",
+              }}
+            >
+              {label}: {event.meter}
+            </span>
+          </div>
+          <p
+            style={{
+              fontFamily: "Crimson Text, serif",
+              fontSize: "0.95rem",
+              color: C.text,
+              lineHeight: 1.5,
+              margin: "0 0 8px",
+            }}
+          >
+            {event.text}
+          </p>
+          {effectParts.length > 0 && (
+            <div className="flex flex-wrap gap-2" style={{ marginBottom: 10 }}>
+              {effectParts.map((e, i) => (
+                <span
+                  key={i}
+                  style={{
+                    fontFamily: "Cinzel, serif",
+                    fontSize: "0.65rem",
+                    color: e.includes("+") ? "#44aa66" : "#c44444",
+                    border: `1px solid ${e.includes("+") ? "#44aa6640" : "#c4444440"}`,
+                    borderRadius: 3,
+                    padding: "2px 6px",
+                  }}
+                >
+                  {e}
+                </span>
+              ))}
+            </div>
+          )}
+          <button
+            onClick={onDismiss}
+            style={{
+              fontFamily: "Cinzel, serif",
+              fontSize: "0.75rem",
+              color: C.textBright,
+              backgroundColor: C.bgElevated,
+              border: `1px solid ${C.border}`,
+              borderRadius: 4,
+              padding: "6px 16px",
+              cursor: "pointer",
+            }}
+          >
+            Acknowledge
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Phase 5: Season Summary View ───────────────────────────────
+
+function SeasonSummary({ hall, state, onReturn }) {
+  const meterHistory = hall.meterHistory || [];
+  const hallLog = hall.hallLog || [];
+  const meters = hall.meters || DEFAULT_METERS;
+  const compoundFlags = hall.compoundFlags || {};
+  const activeCompounds = COMPOUND_RULES.filter((r) => compoundFlags[r.flag]);
+
+  // Find log entries for this season
+  const seasonLog = hallLog.filter(
+    (e) => e.season === state.season && e.year === state.year
+  );
+
+  // Calculate meter deltas from last snapshot
+  const lastSnapshot = meterHistory.length >= 2
+    ? meterHistory[meterHistory.length - 2].meters
+    : DEFAULT_METERS;
+  const deltas = {};
+  for (const key of ["people", "treasury", "church", "military"]) {
+    deltas[key] = meters[key] - (lastSnapshot[key] || 50);
+  }
+
+  const meterLabels = { people: "People", treasury: "Treasury", church: "Church", military: "Military" };
+  const meterColors = { people: "#2d5a2d", treasury: "#c4a24a", church: "#6a4a8a", military: "#8b2020" };
+
+  return (
+    <div style={{ animation: "npcFadeIn 0.4s ease" }}>
+      <h3
+        style={{
+          fontFamily: "Cinzel Decorative, Cinzel, serif",
+          fontSize: "1rem",
+          color: C.goldBright,
+          textAlign: "center",
+          letterSpacing: "2px",
+          margin: "0 0 16px",
+          textShadow: "0 0 12px rgba(212,164,76,0.25)",
+        }}
+      >
+        Season Summary
+      </h3>
+
+      {/* Meter Changes */}
+      <div
+        style={{
+          border: `1px solid ${C.border}`,
+          borderRadius: 6,
+          backgroundColor: C.bgCard,
+          padding: 14,
+          marginBottom: 12,
+        }}
+      >
+        <h4
+          style={{
+            fontFamily: "Cinzel, serif",
+            fontSize: "0.8rem",
+            color: C.goldBright,
+            margin: "0 0 10px",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <BookOpen size={14} />
+          Meter Changes
+        </h4>
+        <div className="grid grid-cols-2 gap-3">
+          {Object.entries(meterLabels).map(([key, label]) => {
+            const delta = deltas[key];
+            const DeltaIcon = delta >= 0 ? TrendingUp : TrendingDown;
+            const deltaColor = delta > 0 ? "#44aa66" : delta < 0 ? "#c44444" : C.textDim;
+            return (
+              <div
+                key={key}
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: 4,
+                  backgroundColor: C.bgDeep,
+                  border: `1px solid ${C.borderDim}`,
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <span
+                    style={{
+                      fontFamily: "Cinzel, serif",
+                      fontSize: "0.7rem",
+                      color: meterColors[key],
+                    }}
+                  >
+                    {label}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <DeltaIcon size={12} style={{ color: deltaColor }} />
+                    <span
+                      style={{
+                        fontFamily: "Crimson Text, serif",
+                        fontSize: "0.8rem",
+                        color: deltaColor,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {delta > 0 ? "+" : ""}{delta}
+                    </span>
+                  </div>
+                </div>
+                {/* Mini bar */}
+                <div
+                  style={{
+                    width: "100%",
+                    height: 4,
+                    backgroundColor: C.bgDark,
+                    borderRadius: 2,
+                    marginTop: 6,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${meters[key]}%`,
+                      height: "100%",
+                      backgroundColor: meterColors[key],
+                      borderRadius: 2,
+                    }}
+                  />
+                </div>
+                <span
+                  style={{
+                    fontFamily: "Crimson Text, serif",
+                    fontSize: "0.7rem",
+                    color: C.textDim,
+                    marginTop: 2,
+                    display: "block",
+                  }}
+                >
+                  {meters[key]}/100
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Hall Actions This Season */}
+      {seasonLog.length > 0 && (
+        <div
+          style={{
+            border: `1px solid ${C.border}`,
+            borderRadius: 6,
+            backgroundColor: C.bgCard,
+            padding: 14,
+            marginBottom: 12,
+          }}
+        >
+          <h4
+            style={{
+              fontFamily: "Cinzel, serif",
+              fontSize: "0.8rem",
+              color: C.goldBright,
+              margin: "0 0 10px",
+            }}
+          >
+            Hall Actions This Season
+          </h4>
+          {seasonLog.map((entry, i) => (
+            <div
+              key={i}
+              style={{
+                padding: "6px 0",
+                borderTop: i > 0 ? `1px solid ${C.borderDim}` : "none",
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "Cinzel, serif",
+                  fontSize: "0.6rem",
+                  color: C.textDim,
+                  textTransform: "uppercase",
+                  letterSpacing: "1px",
+                }}
+              >
+                {entry.type}
+              </span>
+              <p
+                style={{
+                  fontFamily: "Crimson Text, serif",
+                  fontSize: "0.85rem",
+                  color: C.text,
+                  margin: "2px 0 0",
+                }}
+              >
+                {entry.text}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Compound Consequences */}
+      {activeCompounds.length > 0 && (
+        <div
+          style={{
+            border: `1px solid ${C.border}`,
+            borderRadius: 6,
+            backgroundColor: C.bgCard,
+            padding: 14,
+            marginBottom: 12,
+          }}
+        >
+          <h4
+            style={{
+              fontFamily: "Cinzel, serif",
+              fontSize: "0.8rem",
+              color: C.goldBright,
+              margin: "0 0 10px",
+            }}
+          >
+            Ripple Effects
+          </h4>
+          {activeCompounds.map((rule) => (
+            <p
+              key={rule.flag}
+              style={{
+                fontFamily: "Crimson Text, serif",
+                fontStyle: "italic",
+                fontSize: "0.85rem",
+                color: C.textMid,
+                margin: "4px 0",
+                paddingLeft: 10,
+                borderLeft: `2px solid ${C.goldDim}`,
+              }}
+            >
+              {rule.label}
+            </p>
+          ))}
+        </div>
+      )}
+
+      <div className="text-center">
+        <button
+          onClick={onReturn}
+          style={{
+            fontFamily: "Cinzel, serif",
+            fontSize: "0.8rem",
+            color: C.textBright,
+            backgroundColor: C.bgElevated,
+            border: `1px solid ${C.border}`,
+            borderRadius: 4,
+            padding: "8px 24px",
+            cursor: "pointer",
+          }}
+        >
+          Return to Throne
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Throne Room (default view) ────────────────────────────────
 
-function ThroneRoom({ edmundLine }) {
+function ThroneRoom({ edmundLine, disputes, resolvedIds, onSelectDispute, trust, mood, reputationTrack }) {
   return (
     <div>
       {/* Central throne icon + description */}
-      <div className="text-center" style={{ marginBottom: 16 }}>
+      <div className="text-center" style={{ marginBottom: 20 }}>
         <div
           style={{
             display: "inline-flex",
@@ -171,24 +608,25 @@ function ThroneRoom({ edmundLine }) {
             justifyContent: "center",
             width: 80,
             height: 80,
-            border: "2px solid #d4a44c",
+            border: `2px solid ${C.red}`,
             borderRadius: 8,
             background:
-              "linear-gradient(135deg, #2a2520 0%, #1a1714 50%, #2a2520 100%)",
+              `linear-gradient(135deg, ${C.bgCard} 0%, ${C.bgDeep} 50%, ${C.bgCard} 100%)`,
             boxShadow:
-              "0 0 20px rgba(212,164,76,0.15), inset 0 0 20px rgba(0,0,0,0.3)",
-            marginBottom: 8,
+              `0 0 24px ${C.redGlow}, inset 0 0 20px rgba(0,0,0,0.4)`,
+            marginBottom: 10,
           }}
         >
-          <Scale size={36} style={{ color: "#d4a44c" }} />
+          <Scale size={36} style={{ color: C.gold }} />
         </div>
         <h3
           style={{
             fontFamily: "Cinzel Decorative, Cinzel, serif",
-            fontSize: "0.9rem",
-            color: "#d4a44c",
+            fontSize: "1rem",
+            color: C.goldBright,
             letterSpacing: "2px",
             margin: "4px 0",
+            textShadow: "0 0 12px rgba(212,164,76,0.25)",
           }}
         >
           The Seat of Judgment
@@ -197,14 +635,30 @@ function ThroneRoom({ edmundLine }) {
           style={{
             fontFamily: "Crimson Text, serif",
             fontStyle: "italic",
-            fontSize: "0.8rem",
-            color: "#a89070",
+            fontSize: "0.85rem",
+            color: C.textMid,
             margin: 0,
           }}
         >
           From this throne, the lord hears the disputes of the land and shapes
           the fate of the manor.
         </p>
+        {reputationTrack && REPUTATION_TRACKS[reputationTrack] && (
+          <div className="flex items-center justify-center gap-2" style={{ marginTop: 6 }}>
+            <Shield size={12} style={{ color: C.goldDim }} />
+            <span
+              style={{
+                fontFamily: "Cinzel, serif",
+                fontSize: "0.65rem",
+                color: C.textMid,
+                letterSpacing: "1px",
+                textTransform: "uppercase",
+              }}
+            >
+              {REPUTATION_TRACKS[reputationTrack].label} Path
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Two-panel layout: Steward + Queue */}
@@ -213,30 +667,39 @@ function ThroneRoom({ edmundLine }) {
         <div
           className="flex-1"
           style={{
-            border: "1px solid #3d3630",
+            border: `1px solid ${C.border}`,
+            borderLeft: `3px solid ${C.red}`,
             borderRadius: 6,
-            backgroundColor: "rgba(42,37,32,0.5)",
-            padding: 12,
+            backgroundColor: C.bgCard,
+            padding: 14,
           }}
         >
           <div className="flex items-start gap-3">
-            <NpcPortrait initial="E" socialClass="steward" mood="dutiful" size={64} />
+            <NpcPortrait
+              initial="E"
+              socialClass="steward"
+              mood={mood.icon || "dutiful"}
+              size={64}
+            />
             <div className="flex-1 min-w-0">
-              <h4
-                style={{
-                  fontFamily: "Cinzel, serif",
-                  fontSize: "0.8rem",
-                  color: "#d4a44c",
-                  margin: "0 0 2px",
-                }}
-              >
-                Edmund
-              </h4>
+              <div className="flex items-center">
+                <h4
+                  style={{
+                    fontFamily: "Cinzel, serif",
+                    fontSize: "0.85rem",
+                    color: C.goldBright,
+                    margin: "0 0 2px",
+                  }}
+                >
+                  Edmund
+                </h4>
+                <MoodBadge mood={mood} />
+              </div>
               <p
                 style={{
                   fontFamily: "Cinzel, serif",
                   fontSize: "0.6rem",
-                  color: "#6a5a42",
+                  color: C.textDim,
                   letterSpacing: "1px",
                   textTransform: "uppercase",
                   margin: "0 0 8px",
@@ -248,14 +711,15 @@ function ThroneRoom({ edmundLine }) {
                 style={{
                   fontFamily: "Crimson Text, serif",
                   fontStyle: "italic",
-                  fontSize: "0.85rem",
-                  color: "#c8b090",
-                  lineHeight: 1.4,
+                  fontSize: "0.9rem",
+                  color: C.text,
+                  lineHeight: 1.5,
                   margin: 0,
                 }}
               >
                 &ldquo;{edmundLine}&rdquo;
               </p>
+              <TrustBar trust={trust} />
             </div>
           </div>
         </div>
@@ -264,18 +728,19 @@ function ThroneRoom({ edmundLine }) {
         <div
           className="flex-1"
           style={{
-            border: "1px solid #3d3630",
+            border: `1px solid ${C.border}`,
+            borderLeft: `3px solid ${C.red}`,
             borderRadius: 6,
-            backgroundColor: "rgba(42,37,32,0.5)",
-            padding: 12,
+            backgroundColor: C.bgCard,
+            padding: 14,
           }}
         >
           <h4
             style={{
               fontFamily: "Cinzel, serif",
-              fontSize: "0.8rem",
-              color: "#d4a44c",
-              margin: "0 0 8px",
+              fontSize: "0.85rem",
+              color: C.goldBright,
+              margin: "0 0 10px",
               display: "flex",
               alignItems: "center",
               gap: 6,
@@ -284,190 +749,217 @@ function ThroneRoom({ edmundLine }) {
             <ScrollText size={14} />
             Today&rsquo;s Queue
           </h4>
-          {QUEUE_ITEMS.map((item, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-2"
+          {disputes.length === 0 ? (
+            <p
               style={{
-                padding: "6px 0",
-                borderTop: i > 0 ? "1px solid #2a2520" : "none",
+                fontFamily: "Crimson Text, serif",
+                fontStyle: "italic",
+                fontSize: "0.9rem",
+                color: C.textDim,
+                margin: 0,
               }}
             >
-              <ChevronRight
-                size={12}
-                style={{ color: "#6a5a42", flexShrink: 0 }}
-              />
-              <span
-                style={{
-                  fontFamily: "Crimson Text, serif",
-                  fontSize: "0.85rem",
-                  color: "#c8b090",
-                }}
-              >
-                {item.title}
-              </span>
-              <span
-                style={{
-                  fontFamily: "Cinzel, serif",
-                  fontSize: "0.55rem",
-                  color: "#6a5a42",
-                  marginLeft: "auto",
-                  textTransform: "uppercase",
-                  letterSpacing: "1px",
-                  flexShrink: 0,
-                }}
-              >
-                {item.urgency}
-              </span>
-            </div>
-          ))}
-          <p
-            style={{
-              fontFamily: "Crimson Text, serif",
-              fontStyle: "italic",
-              fontSize: "0.75rem",
-              color: "#6a5a42",
-              marginTop: 8,
-              marginBottom: 0,
-            }}
-          >
-            Disputes and petitions will be heard from the throne.
-          </p>
+              No disputes await your judgment this season.
+            </p>
+          ) : (
+            disputes.map((d, i) => {
+              const isResolved = resolvedIds.includes(d.id);
+              return (
+                <button
+                  key={d.id}
+                  onClick={() => !isResolved && onSelectDispute(d)}
+                  disabled={isResolved}
+                  className="w-full flex items-center gap-2 text-left"
+                  style={{
+                    padding: "10px 6px",
+                    borderTop: i > 0 ? `1px solid ${C.borderDim}` : "none",
+                    background: "none",
+                    border: i > 0 ? undefined : "none",
+                    borderLeft: "none",
+                    borderRight: "none",
+                    borderBottom: "none",
+                    cursor: isResolved ? "default" : "pointer",
+                    opacity: isResolved ? 0.4 : 1,
+                    transition: "opacity 200ms ease",
+                  }}
+                >
+                  <ChevronRight
+                    size={14}
+                    style={{ color: isResolved ? C.textDim : C.redBright, flexShrink: 0 }}
+                  />
+                  <span
+                    style={{
+                      fontFamily: "Crimson Text, serif",
+                      fontSize: "0.9rem",
+                      color: isResolved ? C.textDim : C.text,
+                      textDecoration: isResolved ? "line-through" : "none",
+                    }}
+                  >
+                    {d.title}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "Cinzel, serif",
+                      fontSize: "0.6rem",
+                      color: isResolved ? C.textDim : C.textMid,
+                      marginLeft: "auto",
+                      textTransform: "uppercase",
+                      letterSpacing: "1px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {isResolved ? "Resolved" : d.difficulty}
+                  </span>
+                </button>
+              );
+            })
+          )}
+          {disputes.length > 0 && (
+            <p
+              style={{
+                fontFamily: "Crimson Text, serif",
+                fontStyle: "italic",
+                fontSize: "0.8rem",
+                color: C.textDim,
+                marginTop: 10,
+                marginBottom: 0,
+              }}
+            >
+              Select a dispute to hear the case.
+            </p>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Placeholder for unbuilt views ─────────────────────────────
-
-const VIEW_INFO = {
-  audience: {
-    title: "The Audience Chamber",
-    desc: "Hold audience with your people. Hear their pleas, their gossip, and their wisdom.",
-    Icon: Users,
-  },
-  decrees: {
-    title: "The Decree Desk",
-    desc: "Issue official decrees sealed with wax. Each decree shapes the laws and customs of your manor.",
-    Icon: ScrollText,
-  },
-  council: {
-    title: "The Council Chamber",
-    desc: "Convene your advisors to debate matters of great importance to the realm.",
-    Icon: Landmark,
-  },
-  feast: {
-    title: "The Feast Hall",
-    desc: "Host a grand feast for the village. Break bread, build bonds, and celebrate the season.",
-    Icon: Utensils,
-  },
-};
-
-function PlaceholderView({ viewId, onBack }) {
-  const info = VIEW_INFO[viewId] || {
-    title: "Unknown",
-    desc: "",
-    Icon: Scale,
-  };
-  const ViewIcon = info.Icon;
-
-  return (
-    <div className="text-center" style={{ padding: "32px 0" }}>
-      <div
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 64,
-          height: 64,
-          border: "2px solid #3d3630",
-          borderRadius: 8,
-          backgroundColor: "rgba(26,23,20,0.5)",
-          marginBottom: 12,
-        }}
-      >
-        <ViewIcon size={28} style={{ color: "#6a5a42" }} />
-      </div>
-      <h3
-        style={{
-          fontFamily: "Cinzel Decorative, Cinzel, serif",
-          fontSize: "1rem",
-          color: "#6a5a42",
-          letterSpacing: "2px",
-          margin: "0 0 8px",
-        }}
-      >
-        {info.title}
-      </h3>
-      <p
-        style={{
-          fontFamily: "Crimson Text, serif",
-          fontStyle: "italic",
-          fontSize: "0.85rem",
-          color: "#4a4030",
-          maxWidth: 400,
-          margin: "0 auto 16px",
-        }}
-      >
-        {info.desc}
-      </p>
-      <p
-        style={{
-          fontFamily: "Cinzel, serif",
-          fontSize: "0.65rem",
-          color: "#4a4030",
-          letterSpacing: "1px",
-          textTransform: "uppercase",
-        }}
-      >
-        Coming Soon
-      </p>
-      <button
-        onClick={onBack}
-        style={{
-          fontFamily: "Cinzel, serif",
-          fontSize: "0.75rem",
-          color: "#d4a44c",
-          background: "none",
-          border: "1px solid #3d3630",
-          padding: "6px 16px",
-          borderRadius: 4,
-          cursor: "pointer",
-          marginTop: 12,
-          transition: "all 200ms ease",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = "#d4a44c";
-          e.currentTarget.style.backgroundColor = "rgba(212,164,76,0.1)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = "#3d3630";
-          e.currentTarget.style.backgroundColor = "transparent";
-        }}
-      >
-        Return to Throne
-      </button>
-    </div>
-  );
-}
+// ─── (Placeholder views removed — all Phase 3 views are now live) ──
 
 // ─── Main Component ────────────────────────────────────────────
 
-export default function GreatHall({ state }) {
+export default function GreatHall({ state, dispatch }) {
   const [currentView, setCurrentView] = useState("throne");
   const [ambientIndex, setAmbientIndex] = useState(0);
   const [ambientVisible, setAmbientVisible] = useState(true);
+  const [selectedDispute, setSelectedDispute] = useState(null);
 
-  // Stable greeting per tab visit (doesn't re-randomize on re-render)
-  const [edmundLine] = useState(
-    () => EDMUND_GREETINGS[Math.floor(Math.random() * EDMUND_GREETINGS.length)]
+  const hall = state.greatHall || {};
+  const meters = hall.meters || DEFAULT_METERS;
+  const reputation = hall.reputation || "Unknown Lord";
+  const reputationTrack = hall.reputationTrack || null;
+  const stewardTrust = hall.stewardTrust ?? 50;
+  const resolvedIds = (hall.rulingHistory || []).map((r) => r.disputeId);
+  const audienceResolvedIds = useMemo(() => hall.audienceResolved || [], [hall.audienceResolved]);
+  const activeDecreeIds = hall.activeDecrees || [];
+  const decreeSlotsUsed = hall.decreeSlotsUsed || 0;
+  const councilResolvedIds = useMemo(() => hall.councilResolved || [], [hall.councilResolved]);
+  const hasFeastedThisSeason = hall.hasFeastedThisSeason || false;
+  const pendingHallEvent = hall.pendingHallEvent || null;
+
+  // Phase 4: Edmund mood derived from treasury meter
+  const edmundMood = useMemo(() => getEdmundMood(meters.treasury), [meters.treasury]);
+
+  // Phase 4: Context-aware Edmund line — recalculated once per view change
+  const [edmundLine, setEdmundLine] = useState(() =>
+    selectEdmundLine(state, "throne", stewardTrust)
   );
 
-  const meters = state.greatHall?.meters || DEFAULT_METERS;
-  const reputation = state.greatHall?.reputation || "Unknown Lord";
+  const refreshEdmundLine = useCallback((view) => {
+    setEdmundLine(selectEdmundLine(state, view, stewardTrust));
+  }, [state, stewardTrust]);
 
-  // Cycle ambient text every 8 seconds with a fade transition
+  // Disputes: match season, limit 4
+  const availableDisputes = useMemo(() => {
+    const season = state.season || "spring";
+    return DISPUTES.filter(
+      (d) => d.season === "any" || d.season === season
+    ).slice(0, 4);
+  }, [state.season]);
+
+  // Audience: pick 5 encounters that haven't been resolved yet
+  const availableAudience = useMemo(() => {
+    return AUDIENCE_ENCOUNTERS.filter(
+      (e) => !audienceResolvedIds.includes(e.id)
+    ).slice(0, 5);
+  }, [audienceResolvedIds]);
+
+  // Council: pick the first unresolved topic (1 per season)
+  const councilTopic = useMemo(() => {
+    return COUNCIL_TOPICS.find((t) => !councilResolvedIds.includes(t.id)) || null;
+  }, [councilResolvedIds]);
+
+  // Council unlock: turn >= 4 or people meter > 70
+  const councilUnlocked = (state.turn || 1) >= 4 || meters.people > 70;
+
+  // ─── View switching (refreshes Edmund line) ────────────────────
+
+  const switchView = useCallback((view) => {
+    setCurrentView(view);
+    refreshEdmundLine(view);
+  }, [refreshEdmundLine]);
+
+  // ─── Dispatch handlers ──────────────────────────────────────────
+
+  const handleSelectDispute = (dispute) => {
+    setSelectedDispute(dispute);
+    switchView("dispute");
+  };
+
+  const handleRuleDispute = (disputeId, rulingId, consequences, decree) => {
+    dispatch({
+      type: "HALL_RULE_DISPUTE",
+      payload: { disputeId, rulingId, consequences, decree },
+    });
+    // Refresh Edmund's line after ruling (post-ruling reaction)
+    setTimeout(() => refreshEdmundLine("throne"), 100);
+  };
+
+  const handleReturnFromDispute = () => {
+    setSelectedDispute(null);
+    switchView("throne");
+  };
+
+  const handleAudienceRespond = (encounterId, responseIndex, consequences) => {
+    dispatch({
+      type: "HALL_AUDIENCE_RESPOND",
+      payload: { encounterId, responseIndex, consequences },
+    });
+  };
+
+  const handleIssueDecree = (decreeId, effects) => {
+    dispatch({
+      type: "HALL_ISSUE_DECREE",
+      payload: { decreeId, effects },
+    });
+  };
+
+  const handleRevokeDecree = (decreeId) => {
+    dispatch({
+      type: "HALL_REVOKE_DECREE",
+      payload: { decreeId },
+    });
+  };
+
+  const handleCouncilVote = (topicId, optionId, consequences) => {
+    dispatch({
+      type: "HALL_COUNCIL_VOTE",
+      payload: { topicId, optionId, consequences },
+    });
+  };
+
+  const handleFeastComplete = (totalEffects) => {
+    dispatch({
+      type: "HALL_FEAST_COMPLETE",
+      payload: { totalEffects },
+    });
+  };
+
+  // Phase 5: Dismiss crisis/peak event
+  const handleDismissEvent = () => {
+    dispatch({ type: "HALL_DISMISS_EVENT" });
+  };
+
   useEffect(() => {
     const interval = setInterval(() => {
       setAmbientVisible(false);
@@ -482,22 +974,22 @@ export default function GreatHall({ state }) {
 
   return (
     <div
-      className="hall-wall"
       style={{
         borderRadius: 8,
         overflow: "hidden",
-        border: "1px solid #3d3630",
-        boxShadow: "inset 0 0 80px rgba(0,0,0,0.25)",
+        border: `1px solid ${C.border}`,
+        boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+        background: C.bgDeep,
       }}
     >
       {/* ═══ HEADER ═══ */}
       <div
         style={{
           textAlign: "center",
-          padding: "16px 16px 12px",
-          borderBottom: "1px solid #3d3630",
+          padding: "18px 16px 14px",
+          borderBottom: `2px solid ${C.red}`,
           background:
-            "linear-gradient(180deg, rgba(26,23,20,0.95) 0%, rgba(42,37,32,0.8) 100%)",
+            `linear-gradient(180deg, ${C.bgElevated} 0%, ${C.bgDark} 100%)`,
         }}
       >
         <div className="flex items-center justify-center gap-4">
@@ -507,7 +999,7 @@ export default function GreatHall({ state }) {
               style={{
                 fontFamily: "Cinzel Decorative, Cinzel, serif",
                 fontSize: "1.3rem",
-                color: "#d4a44c",
+                color: C.goldBright,
                 letterSpacing: "3px",
                 textTransform: "uppercase",
                 margin: 0,
@@ -520,14 +1012,13 @@ export default function GreatHall({ state }) {
             <p
               style={{
                 fontFamily: "Cinzel, serif",
-                fontSize: "0.7rem",
-                color: "#a89070",
+                fontSize: "0.75rem",
+                color: C.textMid,
                 letterSpacing: "2px",
-                marginTop: 4,
-                margin: "4px 0 0",
+                margin: "6px 0 0",
               }}
             >
-              {reputation} &mdash;{" "}
+              <span style={{ color: C.gold }}>{reputation}</span> &mdash;{" "}
               {state.season
                 ? state.season.charAt(0).toUpperCase() + state.season.slice(1)
                 : "Spring"}
@@ -538,19 +1029,7 @@ export default function GreatHall({ state }) {
         </div>
       </div>
 
-      {/* ═══ METER BAR ═══ */}
-      <div
-        className="flex flex-wrap gap-3"
-        style={{
-          padding: "10px 16px",
-          borderBottom: "1px solid #2a2520",
-          backgroundColor: "rgba(26,23,20,0.6)",
-        }}
-      >
-        {METER_CONFIG.map((m) => (
-          <MeterBar key={m.key} label={m.label} value={meters[m.key]} color={m.color} />
-        ))}
-      </div>
+      {/* Meters now shown in main Dashboard */}
 
       {/* ═══ CONTENT AREA (with decorative columns) ═══ */}
       <div className="flex" style={{ minHeight: 360 }}>
@@ -560,20 +1039,83 @@ export default function GreatHall({ state }) {
           style={{
             width: 48,
             paddingTop: 24,
-            background: "linear-gradient(90deg, #1a1714 0%, #2a2520 100%)",
-            borderRight: "2px solid #3d3630",
+            background: `linear-gradient(90deg, ${C.bgDeep} 0%, ${C.bgDark} 100%)`,
+            borderRight: `2px solid ${C.borderDim}`,
           }}
         >
           <Torch />
         </div>
 
         {/* Main content */}
-        <div className="flex-1" style={{ padding: 16 }}>
-          {currentView === "throne" && <ThroneRoom edmundLine={edmundLine} />}
-          {currentView !== "throne" && (
-            <PlaceholderView
-              viewId={currentView}
-              onBack={() => setCurrentView("throne")}
+        <div
+          className="flex-1"
+          style={{
+            padding: 16,
+            background: `linear-gradient(180deg, ${C.bgDark} 0%, ${C.bgDeep} 100%)`,
+          }}
+        >
+          {/* Phase 5: Crisis/Peak Event Banner */}
+          {pendingHallEvent && (
+            <HallEventBanner event={pendingHallEvent} onDismiss={handleDismissEvent} />
+          )}
+          {currentView === "throne" && (
+            <ThroneRoom
+              edmundLine={edmundLine}
+              disputes={availableDisputes}
+              resolvedIds={resolvedIds}
+              onSelectDispute={handleSelectDispute}
+              trust={stewardTrust}
+              mood={edmundMood}
+              reputationTrack={reputationTrack}
+            />
+          )}
+          {currentView === "dispute" && selectedDispute && (
+            <DisputeScreen
+              dispute={selectedDispute}
+              onRule={handleRuleDispute}
+              onReturn={handleReturnFromDispute}
+            />
+          )}
+          {currentView === "audience" && (
+            <AudienceChamber
+              encounters={availableAudience}
+              resolvedIds={audienceResolvedIds}
+              onRespond={handleAudienceRespond}
+              onReturn={() => switchView("throne")}
+            />
+          )}
+          {currentView === "decrees" && (
+            <DecreeDesk
+              decrees={DECREE_OPTIONS}
+              activeDecreeIds={activeDecreeIds}
+              decreeSlots={2 - decreeSlotsUsed}
+              onIssue={handleIssueDecree}
+              onRevoke={handleRevokeDecree}
+              onReturn={() => switchView("throne")}
+            />
+          )}
+          {currentView === "council" && (
+            <CouncilChamber
+              topic={councilTopic}
+              onVote={handleCouncilVote}
+              onReturn={() => switchView("throne")}
+              isLocked={!councilUnlocked}
+            />
+          )}
+          {currentView === "feast" && (
+            <FeastHall
+              feastData={FEAST_DATA}
+              onComplete={handleFeastComplete}
+              onReturn={() => switchView("throne")}
+              hasFeastedThisSeason={hasFeastedThisSeason}
+              treasuryMeter={meters.treasury}
+            />
+          )}
+          {currentView === "summary" && (
+            <SeasonSummary
+              hall={hall}
+              state={state}
+              onReturn={() => switchView("throne")}
             />
           )}
         </div>
@@ -584,8 +1126,8 @@ export default function GreatHall({ state }) {
           style={{
             width: 48,
             paddingTop: 24,
-            background: "linear-gradient(270deg, #1a1714 0%, #2a2520 100%)",
-            borderLeft: "2px solid #3d3630",
+            background: `linear-gradient(270deg, ${C.bgDeep} 0%, ${C.bgDark} 100%)`,
+            borderLeft: `2px solid ${C.borderDim}`,
           }}
         >
           <Torch />
@@ -596,8 +1138,8 @@ export default function GreatHall({ state }) {
       <div
         className="flex overflow-x-auto"
         style={{
-          borderTop: "1px solid #3d3630",
-          backgroundColor: "rgba(26,23,20,0.8)",
+          borderTop: `1px solid ${C.border}`,
+          backgroundColor: C.bgDark,
         }}
       >
         {HALL_VIEWS.map((view) => {
@@ -605,17 +1147,17 @@ export default function GreatHall({ state }) {
           return (
             <button
               key={view.id}
-              onClick={() => setCurrentView(view.id)}
+              onClick={() => switchView(view.id)}
               className="flex-1 min-w-0 px-2"
               style={{
                 paddingTop: 8,
                 paddingBottom: 8,
                 textAlign: "center",
-                backgroundColor: isActive ? "#2a2520" : "transparent",
+                backgroundColor: isActive ? C.bgElevated : "transparent",
                 borderTop: isActive
-                  ? "2px solid #d4a44c"
+                  ? `2px solid ${C.redBright}`
                   : "2px solid transparent",
-                color: isActive ? "#d4a44c" : "#6a5a42",
+                color: isActive ? C.goldBright : C.textDim,
                 fontFamily: "Cinzel, serif",
                 fontSize: "0.7rem",
                 letterSpacing: "1px",
@@ -624,14 +1166,14 @@ export default function GreatHall({ state }) {
               }}
               onMouseEnter={(e) => {
                 if (!isActive) {
-                  e.currentTarget.style.backgroundColor = "#2a2520";
-                  e.currentTarget.style.color = "#c8b090";
+                  e.currentTarget.style.backgroundColor = C.bgElevated;
+                  e.currentTarget.style.color = C.text;
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isActive) {
                   e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "#6a5a42";
+                  e.currentTarget.style.color = C.textDim;
                 }
               }}
             >
@@ -647,9 +1189,9 @@ export default function GreatHall({ state }) {
       {/* ═══ AMBIENT FOOTER ═══ */}
       <div
         style={{
-          padding: "8px 16px",
-          borderTop: "1px solid #2a2520",
-          backgroundColor: "rgba(15,13,10,0.8)",
+          padding: "10px 16px",
+          borderTop: `1px solid ${C.borderDim}`,
+          backgroundColor: C.bgDeep,
         }}
       >
         <p
@@ -657,7 +1199,7 @@ export default function GreatHall({ state }) {
             fontFamily: "Crimson Text, serif",
             fontStyle: "italic",
             fontSize: "0.85rem",
-            color: "#6a5a42",
+            color: C.textDim,
             textAlign: "center",
             margin: 0,
             opacity: ambientVisible ? 1 : 0,

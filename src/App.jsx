@@ -8,7 +8,7 @@ import TitleScreen from "./components/TitleScreen";
 import Dashboard from "./components/Dashboard";
 import TabBar from "./components/TabBar";
 import EstateTab from "./components/EstateTab";
-import TradeTab from "./components/TradeTab";
+import MarketSquare from "./components/MarketSquare";
 import MilitaryTab from "./components/MilitaryTab";
 import PeopleTab from "./components/PeopleTab";
 import MapTab from "./components/MapTab";
@@ -22,8 +22,11 @@ import FlipScreen from "./components/FlipScreen";
 import SynergyToast from "./components/SynergyToast";
 import TutorialHint from "./components/TutorialHint";
 import Tavern from "./components/Tavern";
+import Watchtower from "./components/Watchtower";
 import RaidScreen from "./components/RaidScreen";
 import GreatHall from "./components/GreatHall";
+import ChapelTab from "./components/ChapelTab";
+import BlacksmithTab from "./components/BlacksmithTab";
 
 
 const seasonalEvents = Object.values(seasonalEventsData).flat();
@@ -97,6 +100,7 @@ export default function App() {
 
   function handleSetTab(tab) {
     setTavernOpen(false);
+    setWatchtowerOpen(false);
     dispatch({ type: "SET_TAB", payload: { tab } });
   }
 
@@ -106,6 +110,14 @@ export default function App() {
 
   function handleDemolish(buildingIndex) {
     dispatch({ type: "DEMOLISH_BUILDING", payload: { buildingIndex } });
+  }
+
+  function handleRepair(buildingIndex) {
+    dispatch({ type: "REPAIR_BUILDING", payload: { buildingIndex } });
+  }
+
+  function handleUpgrade(buildingIndex) {
+    dispatch({ type: "UPGRADE_BUILDING", payload: { buildingIndex } });
   }
 
   function handleSell(resource, quantity) {
@@ -120,24 +132,16 @@ export default function App() {
     dispatch({ type: "SET_TAX_RATE", payload: { rate } });
   }
 
-  function handleRecruit(count) {
-    dispatch({ type: "RECRUIT_SOLDIERS", payload: { count } });
+  function handleRecruit(soldierType, count) {
+    dispatch({ type: "RECRUIT_SOLDIERS", payload: { soldierType, count } });
   }
 
-  function handleDismiss(count) {
-    dispatch({ type: "DISMISS_SOLDIERS", payload: { count } });
+  function handleDismiss(soldierType, count) {
+    dispatch({ type: "DISMISS_SOLDIERS", payload: { soldierType, count } });
   }
 
-  function handleUpgradeCastle() {
-    dispatch({ type: "UPGRADE_CASTLE" });
-  }
-
-  function handleInstallDefense(upgradeId) {
-    dispatch({ type: "INSTALL_DEFENSE", payload: { upgradeId } });
-  }
-
-  function handleDonate(amount) {
-    dispatch({ type: "DONATE_TO_CHURCH", payload: { amount } });
+  function handleUpgradeFortification(track) {
+    dispatch({ type: "UPGRADE_FORTIFICATION", payload: { track } });
   }
 
   // --- Flip handlers ---
@@ -175,11 +179,13 @@ export default function App() {
   }
 
   const [tavernOpen, setTavernOpen] = useState(false);
+  const [watchtowerOpen, setWatchtowerOpen] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
 
   const handleSimulateSeason = useCallback(() => {
     if (isResolving) return;
     setTavernOpen(false);
+    setWatchtowerOpen(false);
     setIsResolving(true);
     requestAnimationFrame(() => {
       dispatch({ type: "SIMULATE_SEASON", payload });
@@ -270,6 +276,7 @@ export default function App() {
         <RaidScreen
           raidState={state.raids.activeRaid}
           garrison={state.garrison}
+          military={state.military}
           onDefend={handleRaidDefend}
           onContinue={handleRaidContinue}
         />
@@ -282,6 +289,8 @@ export default function App() {
           food={food}
           population={population}
           garrison={state.garrison}
+          faith={state.chapel?.faith ?? 50}
+          piety={state.chapel?.piety ?? 30}
           season={season}
           year={year}
           turn={turn}
@@ -335,6 +344,8 @@ export default function App() {
             state={state}
             onBuild={handleBuild}
             onDemolish={handleDemolish}
+            onRepair={handleRepair}
+            onUpgrade={handleUpgrade}
             activatedSynergies={synergies?.activated ?? []}
           />
         )}
@@ -347,15 +358,27 @@ export default function App() {
               dispatch={dispatch}
               onClose={() => setTavernOpen(false)}
             />
+          ) : watchtowerOpen ? (
+            <Watchtower
+              state={state}
+              dispatch={dispatch}
+              onClose={() => setWatchtowerOpen(false)}
+            />
           ) : (
-            <MapTab state={state} onOpenTavern={() => setTavernOpen(true)} />
+            <MapTab
+              state={state}
+              onOpenTavern={() => setTavernOpen(true)}
+              onOpenWatchtower={() => setWatchtowerOpen(true)}
+              onOpenMarket={() => handleSetTab("market")}
+            />
           )
         )}
 
-        {/* --- TRADE TAB --- */}
-        {!isFlipPhase && displayTab === "trade" && isManagement && (
-          <TradeTab
+        {/* --- MARKET TAB --- */}
+        {!isFlipPhase && displayTab === "market" && isManagement && (
+          <MarketSquare
             state={state}
+            dispatch={dispatch}
             onSell={handleSell}
             onBuy={handleBuy}
           />
@@ -367,8 +390,11 @@ export default function App() {
             state={state}
             onRecruit={handleRecruit}
             onDismiss={handleDismiss}
-            onUpgradeCastle={handleUpgradeCastle}
-            onInstallDefense={handleInstallDefense}
+            onUpgradeFortification={handleUpgradeFortification}
+            onOpenWatchtower={() => {
+              setWatchtowerOpen(true);
+              dispatch({ type: "SET_TAB", payload: { tab: "map" } });
+            }}
           />
         )}
 
@@ -376,14 +402,23 @@ export default function App() {
         {!isFlipPhase && displayTab === "people" && isManagement && (
           <PeopleTab
             state={state}
-            onSetTaxRate={handleSetTaxRate}
-            onDonate={handleDonate}
+            dispatch={dispatch}
           />
         )}
 
         {/* --- GREAT HALL TAB --- */}
         {!isFlipPhase && displayTab === "hall" && isManagement && (
-          <GreatHall state={state} />
+          <GreatHall state={state} dispatch={dispatch} />
+        )}
+
+        {/* --- CHAPEL TAB --- */}
+        {!isFlipPhase && displayTab === "chapel" && isManagement && (
+          <ChapelTab state={state} dispatch={dispatch} />
+        )}
+
+        {/* --- BLACKSMITH FORGE TAB --- */}
+        {!isFlipPhase && displayTab === "forge" && isManagement && (
+          <BlacksmithTab state={state} dispatch={dispatch} />
         )}
 
         {/* --- CHRONICLE TAB --- */}
@@ -415,7 +450,7 @@ export default function App() {
             {phase === "random_resolve" && (
               <ResolveScreen
                 onContinue={handleAdvanceTurn}
-                buttonText={turn >= 28 ? "See Your Legacy" : "Continue"}
+                buttonText={turn >= 40 ? "See Your Legacy" : "Continue"}
               />
             )}
 

@@ -8,7 +8,7 @@
  *   Used in turns 1–2 before Military and Faith meters are introduced.
  *
  * Effect ranges are intentionally small (−15 to +15) so the game
- * stays survivable across 28 turns while still feeling consequential.
+ * stays survivable across 40 turns while still feeling consequential.
  *
  * scribesNote — 2–3 sentences of real medieval history at 6th grade level.
  */

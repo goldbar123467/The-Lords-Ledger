@@ -10,9 +10,9 @@ const HINTS = {
     { maxTurn: 2, text: "Start by building a Strip Farm or Pasture — they produce food to keep your people alive and attract new settlers." },
     { maxTurn: 4, text: "Watch your Net income at the top. If it's negative, you're losing money each season. Build wisely!" },
   ],
-  trade: [
-    { maxTurn: 4, text: "Sell extra resources for denarii, or buy goods you need. Prices change each season — look for good deals." },
-    { maxTurn: 6, text: "Salt, Tools, and Spices are consumed each season for bonuses. Salt preserves food, Tools boost efficiency, Spices please the Church." },
+  market: [
+    { maxTurn: 4, text: "Visit merchant stalls to haggle for better prices, or use Quick Trade for instant deals at the posted rate." },
+    { maxTurn: 6, text: "Your reputation with merchants grows as you trade. Higher reputation means better opening offers when haggling." },
   ],
   military: [
     { maxTurn: 6, text: "Recruit soldiers to defend your estate. Upgrade your castle and install defenses for lasting protection." },

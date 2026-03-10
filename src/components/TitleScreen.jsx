@@ -58,7 +58,7 @@ export default function TitleScreen({ onStart }) {
             How to Play
           </h3>
           <ul className="text-sm space-y-1.5 list-none" style={{ color: "#a89070" }}>
-            <li><strong>Goal:</strong> Survive 28 turns (7 years). Manage your resources wisely — if your population reaches 0 or you go bankrupt, you lose.</li>
+            <li><strong>Goal:</strong> Survive 40 turns (10 years). Manage your resources wisely — if your population reaches 0 or you go bankrupt, you lose.</li>
             <li><strong>{"\u269C"} Denarii:</strong> Earn money by building, trading, and collecting taxes. Pay for buildings, soldiers, and upgrades.</li>
             <li><strong>{"\u2727"} Food:</strong> Keep your families fed. Build farms and buy grain to sustain your growing population.</li>
             <li><strong>{"\u2694"} Military:</strong> Recruit soldiers and upgrade your castle to defend against raids and protect your estate.</li>

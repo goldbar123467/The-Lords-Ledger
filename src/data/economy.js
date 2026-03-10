@@ -5,18 +5,22 @@
  */
 
 /** Resources that count as food (consumed by population) */
-export const FOOD_RESOURCES = ["grain", "livestock", "fish"];
+export const FOOD_RESOURCES = ["grain", "livestock", "fish", "flour"];
 
 /** Resources that are raw materials (used for building) */
 export const RAW_MATERIALS = ["timber", "clay", "iron", "stone"];
+
+/** Resources used at the blacksmith forge */
+export const FORGE_MATERIALS = ["steel", "coal", "leather", "wood"];
 
 /** Resources that are trade goods (sold for denarii) */
 export const TRADE_GOODS = ["wool", "cloth", "honey", "herbs", "ale"];
 
 /** All resource types that can appear in inventory */
 export const ALL_RESOURCES = [
-  "grain", "livestock", "fish",
+  "grain", "livestock", "fish", "flour",
   "timber", "clay", "iron", "stone",
+  "steel", "coal", "leather", "wood",
   "wool", "cloth", "honey", "herbs", "ale",
 ];
 
@@ -29,11 +33,16 @@ export const RESOURCE_CONFIG = {
   clay:      { icon: "\u25A3", label: "Clay",       category: "raw" },
   iron:      { icon: "\u2692", label: "Iron",       category: "raw" },
   stone:     { icon: "\u25C6", label: "Stone",      category: "raw" },
+  steel:     { icon: "\u25B0", label: "Steel",      category: "forge" },
+  coal:      { icon: "\u25C6", label: "Coal",       category: "forge" },
+  leather:   { icon: "\u25A7", label: "Leather",    category: "forge" },
+  wood:      { icon: "\u25AE", label: "Wood",       category: "forge" },
   wool:      { icon: "\u223F", label: "Wool",       category: "trade" },
   cloth:     { icon: "\u2630", label: "Cloth",      category: "trade" },
   honey:     { icon: "\u2736", label: "Honey",      category: "trade" },
   herbs:     { icon: "\u2698", label: "Herbs",      category: "trade" },
   ale:       { icon: "\u2615", label: "Ale",        category: "trade" },
+  flour:     { icon: "\u2699", label: "Flour",      category: "food" },
   salt:      { icon: "\u25CB", label: "Salt",       category: "buyOnly" },
   tools:     { icon: "\u2692", label: "Tools",      category: "buyOnly" },
   spices:    { icon: "\u2726", label: "Spices",     category: "buyOnly" },
@@ -48,11 +57,16 @@ export const BASE_SELL_PRICES = {
   clay: 2,
   iron: 8,
   stone: 7,
+  steel: 12,
+  coal: 2,
+  leather: 4,
+  wood: 3,
   wool: 6,
   cloth: 12,
   honey: 8,
   herbs: 4,
   ale: 7,
+  flour: 5,
 };
 
 /** Base buy prices (what the player pays to buy) */
@@ -64,9 +78,14 @@ export const BASE_BUY_PRICES = {
   clay: 4,
   iron: 12,
   stone: 10,
+  steel: 18,
+  coal: 3,
+  leather: 6,
+  wood: 4,
   salt: 10,
   tools: 15,
   spices: 25,
+  flour: 7,
 };
 
 /** Generate fluctuating market prices for a season (+-20%) */
@@ -92,10 +111,15 @@ export const EMPTY_INVENTORY = {
   grain: 0,
   livestock: 0,
   fish: 0,
+  flour: 0,
   timber: 0,
   clay: 0,
   iron: 0,
   stone: 0,
+  steel: 0,
+  coal: 0,
+  leather: 0,
+  wood: 0,
   wool: 0,
   cloth: 0,
   honey: 0,
@@ -168,13 +192,83 @@ export const DONATION_TIERS = [
   { key: "grand",    label: "Grand Donation",   amount: 150, icon: "\u2720" },
 ];
 
+// ---------------------------------------------------------------------------
+// LAND SYSTEM
+// ---------------------------------------------------------------------------
+
+/** Starting number of land plots */
+export const STARTING_TOTAL_PLOTS = 16;
+
+// ---------------------------------------------------------------------------
+// SEASONAL MODIFIERS
+// ---------------------------------------------------------------------------
+
+/** Farm output multiplier by season */
+export const SEASON_FARM_MULTIPLIERS = {
+  spring: 0.5,   // planting season
+  summer: 1.0,   // growing season
+  autumn: 1.5,   // harvest
+  winter: 0.25,  // dormant
+};
+
+/** Food consumption multiplier by season */
+export const SEASON_CONSUMPTION_MULTIPLIERS = {
+  spring: 1.0,
+  summer: 1.0,
+  autumn: 1.0,
+  winter: 1.5,   // more food needed for heating/preservation
+};
+
+/** Building degradation multiplier by season */
+export const SEASON_DEGRADE_MULTIPLIERS = {
+  spring: 1.0,
+  summer: 1.0,
+  autumn: 1.0,
+  winter: 1.5,   // weather damage
+};
+
+/** Season display info */
+export const SEASON_INFO = {
+  spring: { label: "Spring", symbol: "\u2E30", color: "#8dba6e", desc: "Planting season. Farm output \u00D70.5" },
+  summer: { label: "Summer", symbol: "\u2600", color: "#c9a84c", desc: "Growing season. Normal output" },
+  autumn: { label: "Autumn", symbol: "\u2766", color: "#d4864c", desc: "Harvest! Farm output \u00D71.5" },
+  winter: { label: "Winter", symbol: "\u2744", color: "#7eb8d4", desc: "Dormant. Farm output \u00D70.25, +50% food consumption" },
+};
+
+// ---------------------------------------------------------------------------
+// BUILDING CONDITION
+// ---------------------------------------------------------------------------
+
+/** Condition thresholds and their effects */
+export const CONDITION_LEVELS = {
+  good:   { min: 75, max: 100, outputMod: 1.0,  label: "Good",   color: "#8dba6e" },
+  fair:   { min: 50, max: 74,  outputMod: 0.75, label: "Fair",   color: "#d4a84c" },
+  poor:   { min: 25, max: 49,  outputMod: 0.5,  label: "Poor",   color: "#c97a4c" },
+  ruined: { min: 0,  max: 24,  outputMod: 0.0,  label: "Ruined", color: "#d4726a" },
+};
+
+/** Get condition level info for a given condition value */
+export function getConditionLevel(condition) {
+  if (condition >= 75) return CONDITION_LEVELS.good;
+  if (condition >= 50) return CONDITION_LEVELS.fair;
+  if (condition >= 25) return CONDITION_LEVELS.poor;
+  return CONDITION_LEVELS.ruined;
+}
+
+/** Repair cost per condition point by rarity */
+export const REPAIR_COST_PER_POINT = {
+  common: 0.3,
+  uncommon: 0.6,
+  rare: 1.0,
+};
+
 /** Difficulty configuration presets */
 export const DIFFICULTY_CONFIGS = {
   easy: {
     label: "Easy",
     description: "More resources, gentler penalties",
     startingDenarii: 700,
-    startingInventory: { grain: 200, livestock: 50, fish: 30 },
+    startingInventory: { grain: 200, livestock: 50, fish: 30, iron: 25, steel: 8, coal: 60, leather: 15, wood: 20 },
     startingPopulation: 22,
     startingGarrison: 5,
     penaltyScale: 0.5,
@@ -183,7 +277,7 @@ export const DIFFICULTY_CONFIGS = {
     label: "Normal",
     description: "The standard medieval experience",
     startingDenarii: 500,
-    startingInventory: { grain: 150, livestock: 30, fish: 20 },
+    startingInventory: { grain: 150, livestock: 30, fish: 20, iron: 20, steel: 5, coal: 50, leather: 10, wood: 15 },
     startingPopulation: 20,
     startingGarrison: 5,
     penaltyScale: 1.0,
@@ -192,7 +286,7 @@ export const DIFFICULTY_CONFIGS = {
     label: "Hard",
     description: "Fewer resources, harsher consequences",
     startingDenarii: 350,
-    startingInventory: { grain: 100, livestock: 20, fish: 10 },
+    startingInventory: { grain: 100, livestock: 20, fish: 10, iron: 10, steel: 3, coal: 30, leather: 5, wood: 8 },
     startingPopulation: 18,
     startingGarrison: 3,
     penaltyScale: 1.5,

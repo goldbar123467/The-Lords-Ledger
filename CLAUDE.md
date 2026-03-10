@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-The Lord's Ledger is a medieval economic simulation game for 6th graders. Players inherit a feudal estate and manage it for 28 turns (7 years x 4 seasons). Built with React 19 + Vite 7 + Tailwind CSS 4, pure JavaScript (no TypeScript).
+The Lord's Ledger is a medieval economic simulation game for 6th graders. Players inherit a feudal estate and manage it for 40 turns (10 years x 4 seasons). Built with React 19 + Vite 7 + Tailwind CSS 4, pure JavaScript (no TypeScript).
 
 ## Commands
 
@@ -28,7 +28,7 @@ All game state lives in a single `useReducer` in `App.jsx`. The reducer (`src/en
 title → management → seasonal_action → seasonal_resolve → random_event → random_resolve → management (next turn)
                                                                                           ↗
 game_over (population = 0, or bankrupt 3 turns)
-victory (survived 28 turns)
+victory (survived 40 turns)
 ```
 
 During `management`, the player browses tabs (Estate, Trade, Military, People) and makes decisions (build, trade, set tax rate). Clicking "Simulate Season" runs the economy engine then fires events.
@@ -111,4 +111,4 @@ Resource-based architecture complete (meters removed). All core systems function
 - Events: old meter effects auto-translated to resource effects via `translateEffects()`
 - Game over: population = 0 or 3 consecutive bankrupt turns
 - Victory: scored by wealth, population, garrison, buildings
-- Full 28-turn playthrough testing needed
+- Full 40-turn playthrough testing needed

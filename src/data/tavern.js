@@ -106,8 +106,8 @@ export const BARD_STATE_COMMENTS = [
   { condition: (s) => s.turn === 1, text: "Ah, a new ruler! The last one? Don't ask. Just... don't open that closet in the east tower." },
   { condition: (s) => s.turn === 5, text: "Five turns in and still alive! That's better than Lord Pemberton. He didn't survive the opening feast." },
   { condition: (s) => s.turn >= 10 && s.turn < 15, text: "Ten turns! You've outlasted most rulers in this cursed kingdom. The bar is low, but still \u2014 well done." },
-  { condition: (s) => s.buildings?.some(b => b.id === "school"), text: "A school! Fatima al-Fihri would be proud. Knowledge is the one treasure that can't be taxed. Yet." },
-  { condition: (s) => s.buildings?.some(b => b.id === "market"), text: "A market! Soon traders will come from distant lands, selling exotic goods, exotic diseases, and exotic lies." },
+  { condition: (s) => s.buildings?.some(b => (typeof b === "string" ? b : b.type) === "school"), text: "A school! Fatima al-Fihri would be proud. Knowledge is the one treasure that can't be taxed. Yet." },
+  { condition: (s) => s.buildings?.some(b => (typeof b === "string" ? b : b.type) === "market"), text: "A market! Soon traders will come from distant lands, selling exotic goods, exotic diseases, and exotic lies." },
   { condition: () => true, text: "Your manor endures, my lord. Not every lord can say that. The last three couldn't, for instance." },
 ];
 
@@ -288,7 +288,7 @@ export const ALDRIC_MILITARY_COUNSEL = [
   "I\u2019ve seen lords spend everything on soldiers and nothing on walls. I\u2019ve seen lords build grand castles with no one to defend them. Balance. Always balance.",
   "Mercenaries fight for coin, not loyalty. They\u2019re useful in a crisis but they\u2019ll switch sides the moment your treasury runs dry. Build your own garrison.",
   (state) => {
-    const remaining = 28 - (state.turn ?? 1);
+    const remaining = 40 - (state.turn ?? 1);
     return `Castle upgrades are expensive but permanent. Soldiers eat every season. Think about which investment pays off over ${remaining} more turns.`;
   },
 ];

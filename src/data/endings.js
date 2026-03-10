@@ -8,7 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // VICTORY TITLES
 //
-// Usage: check conditions after a completed 28-turn run.
+// Usage: check conditions after a completed 40-turn run.
 // Score based on: total wealth (denarii + inventory value), population,
 // buildings built, garrison strength.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ export const victoryTitles = {
     subtitle: "Shield of the Estate",
     description:
       "Your castle walls were sound, your soldiers were trained, and raiders " +
-      "learned quickly to seek easier targets. Seven years passed without a " +
+      "learned quickly to seek easier targets. Ten years passed without a " +
       "single successful attack on your lands. In a violent age, you made " +
       "safety — and that safety let everything else grow.",
     historianNote:
@@ -217,13 +217,13 @@ export function victorySummary(state) {
 
   const openings = {
     strong:
-      "Seven years have passed since you first sat in the lord's chair, " +
+      "Ten years have passed since you first sat in the lord's chair, " +
       "and the estate stands stronger than it did when you inherited it.",
     solid:
-      "Seven years have passed, and your estate has survived — through good " +
+      "Ten years have passed, and your estate has survived — through good " +
       "seasons and hard ones, through difficult choices and painful trade-offs.",
     difficult:
-      "Seven years have passed, and you are still here — which, given " +
+      "Ten years have passed, and you are still here — which, given " +
       "everything, is itself a kind of victory.",
   };
 
@@ -264,7 +264,7 @@ export function victorySummary(state) {
     difficult:
       "The years were hard and the decisions were harder. You made mistakes — every lord does. " +
       "What matters is that you are still learning. " +
-      "History is full of lords who did not last seven years.",
+      "History is full of lords who did not last ten years.",
   };
 
   return `${openings[overallTone]} ${details.join(" ")} ${closings[overallTone]}`;

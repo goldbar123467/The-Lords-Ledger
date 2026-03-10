@@ -22,13 +22,15 @@ import {
   selectRandomEvent,
 } from "./eventSelector.js";
 
-import { simulateEconomy, canBuildBuilding, getTotalFood } from "./economyEngine.js";
+import { simulateEconomy, canBuildBuilding, getTotalFood, getBuildingType, getUsedPlots, getRepairCost } from "./economyEngine.js";
 import BUILDINGS from "../data/buildings.js";
 import {
   EMPTY_INVENTORY, generateMarketPrices, DIFFICULTY_CONFIGS,
   CASTLE_LEVELS, CASTLE_LEVELS_EASY,
   DEFENSE_UPGRADES, DEFENSE_UPGRADES_EASY,
   RECRUIT_COST, MAX_GARRISON,
+  STARTING_TOTAL_PLOTS,
+  SEASON_DEGRADE_MULTIPLIERS,
 } from "../data/economy.js";
 import { PERSPECTIVE_FLIPS } from "../data/perspectiveFlips.js";
 import { ALL_FLIPS, checkFlipTriggers, getInitialFlipStats, computeCyoaConsequences, resolveFlipOption, computeFlipConsequences } from "./flipEngine.js";
@@ -36,13 +38,34 @@ import { checkSynergies, getSynergyTradePriceBonus, getSynergyWoolSellBonus } fr
 import { SYNERGY_TIER_MAP } from "../data/synergies.js";
 import { getInitialRaidState, checkForRaid, resolveRaid, buildRaidChronicleText } from "./raidEngine.js";
 import { RAID_TYPES } from "../data/raids.js";
+import {
+  SOLDIER_TYPES, WALLS_TRACK, GATE_TRACK, MOAT_TRACK, MORALE_LEVELS,
+  BASE_CASTLE_DEFENSE, CRIMINAL_DEFENSE_THRESHOLD, SCOTTISH_DEFENSE_THRESHOLD,
+  getMoraleLevel, getTotalGarrison, getMilitaryUpkeep,
+  calculateDefenseRating, canUpgradeFortification, removeFromGarrison,
+  getInitialMilitaryState, KNIGHT_NAMES, MILITARY_SCRIBES_NOTES,
+} from "../data/military.js";
+import { HAGGLE_CONFIG, REPUTATION_CONFIG, getReputationTier, LOCAL_MERCHANTS, FOREIGN_TRADERS, pickMarketEvent } from "../data/market.js";
+import {
+  ANSELM_GREETINGS, TITHE_RESPONSES, TITHE_EFFECTS,
+  CAEDMON_GREETINGS, SHOP_ITEMS,
+  MORAL_DILEMMAS, MANUSCRIPT_SYMBOLS, MANUSCRIPT_FACTS,
+} from "../data/chapel.js";
+import { computeReputation, computeCompoundFlags, CRISIS_EVENTS, PEAK_EVENTS } from "../data/greatHall.js";
+import {
+  getInitialPeopleState, reconcileTiers, updateFamilyLoyalty,
+  checkFamilyDepartures, checkFamilyReturns, pickFeedEvents, computeMorale,
+} from "../data/people.js";
+import {
+  generateForgeMarketPrices, rollForgeSupplyEvent, calculateForgeReadiness,
+} from "../data/blacksmith.js";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const SEASONS = ["spring", "summer", "autumn", "winter"];
-const MAX_TURNS = 28;
+const MAX_TURNS = 40;
 const MAX_CAUSE_CHAIN = 4;
 
 // ---------------------------------------------------------------------------
@@ -60,9 +83,16 @@ export const initialState = {
   denarii: 500,
   food: 200,
   population: 20,
-  inventory: { ...EMPTY_INVENTORY, grain: 150, livestock: 30, fish: 20 },
+  inventory: { ...EMPTY_INVENTORY, grain: 150, livestock: 30, fish: 20, iron: 20, steel: 5, coal: 50, leather: 10, wood: 15 },
   inventoryCapacity: 300,
-  buildings: [],
+  buildings: [
+    { instanceId: "coal_pit-0-pre", type: "coal_pit", condition: 100, builtOnTurn: 0, freeUpkeep: true },
+    { instanceId: "tannery-0-pre", type: "tannery", condition: 100, builtOnTurn: 0, freeUpkeep: true },
+    { instanceId: "sawmill-0-pre", type: "sawmill", condition: 100, builtOnTurn: 0, freeUpkeep: true },
+    { instanceId: "smelter-0-pre", type: "smelter", condition: 100, builtOnTurn: 0, freeUpkeep: true },
+  ],
+  totalPlots: STARTING_TOTAL_PLOTS,
+  economyHistory: [],      // Array of { turn, season, netGold, netFood } for trend display
   garrison: 5,
   castleLevel: 1,
   castleUpgradeProgress: 0,
@@ -122,6 +152,25 @@ export const initialState = {
   // Raid system state
   raids: getInitialRaidState(),
 
+  // Watchtower state
+  watchtower: {
+    scannedThisSeason: false,
+    lastScanResult: null,
+    warnings: {
+      criminalRaidBonus: 0,
+      scottishRaidBonus: 0,
+      raidRequirementReduction: 0,
+      merchantPreview: null,
+    },
+    totalScans: 0,
+    totalAnomaliesSpotted: 0,
+    totalAnomaliesMissed: 0,
+    perfectScans: 0,
+    signalLog: [],
+    rodericScribesNoteSeen: false,
+    scanScribesNoteSeen: false,
+  },
+
   // Tavern state
   tavern: {
     gambitRoundsThisSeason: 0,
@@ -148,13 +197,112 @@ export const initialState = {
     aldricScribesNoteSeen: false,
   },
 
-  // Great Hall state (approval meters, reputation, ruling history)
+  // Chapel state
+  chapel: {
+    view: "nave",
+    faith: 50,
+    piety: 30,
+    happiness: 60,
+    anselmGreeting: null,
+    caedmonGreeting: null,
+    currentDilemma: null,
+    dilemmaResult: null,
+    dilemmasCompleted: [],
+    inventory: [],
+    titheAmount: 0,
+    titheResponse: null,
+    msPhase: "idle",
+    msPattern: [],
+    msPlayerInput: [],
+    msRound: 1,
+    msMaxRound: 4,
+    msActiveSymbol: null,
+    msFact: null,
+    msReward: 0,
+    gameLog: [],
+  },
+
+  // Market Square state
+  market: {
+    reputation: {
+      edmund: 50,
+      wulfric: 50,
+      agnes: 50,
+      foreign: 50,
+    },
+    activeHaggle: null,
+    currentForeignTrader: "spring",
+    tradesThisSeason: 0,
+    totalTradesLifetime: 0,
+    totalHagglesWon: 0,
+    totalHagglesLost: 0,
+    denariiEarnedFromTrade: 0,
+    denariiSpentOnTrade: 0,
+    seasonalPriceModifiers: {},
+    activeMarketEvent: null,
+    usedMarketEventIds: [],
+    quickTradesUsed: 0,
+    haggleTradesUsed: 0,
+    lastTradedSeason: { edmund: -1, wulfric: -1, agnes: -1, foreign: -1 },
+    marketScribesNoteSeen: false,
+    reputationScribesNoteSeen: false,
+  },
+
+  // Great Hall state (approval meters, reputation, ruling history, audience, decrees, council, feast)
   greatHall: {
     meters: { people: 50, treasury: 50, church: 50, military: 50 },
     reputation: "Unknown Lord",
+    reputationTrack: null,
+    reputationScores: {},
     disputesResolved: 0,
     rulingHistory: [],
+    // Phase 3: Audience, Decrees, Council, Feast
+    audienceResolved: [],
     activeDecrees: [],
+    decreeSlotsUsed: 0,
+    councilResolved: [],
+    hasFeastedThisSeason: false,
+    feastHistory: [],
+    // Phase 4: Steward trust
+    stewardTrust: 50,
+    // Phase 5: Consequence engine
+    hallLog: [],
+    meterHistory: [],
+    compoundFlags: {},
+    pendingHallEvent: null,
+    crisisTriggered: {},
+    peakTriggered: {},
+  },
+
+  // Military state (typed garrison, fortification tracks, morale)
+  military: getInitialMilitaryState(5),
+
+  // People tab state (social tiers, labor allocation, notable families, village feed)
+  people: getInitialPeopleState(20),
+
+  // Blacksmith Forge state
+  blacksmith: {
+    inventory: [],
+    equipped: [],
+    nextItemUid: 1,
+    totalItemsForged: 0,
+    masterworksCreated: 0,
+    godricRespect: 50,
+    godricMood: "working",
+    watFactIndex: 0,
+    banterIndex: 0,
+    lastVisitTurn: 0,
+    marketPrices: null,
+    productionLog: [],
+    priceHistory: [],
+    totalGoldInvested: 0,
+    totalGoldEarned: 0,
+    salesThisSeason: 0,
+    activeSupplyEvent: null,
+    supplyEventTurnsLeft: 0,
+    usedSupplyEventIds: [],
+    soldToMortimer: false,
+    ironVeinActive: false,
   },
 };
 
@@ -291,7 +439,7 @@ function applyChoice(state, event, optionIndex, chronicleType) {
  * All tabs unlocked from turn 1 in resource-based mode.
  */
 export function getUnlockedTabs() {
-  return ["estate", "map", "trade", "military", "people", "chronicle"];
+  return ["estate", "map", "market", "military", "people", "chronicle"];
 }
 
 // ---------------------------------------------------------------------------
@@ -337,10 +485,17 @@ export function gameReducer(state, action) {
         garrison: config.startingGarrison ?? 5,
         inventory: startInventory,
         inventoryCapacity: 300,
-        buildings: [],
+        buildings: [
+          { instanceId: "coal_pit-0-pre", type: "coal_pit", condition: 100, builtOnTurn: 0, freeUpkeep: true },
+          { instanceId: "tannery-0-pre", type: "tannery", condition: 100, builtOnTurn: 0, freeUpkeep: true },
+          { instanceId: "sawmill-0-pre", type: "sawmill", condition: 100, builtOnTurn: 0, freeUpkeep: true },
+          { instanceId: "smelter-0-pre", type: "smelter", condition: 100, builtOnTurn: 0, freeUpkeep: true },
+        ],
         castleLevel: 1,
         castleUpgradeProgress: 0,
         castleUpgrading: false,
+        military: getInitialMilitaryState(config.startingGarrison ?? 5),
+        people: getInitialPeopleState(config.startingPopulation),
         taxRate: "medium",
         laborAllocation: { demesne: 40, peasant: 40, construction: 20 },
         marketPrices: generateMarketPrices(),
@@ -378,6 +533,25 @@ export function gameReducer(state, action) {
           aldricDrillActive: 0,
           aldricScribesNoteSeen: false,
         },
+        market: {
+          reputation: { edmund: 50, wulfric: 50, agnes: 50, foreign: 50 },
+          activeHaggle: null,
+          currentForeignTrader: "spring",
+          tradesThisSeason: 0,
+          totalTradesLifetime: 0,
+          totalHagglesWon: 0,
+          totalHagglesLost: 0,
+          denariiEarnedFromTrade: 0,
+          denariiSpentOnTrade: 0,
+          seasonalPriceModifiers: {},
+          activeMarketEvent: null,
+          usedMarketEventIds: [],
+          quickTradesUsed: 0,
+          haggleTradesUsed: 0,
+          lastTradedSeason: { edmund: -1, wulfric: -1, agnes: -1, foreign: -1 },
+          marketScribesNoteSeen: false,
+          reputationScribesNoteSeen: false,
+        },
       };
     }
 
@@ -403,10 +577,17 @@ export function gameReducer(state, action) {
       const check = canBuildBuilding(buildingId, state);
       if (!check.canBuild) return state;
 
+      const buildingInstance = {
+        instanceId: `${buildingId}-${state.turn}-${Date.now()}`,
+        type: buildingId,
+        condition: 100,
+        builtOnTurn: state.turn,
+      };
+
       return {
         ...state,
         denarii: state.denarii - def.cost,
-        buildings: [...state.buildings, buildingId],
+        buildings: [...state.buildings, buildingInstance],
         chronicle: addChronicle(state.chronicle, `Built a ${def.name} for ${def.cost}d.`, state.season, state.year, state.turn, "action"),
       };
     }
@@ -422,8 +603,9 @@ export function gameReducer(state, action) {
       const newBuildings = [...state.buildings];
       newBuildings.splice(buildingIndex, 1);
 
-      const removedId = state.buildings[buildingIndex];
-      const def = BUILDINGS[removedId];
+      const removed = state.buildings[buildingIndex];
+      const removedType = getBuildingType(removed);
+      const def = BUILDINGS[removedType];
       const refund = def ? Math.floor(def.cost / 2) : 0;
 
       return {
@@ -431,6 +613,75 @@ export function gameReducer(state, action) {
         buildings: newBuildings,
         denarii: state.denarii + refund,
         chronicle: addChronicle(state.chronicle, `Demolished a ${def?.name || "building"}. Refunded ${refund}d.`, state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // REPAIR_BUILDING
+    // -----------------------------------------------------------------------
+    case "REPAIR_BUILDING": {
+      const { buildingIndex } = action.payload ?? {};
+      if (state.phase !== "management") return state;
+      if (buildingIndex < 0 || buildingIndex >= state.buildings.length) return state;
+
+      const building = state.buildings[buildingIndex];
+      if (typeof building === "string") return state; // Can't repair legacy format
+      if (building.condition >= 100) return state;
+
+      const cost = getRepairCost(building);
+      if (state.denarii < cost) return state;
+
+      const repairedBuildings = state.buildings.map((b, i) =>
+        i === buildingIndex ? { ...b, condition: 100 } : b
+      );
+      const def = BUILDINGS[getBuildingType(building)];
+
+      return {
+        ...state,
+        denarii: state.denarii - cost,
+        buildings: repairedBuildings,
+        chronicle: addChronicle(state.chronicle, `Repaired ${def?.name || "building"} to full condition for ${cost}d.`, state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // UPGRADE_BUILDING
+    // -----------------------------------------------------------------------
+    case "UPGRADE_BUILDING": {
+      const { buildingIndex } = action.payload ?? {};
+      if (state.phase !== "management") return state;
+      if (buildingIndex < 0 || buildingIndex >= state.buildings.length) return state;
+
+      const building = state.buildings[buildingIndex];
+      const typeId = getBuildingType(building);
+      const def = BUILDINGS[typeId];
+      if (!def?.upgradeTo) return state;
+
+      const upgradeDef = BUILDINGS[def.upgradeTo];
+      if (!upgradeDef) return state;
+
+      const upgradeCost = def.upgradeCost ?? upgradeDef.cost;
+      if (state.denarii < upgradeCost) return state;
+
+      // Check if upgrade needs more plots than current building
+      const extraPlots = (upgradeDef.plots ?? 1) - (def.plots ?? 1);
+      if (extraPlots > 0) {
+        const usedPlots = getUsedPlots(state.buildings);
+        const totalPlots = state.totalPlots ?? STARTING_TOTAL_PLOTS;
+        if (usedPlots + extraPlots > totalPlots) return state;
+      }
+
+      const upgradedBuildings = state.buildings.map((b, i) =>
+        i === buildingIndex
+          ? { ...b, type: def.upgradeTo, instanceId: `${def.upgradeTo}-${state.turn}-${Date.now()}` }
+          : b
+      );
+
+      return {
+        ...state,
+        denarii: state.denarii - upgradeCost,
+        buildings: upgradedBuildings,
+        chronicle: addChronicle(state.chronicle, `Upgraded ${def.name} to ${upgradeDef.name} for ${upgradeCost}d.`, state.season, state.year, state.turn, "action"),
       };
     }
 
@@ -508,6 +759,193 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
+    // HAGGLE_START — Player approaches a merchant to haggle
+    // -----------------------------------------------------------------------
+    case "HAGGLE_START": {
+      const { merchantId, resource, quantity, mode } = action.payload ?? {};
+      if (state.phase !== "management") return state;
+      if (state.market?.activeHaggle) return state;
+
+      const mktPrices = state.marketPrices ?? {};
+      const fairPrice = mode === "sell"
+        ? (mktPrices.sell?.[resource] || 0)
+        : (mktPrices.buy?.[resource] || 0);
+      if (fairPrice <= 0) return state;
+
+      const merchant = LOCAL_MERCHANTS.find(m => m.id === merchantId);
+      const difficulty = merchant?.haggleDifficulty || "medium";
+
+      const rep = state.market?.reputation?.[merchantId] ?? 50;
+      const repTier = getReputationTier(rep);
+      const repMod = repTier.effect;
+
+      const openingPct = HAGGLE_CONFIG.openingOffer[difficulty] || 0.75;
+      let openingOffer;
+      if (mode === "sell") {
+        openingOffer = Math.max(1, Math.round(fairPrice * (openingPct + repMod)));
+      } else {
+        openingOffer = Math.max(1, Math.round(fairPrice * (2 - openingPct - repMod)));
+      }
+
+      const qty = Math.min(quantity, mode === "sell" ? (state.inventory[resource] || 0) : quantity);
+      if (qty <= 0) return state;
+
+      return {
+        ...state,
+        market: {
+          ...state.market,
+          activeHaggle: {
+            merchantId, mode, resource, quantity: qty, fairPrice,
+            currentOffer: openingOffer, playerCounter: null,
+            round: 1, maxRounds: HAGGLE_CONFIG.maxRounds,
+            difficulty, status: "open",
+          },
+        },
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // HAGGLE_COUNTER — Player makes a counter-offer
+    // -----------------------------------------------------------------------
+    case "HAGGLE_COUNTER": {
+      const { counterPrice } = action.payload ?? {};
+      if (state.phase !== "management") return state;
+      const haggle = state.market?.activeHaggle;
+      if (!haggle || haggle.status !== "open") return state;
+
+      const { fairPrice, currentOffer, round, maxRounds, difficulty, mode } = haggle;
+
+      const priceDiff = mode === "sell"
+        ? (counterPrice - fairPrice) / fairPrice
+        : (fairPrice - counterPrice) / fairPrice;
+
+      const chances = HAGGLE_CONFIG.acceptChance[difficulty] || HAGGLE_CONFIG.acceptChance.medium;
+      let acceptProb = 0;
+      if (priceDiff <= 0.10) acceptProb = chances.withinTenPercent;
+      else if (priceDiff <= 0.20) acceptProb = chances.withinTwenty;
+      else acceptProb = chances.aboveMarket;
+
+      if (Math.random() < acceptProb) {
+        return {
+          ...state,
+          market: {
+            ...state.market,
+            activeHaggle: { ...haggle, currentOffer: counterPrice, playerCounter: counterPrice, status: "accepted", round },
+          },
+        };
+      }
+
+      const step = HAGGLE_CONFIG.counterStep[difficulty] || 0.5;
+      let newOffer;
+      if (mode === "sell") {
+        newOffer = Math.max(1, Math.round(currentOffer + (counterPrice - currentOffer) * step));
+      } else {
+        newOffer = Math.max(1, Math.round(currentOffer - (currentOffer - counterPrice) * step));
+      }
+
+      const newRound = round + 1;
+      return {
+        ...state,
+        market: {
+          ...state.market,
+          activeHaggle: { ...haggle, currentOffer: newOffer, playerCounter: counterPrice, round: newRound, status: newRound >= maxRounds ? "final" : "open" },
+        },
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // HAGGLE_ACCEPT — Player accepts the current offer
+    // -----------------------------------------------------------------------
+    case "HAGGLE_ACCEPT": {
+      if (state.phase !== "management") return state;
+      const haggle = state.market?.activeHaggle;
+      if (!haggle) return state;
+
+      const { merchantId, mode, resource, quantity, currentOffer, fairPrice } = haggle;
+      const price = currentOffer;
+      const prevMarket = state.market ?? {};
+      const prevSynergies = state.synergies ?? {};
+      const LABEL = { grain: "Grain", livestock: "Livestock", fish: "Fish", timber: "Timber", clay: "Clay", iron: "Iron", stone: "Stone", wool: "Wool", cloth: "Cloth", honey: "Honey", herbs: "Herbs", ale: "Ale", salt: "Salt", tools: "Tools", spices: "Spices" };
+
+      let newState;
+      if (mode === "sell") {
+        const available = state.inventory[resource] || 0;
+        const sellQty = Math.min(quantity, available);
+        if (sellQty <= 0) return state;
+        const income = sellQty * price;
+        const newInventory = { ...state.inventory, [resource]: available - sellQty };
+        const isWoolish = resource === "wool" || resource === "cloth";
+        const newWoolTrades = prevSynergies.woolTrades + (isWoolish ? sellQty : 0);
+        const newTradeTypes = prevSynergies.tradeTypes.includes(resource)
+          ? prevSynergies.tradeTypes : [...prevSynergies.tradeTypes, resource];
+        const mName = LOCAL_MERCHANTS.find(m => m.id === merchantId)?.name || FOREIGN_TRADERS[state.season]?.name || "a merchant";
+        newState = {
+          ...state, inventory: newInventory, denarii: state.denarii + income,
+          food: getTotalFood(newInventory), tradeCount: (state.tradeCount || 0) + 1,
+          synergies: { ...prevSynergies, woolTrades: newWoolTrades, tradeTypes: newTradeTypes },
+          chronicle: addChronicle(state.chronicle, `Sold ${sellQty} ${LABEL[resource] || resource} to ${mName} for ${income}d (haggled from ${fairPrice}d each).`, state.season, state.year, state.turn, "action"),
+        };
+      } else {
+        const totalCost = price * quantity;
+        if (state.denarii < totalCost) return state;
+        const currentQty = state.inventory[resource] || 0;
+        const newInventory = { ...state.inventory, [resource]: currentQty + quantity };
+        const newSpicePurchases = prevSynergies.spicePurchases + (resource === "spices" ? quantity : 0);
+        const newTradeTypes = prevSynergies.tradeTypes.includes(resource)
+          ? prevSynergies.tradeTypes : [...prevSynergies.tradeTypes, resource];
+        const mName = LOCAL_MERCHANTS.find(m => m.id === merchantId)?.name || FOREIGN_TRADERS[state.season]?.name || "a merchant";
+        newState = {
+          ...state, denarii: state.denarii - totalCost, inventory: newInventory,
+          food: getTotalFood(newInventory), tradeCount: (state.tradeCount || 0) + 1,
+          synergies: { ...prevSynergies, spicePurchases: newSpicePurchases, tradeTypes: newTradeTypes },
+          chronicle: addChronicle(state.chronicle, `Bought ${quantity} ${LABEL[resource] || resource} from ${mName} for ${totalCost}d (haggled from ${fairPrice}d each).`, state.season, state.year, state.turn, "action"),
+        };
+      }
+
+      const wonHaggle = mode === "sell" ? price >= fairPrice * 0.9 : price <= fairPrice * 1.1;
+      const wasFair = Math.abs(price - fairPrice) / fairPrice <= 0.1;
+      let repChange = REPUTATION_CONFIG.anyDeal;
+      if (wasFair) repChange += REPUTATION_CONFIG.fairDeal;
+      if (haggle.round === 1) repChange += REPUTATION_CONFIG.quickAccept;
+      const prevRep = prevMarket.reputation?.[merchantId] ?? 50;
+      const newRep = Math.max(REPUTATION_CONFIG.min, Math.min(REPUTATION_CONFIG.max, prevRep + repChange));
+
+      return {
+        ...newState,
+        market: {
+          ...prevMarket, activeHaggle: null,
+          reputation: { ...prevMarket.reputation, [merchantId]: newRep },
+          tradesThisSeason: (prevMarket.tradesThisSeason || 0) + 1,
+          totalTradesLifetime: (prevMarket.totalTradesLifetime || 0) + 1,
+          totalHagglesWon: (prevMarket.totalHagglesWon || 0) + (wonHaggle ? 1 : 0),
+          totalHagglesLost: (prevMarket.totalHagglesLost || 0) + (wonHaggle ? 0 : 1),
+          denariiEarnedFromTrade: (prevMarket.denariiEarnedFromTrade || 0) + (mode === "sell" ? currentOffer * quantity : 0),
+          denariiSpentOnTrade: (prevMarket.denariiSpentOnTrade || 0) + (mode === "buy" ? currentOffer * quantity : 0),
+          haggleTradesUsed: (prevMarket.haggleTradesUsed || 0) + 1,
+          lastTradedSeason: { ...prevMarket.lastTradedSeason, [merchantId]: state.turn },
+        },
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // HAGGLE_WALK_AWAY — Player abandons the current haggle
+    // -----------------------------------------------------------------------
+    case "HAGGLE_WALK_AWAY": {
+      if (state.phase !== "management") return state;
+      const haggle = state.market?.activeHaggle;
+      if (!haggle) return state;
+      const { merchantId } = haggle;
+      const prevMarket = state.market ?? {};
+      const prevRep = prevMarket.reputation?.[merchantId] ?? 50;
+      const newRep = Math.max(REPUTATION_CONFIG.min, prevRep + REPUTATION_CONFIG.walkAway);
+      return {
+        ...state,
+        market: { ...prevMarket, activeHaggle: null, reputation: { ...prevMarket.reputation, [merchantId]: newRep } },
+        chronicle: addChronicle(state.chronicle, "You walked away from a deal at the market.", state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    // -----------------------------------------------------------------------
     // SET_TAX_RATE
     // -----------------------------------------------------------------------
     case "SET_TAX_RATE": {
@@ -518,108 +956,152 @@ export function gameReducer(state, action) {
     }
 
     // -----------------------------------------------------------------------
-    // RECRUIT_SOLDIERS
+    // PEOPLE_SET_LABOR — labor allocation from People tab
+    // -----------------------------------------------------------------------
+    case "PEOPLE_SET_LABOR": {
+      if (state.phase !== "management") return state;
+      const { laborFarming, laborGarrison, laborChurch } = action.payload ?? {};
+      const prevPeople = state.people ?? getInitialPeopleState(state.population);
+      return {
+        ...state,
+        people: {
+          ...prevPeople,
+          laborFarming: laborFarming ?? prevPeople.laborFarming,
+          laborGarrison: laborGarrison ?? prevPeople.laborGarrison,
+          laborChurch: laborChurch ?? prevPeople.laborChurch,
+        },
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // RECRUIT_SOLDIERS (typed: levy, menAtArms, knights)
     // -----------------------------------------------------------------------
     case "RECRUIT_SOLDIERS": {
-      const { count } = action.payload ?? {};
+      const { count, soldierType = "levy" } = action.payload ?? {};
       if (state.phase !== "management") return state;
       if (!count || count <= 0) return state;
 
-      const maxCanAfford = Math.floor(state.denarii / RECRUIT_COST);
-      const maxByLimit = MAX_GARRISON - state.garrison;
-      const maxByPop = Math.floor(state.population * 0.6) - state.garrison;
-      const actual = Math.min(count, maxCanAfford, maxByLimit, maxByPop);
+      const typeDef = SOLDIER_TYPES[soldierType];
+      if (!typeDef) return state;
+
+      const mil = state.military ?? getInitialMilitaryState(state.garrison);
+      const currentCount = mil.garrison[soldierType] || 0;
+      const totalGarrison = getTotalGarrison(mil.garrison);
+
+      // Cost check
+      const maxCanAfford = Math.floor(state.denarii / typeDef.recruitCost);
+
+      // Type cap
+      const maxByTypeCap = typeDef.max != null ? typeDef.max - currentCount : Infinity;
+
+      // Population cap (60% of population for total garrison)
+      const maxByPop = Math.floor(state.population * 0.6) - totalGarrison;
+
+      // Knights require minimum population
+      if (soldierType === "knights" && state.population < (typeDef.minPopulation || 0)) return state;
+
+      const actual = Math.min(count, maxCanAfford, maxByTypeCap, maxByPop);
       if (actual <= 0) return state;
+
+      const cost = actual * typeDef.recruitCost;
+      const newGarrison = { ...mil.garrison, [soldierType]: currentCount + actual };
 
       return {
         ...state,
-        denarii: state.denarii - (actual * RECRUIT_COST),
-        garrison: state.garrison + actual,
-        chronicle: addChronicle(state.chronicle, `Recruited ${actual} ${actual === 1 ? "soldier" : "soldiers"} for ${actual * RECRUIT_COST}d.`, state.season, state.year, state.turn, "action"),
+        denarii: state.denarii - cost,
+        garrison: getTotalGarrison(newGarrison),
+        military: {
+          ...mil,
+          garrison: newGarrison,
+          morale: soldierType === "knights" ? Math.min(100, (mil.morale || 50) + 5) : mil.morale,
+          totalRecruitmentSpending: (mil.totalRecruitmentSpending || 0) + cost,
+        },
+        chronicle: addChronicle(state.chronicle, `Recruited ${actual} ${typeDef.name.toLowerCase()} for ${cost}d.`, state.season, state.year, state.turn, "action"),
       };
     }
 
     // -----------------------------------------------------------------------
-    // DISMISS_SOLDIERS
+    // DISMISS_SOLDIERS (typed: levy, menAtArms, knights)
     // -----------------------------------------------------------------------
     case "DISMISS_SOLDIERS": {
-      const { count } = action.payload ?? {};
+      const { count, soldierType = "levy" } = action.payload ?? {};
       if (state.phase !== "management") return state;
       if (!count || count <= 0) return state;
 
-      const actual = Math.min(count, state.garrison);
+      const typeDef = SOLDIER_TYPES[soldierType];
+      if (!typeDef) return state;
+
+      const mil = state.military ?? getInitialMilitaryState(state.garrison);
+      const currentCount = mil.garrison[soldierType] || 0;
+      const actual = Math.min(count, currentCount);
       if (actual <= 0) return state;
 
+      const newGarrison = { ...mil.garrison, [soldierType]: currentCount - actual };
+      const newMorale = Math.max(0, (mil.morale || 50) - 5); // Dismissal hurts morale
+
       return {
         ...state,
-        garrison: state.garrison - actual,
-        chronicle: addChronicle(state.chronicle, `Dismissed ${actual} ${actual === 1 ? "soldier" : "soldiers"}.`, state.season, state.year, state.turn, "action"),
+        garrison: getTotalGarrison(newGarrison),
+        military: { ...mil, garrison: newGarrison, morale: newMorale },
+        chronicle: addChronicle(state.chronicle, `Dismissed ${actual} ${typeDef.name.toLowerCase()}.`, state.season, state.year, state.turn, "action"),
       };
     }
 
     // -----------------------------------------------------------------------
-    // UPGRADE_CASTLE
+    // UPGRADE_CASTLE (legacy — kept for backward compat, no-op if military exists)
     // -----------------------------------------------------------------------
     case "UPGRADE_CASTLE": {
-      if (state.phase !== "management") return state;
-      const castleLevels = state.difficulty === "easy" ? CASTLE_LEVELS_EASY : CASTLE_LEVELS;
-      const nextLevel = state.castleLevel + 1;
-      const nextCastle = castleLevels[nextLevel];
-      if (!nextCastle) return state;
-
-      if (state.denarii < nextCastle.cost) return state;
-      if ((state.inventory.stone || 0) < nextCastle.stone) return state;
-      if ((state.inventory.timber || 0) < nextCastle.timber) return state;
-      if ((state.inventory.iron || 0) < nextCastle.iron) return state;
-
-      const newInventory = {
-        ...state.inventory,
-        stone: (state.inventory.stone || 0) - nextCastle.stone,
-        timber: (state.inventory.timber || 0) - nextCastle.timber,
-        iron: (state.inventory.iron || 0) - nextCastle.iron,
-      };
-
-      return {
-        ...state,
-        denarii: state.denarii - nextCastle.cost,
-        castleLevel: nextLevel,
-        inventory: newInventory,
-        food: getTotalFood(newInventory),
-        chronicle: addChronicle(state.chronicle, `Upgraded castle to ${nextCastle.name} for ${nextCastle.cost}d.`, state.season, state.year, state.turn, "action"),
-      };
+      // Legacy action — use UPGRADE_FORTIFICATION instead
+      return state;
     }
 
     // -----------------------------------------------------------------------
-    // INSTALL_DEFENSE
+    // INSTALL_DEFENSE (legacy — replaced by fortification tracks)
     // -----------------------------------------------------------------------
     case "INSTALL_DEFENSE": {
-      const { upgradeId } = action.payload ?? {};
+      // Legacy action — use UPGRADE_FORTIFICATION instead
+      return state;
+    }
+
+    // -----------------------------------------------------------------------
+    // UPGRADE_FORTIFICATION (walls, gate, or moat)
+    // -----------------------------------------------------------------------
+    case "UPGRADE_FORTIFICATION": {
+      const { track } = action.payload ?? {};
       if (state.phase !== "management") return state;
+      if (!["walls", "gate", "moat"].includes(track)) return state;
 
-      const defenseTable = state.difficulty === "easy" ? DEFENSE_UPGRADES_EASY : DEFENSE_UPGRADES;
-      const upgrade = defenseTable[upgradeId];
-      if (!upgrade) return state;
-      if (state.defenseUpgrades.includes(upgradeId)) return state;
+      const mil = state.military ?? getInitialMilitaryState(state.garrison);
+      const currentLevels = { walls: mil.walls, gate: mil.gate, moat: mil.moat };
+      const { canUpgrade, next } = canUpgradeFortification(track, currentLevels);
+      if (!canUpgrade || !next) return state;
 
-      if (state.denarii < upgrade.cost) return state;
-      if ((state.inventory.stone || 0) < upgrade.stone) return state;
-      if ((state.inventory.iron || 0) < upgrade.iron) return state;
-      if ((state.inventory.timber || 0) < upgrade.timber) return state;
+      if (state.denarii < next.cost) return state;
 
-      const newInventory = {
-        ...state.inventory,
-        stone: (state.inventory.stone || 0) - upgrade.stone,
-        iron: (state.inventory.iron || 0) - upgrade.iron,
-        timber: (state.inventory.timber || 0) - upgrade.timber,
+      const newMil = {
+        ...mil,
+        [track]: next.level,
+        morale: Math.min(100, (mil.morale || 50) + 10), // Castle upgrade boosts morale
+        totalFortificationSpending: (mil.totalFortificationSpending || 0) + next.cost,
       };
+
+      // Keep castleLevel synced with walls level (for passive income)
+      const newCastleLevel = track === "walls" ? next.level : state.castleLevel;
+
+      // Determine scribe's note
+      let scribesNote = null;
+      if (track === "walls" && next.level === 2 && !mil.scribesNoteSeen?.castleEvolution) {
+        scribesNote = MILITARY_SCRIBES_NOTES.castleEvolution;
+        newMil.scribesNoteSeen = { ...mil.scribesNoteSeen, castleEvolution: true };
+      }
 
       return {
         ...state,
-        denarii: state.denarii - upgrade.cost,
-        defenseUpgrades: [...state.defenseUpgrades, upgradeId],
-        inventory: newInventory,
-        food: getTotalFood(newInventory),
-        chronicle: addChronicle(state.chronicle, `Installed ${upgrade.name} for ${upgrade.cost}d.`, state.season, state.year, state.turn, "action"),
+        denarii: state.denarii - next.cost,
+        castleLevel: newCastleLevel,
+        military: newMil,
+        scribesNote: scribesNote || state.scribesNote,
+        chronicle: addChronicle(state.chronicle, `Upgraded ${track} to ${next.name} for ${next.cost}d.`, state.season, state.year, state.turn, "action"),
       };
     }
 
@@ -668,7 +1150,84 @@ export function gameReducer(state, action) {
         defenseUpgrades: state.defenseUpgrades,
         churchDonation: state.churchDonation ?? 0,
         synergies: state.synergies,
+        military: state.military,
       });
+
+      // 1.5. MORALE & TYPED GARRISON RECONCILIATION
+      const prevMil = state.military ?? getInitialMilitaryState(state.garrison);
+      let milMorale = prevMil.morale ?? 50;
+      let milGarrison = { ...prevMil.garrison };
+      let milDesertions = 0;
+
+      // Reconcile garrison if economy engine removed soldiers (food shortage/unpaid upkeep)
+      const totalBefore = getTotalGarrison(milGarrison);
+      const totalAfter = econResult.garrison;
+      if (totalAfter < totalBefore) {
+        const deserted = totalBefore - totalAfter;
+        milGarrison = removeFromGarrison(milGarrison, deserted);
+        milDesertions += deserted;
+      }
+
+      // Morale: upkeep paid?
+      const upkeepCost = getMilitaryUpkeep(prevMil.garrison);
+      if (upkeepCost > 0 && econResult.denarii >= 0) {
+        milMorale = Math.min(100, milMorale + 3);
+      } else if (upkeepCost > 0 && econResult.denarii <= 0) {
+        milMorale = Math.max(0, milMorale - 15);
+      }
+
+      // Morale: food stores
+      if (econResult.food > 200) {
+        milMorale = Math.min(100, milMorale + 5);
+      } else if (econResult.food < 50) {
+        milMorale = Math.max(0, milMorale - 10);
+      }
+
+      // Morale: population unhappiness
+      if (econResult.population < 10) {
+        milMorale = Math.max(0, milMorale - 5);
+      }
+
+      // Morale: idle garrison decay
+      const idleSeasons = (prevMil.idleSeasons || 0) + 1;
+      if (idleSeasons >= 5) {
+        milMorale = Math.max(0, milMorale - 3);
+      }
+
+      // Morale: mutinous desertion (10% chance per levy)
+      const moraleLevel = getMoraleLevel(milMorale);
+      if (moraleLevel.desertionChance > 0 && milGarrison.levy > 0) {
+        let levyDeserted = 0;
+        for (let i = 0; i < milGarrison.levy; i++) {
+          if (Math.random() < moraleLevel.desertionChance) levyDeserted++;
+        }
+        if (levyDeserted > 0) {
+          milGarrison = { ...milGarrison, levy: milGarrison.levy - levyDeserted };
+          milDesertions += levyDeserted;
+          econResult.report.push(`${levyDeserted} levy ${levyDeserted === 1 ? "peasant" : "peasants"} deserted due to mutinous morale.`);
+        }
+      }
+
+      // Knights abandon if population too low
+      if (milGarrison.knights > 0 && econResult.population < (SOLDIER_TYPES.knights.minPopulation || 10)) {
+        const knightName = KNIGHT_NAMES[Math.floor(Math.random() * KNIGHT_NAMES.length)];
+        milGarrison = { ...milGarrison, knights: milGarrison.knights - 1 };
+        milDesertions += 1;
+        econResult.report.push(`${knightName} has abandoned your service, disgusted by the state of your people.`);
+      }
+
+      const updatedMilitary = {
+        ...prevMil,
+        garrison: milGarrison,
+        morale: milMorale,
+        idleSeasons,
+        totalUpkeepSpending: (prevMil.totalUpkeepSpending || 0) + upkeepCost,
+        soldiersLostToDesertion: (prevMil.soldiersLostToDesertion || 0) + milDesertions,
+      };
+
+      // Update the total garrison count
+      const finalGarrison = getTotalGarrison(milGarrison);
+      econResult.garrison = finalGarrison;
 
       // 2. Track bankruptcy
       let bankruptcyTurns = state.bankruptcyTurns || 0;
@@ -684,6 +1243,50 @@ export function gameReducer(state, action) {
         nextChronicle = addChronicle(nextChronicle, line, season, year, turn, "system");
       }
 
+      // 3.5. BUILDING DEGRADATION — condition decays each season
+      const degradeMult = SEASON_DEGRADE_MULTIPLIERS[season] ?? 1.0;
+      const degradedBuildings = state.buildings.map((b) => {
+        if (typeof b === "string") return b; // Legacy string format — skip
+        const def = BUILDINGS[getBuildingType(b)];
+        const rate = def?.degradeRate ?? 5;
+        const loss = Math.round(rate * degradeMult);
+        const newCondition = Math.max(0, (b.condition ?? 100) - loss);
+        return { ...b, condition: newCondition };
+      });
+
+      // Report condition warnings
+      for (const b of degradedBuildings) {
+        if (typeof b === "string") continue;
+        const def = BUILDINGS[getBuildingType(b)];
+        if (!def) continue;
+        const orig = state.buildings.find((sb) => typeof sb !== "string" && sb.instanceId === b.instanceId);
+        if (b.condition <= 24 && orig && orig.condition > 24) {
+          nextChronicle = addChronicle(nextChronicle, `Your ${def.name} has fallen into ruin and produces nothing until repaired.`, season, year, turn, "system");
+        } else if (b.condition <= 49 && b.condition > 24 && orig && orig.condition > 49) {
+          nextChronicle = addChronicle(nextChronicle, `Your ${def.name} is in poor condition \u2014 output reduced by half.`, season, year, turn, "system");
+        }
+      }
+
+      // 3.6. ECONOMY HISTORY — track for trend display
+      const newEconomyHistory = [...(state.economyHistory ?? []), {
+        turn,
+        season,
+        netGold: econResult.denarii - state.denarii,
+        netFood: econResult.food - state.food,
+      }].slice(-8);
+
+      // 3.7 PEOPLE — tiers, loyalty, departures, feed
+      const prevPeople = state.people ?? getInitialPeopleState(state.population);
+      const foodBal = econResult.food - state.food;
+      const reconciledTiers = reconcileTiers(econResult.population, prevPeople.tiers ?? { serfs: 12, freemen: 6, skilled: 2 });
+      const peopleMorale = computeMorale({ ...state, population: econResult.population, resourceDeltas: { ...state.resourceDeltas, food: foodBal }, people: prevPeople });
+      let pFamilies = updateFamilyLoyalty(prevPeople.notableFamilies || [], state.taxRate, peopleMorale.value, prevPeople.laborGarrison ?? 0, prevPeople.laborChurch ?? 5, foodBal);
+      for (const fid of checkFamilyDepartures(pFamilies, peopleMorale.value)) { pFamilies = pFamilies.map((f) => f.id !== fid ? f : (nextChronicle = addChronicle(nextChronicle, f.leaveNarrative || `${f.name} has left.`, season, year, turn, "event"), { ...f, present: false, turnsGone: 0 })); }
+      for (const fid of checkFamilyReturns(pFamilies, peopleMorale.value)) { pFamilies = pFamilies.map((f) => f.id !== fid ? f : (nextChronicle = addChronicle(nextChronicle, f.returnNarrative || `${f.name} has returned.`, season, year, turn, "event"), { ...f, present: true, turnsGone: 0, loyalty: 1 })); }
+      const pFeed = pickFeedEvents(season, peopleMorale.value, foodBal, econResult.population, pFamilies);
+      const pTaxRev = season === "autumn" ? econResult.population * (({ low: 2, medium: 4, high: 6, crushing: 8 })[state.taxRate] || 4) : 0;
+      const updatedPeople = { ...prevPeople, tiers: reconciledTiers, notableFamilies: pFamilies, villageFeed: pFeed, taxHistory: [...(prevPeople.taxHistory || []), { season, year, revenue: pTaxRev }].slice(-8) };
+
       // 4. Check game over from economy
       const afterState = {
         population: econResult.population,
@@ -698,6 +1301,8 @@ export function gameReducer(state, action) {
           population: econResult.population,
           garrison: econResult.garrison,
           inventory: econResult.inventory,
+          buildings: degradedBuildings,
+          economyHistory: newEconomyHistory,
           chronicle: nextChronicle,
           seasonReport: econResult.report,
           resourceDeltas: computeResourceDeltas(before, {
@@ -712,6 +1317,8 @@ export function gameReducer(state, action) {
           currentEvent: null,
           currentRandomEvent: null,
           churchDonation: 0,
+          military: updatedMilitary,
+          people: updatedPeople,
         };
       }
 
@@ -730,6 +1337,37 @@ export function gameReducer(state, action) {
         ratsPlayedThisSeason: false,
         strangerAppearedThisSeason: false,
       };
+
+      // Reset watchtower seasonal state, clear one-season warnings
+      const prevWt = state.watchtower ?? {};
+      const watchtowerSeasonReset = {
+        ...prevWt,
+        scannedThisSeason: false,
+        lastScanResult: null,
+        warnings: {
+          criminalRaidBonus: 0,
+          scottishRaidBonus: 0,
+          raidRequirementReduction: 0,
+          merchantPreview: null,
+        },
+      };
+
+      // Reset market seasonal state and pick market event
+      const prevMkt = state.market ?? {};
+      const marketEvent = pickMarketEvent(turn, prevMkt.usedMarketEventIds || []);
+      const marketSeasonReset = {
+        ...prevMkt,
+        activeHaggle: null,
+        tradesThisSeason: 0,
+        activeMarketEvent: marketEvent,
+        usedMarketEventIds: marketEvent
+          ? [...(prevMkt.usedMarketEventIds || []), marketEvent.id]
+          : (prevMkt.usedMarketEventIds || []),
+      };
+
+      if (marketEvent) {
+        nextChronicle = addChronicle(nextChronicle, `Market: ${marketEvent.title} \u2014 ${marketEvent.description}`, season, year, turn, "event");
+      }
 
       // Resolve Marta's spice investment
       let finalDenarii = econResult.denarii;
@@ -751,6 +1389,45 @@ export function gameReducer(state, action) {
         }
       }
 
+      // --- BLACKSMITH SEASON PROCESSING ---
+      const prevBs = state.blacksmith ?? {};
+      let forgeInv = econResult.inventory;
+      let forgeSeasonReset = { ...prevBs, salesThisSeason: 0 };
+
+      // Iron vein passive production
+      if (prevBs.ironVeinActive) {
+        forgeInv = { ...forgeInv, iron: (forgeInv.iron || 0) + 3 };
+        nextChronicle = addChronicle(nextChronicle, "The iron vein yielded 3 bars.", season, year, turn, "system");
+      }
+
+      // Record price history snapshot
+      const currentForgePrices = generateForgeMarketPrices(season);
+      forgeSeasonReset.priceHistory = [...(prevBs.priceHistory || []).slice(-12), {
+        turn, season, prices: currentForgePrices,
+      }];
+      forgeSeasonReset.marketPrices = currentForgePrices;
+
+      // Supply event countdown
+      if (prevBs.supplyEventTurnsLeft > 0) {
+        forgeSeasonReset.supplyEventTurnsLeft = prevBs.supplyEventTurnsLeft - 1;
+        if (forgeSeasonReset.supplyEventTurnsLeft <= 0) {
+          forgeSeasonReset.activeSupplyEvent = null;
+          nextChronicle = addChronicle(nextChronicle, "The forge supply disruption has ended.", season, year, turn, "system");
+        }
+      }
+
+      // Roll for new supply event (if none active)
+      if (!forgeSeasonReset.activeSupplyEvent) {
+        const newForgeEvent = rollForgeSupplyEvent(turn, forgeSeasonReset.usedSupplyEventIds || []);
+        if (newForgeEvent) {
+          forgeSeasonReset.activeSupplyEvent = newForgeEvent;
+          forgeSeasonReset.supplyEventTurnsLeft = newForgeEvent.duration || 0;
+        }
+      }
+
+      // Equipped items update econResult inventory
+      econResult.inventory = forgeInv;
+
       // --- RAID CHECK (after production, before seasonal events) ---
       const prevRaids = state.raids ?? getInitialRaidState();
       const raidsWithCooldowns = {
@@ -769,6 +1446,8 @@ export function gameReducer(state, action) {
           population: econResult.population,
           garrison: econResult.garrison,
           inventory: econResult.inventory,
+          buildings: degradedBuildings,
+          economyHistory: newEconomyHistory,
           chronicle: nextChronicle,
           seasonReport: econResult.report,
           resourceDeltas: computeResourceDeltas(before, {
@@ -784,6 +1463,11 @@ export function gameReducer(state, action) {
           activeTab: "chronicle",
           churchDonation: 0,
           tavern: tavernSeasonReset,
+          watchtower: watchtowerSeasonReset,
+          market: marketSeasonReset,
+          military: updatedMilitary,
+          people: updatedPeople,
+          blacksmith: forgeSeasonReset,
           raids: {
             ...raidsWithCooldowns,
             activeRaid: { type: raidTrigger.type, phase: "warning", result: null },
@@ -798,6 +1482,8 @@ export function gameReducer(state, action) {
         population: econResult.population,
         garrison: econResult.garrison,
         inventory: econResult.inventory,
+        buildings: degradedBuildings,
+        economyHistory: newEconomyHistory,
         chronicle: nextChronicle,
         seasonReport: econResult.report,
         resourceDeltas: computeResourceDeltas(before, {
@@ -813,6 +1499,11 @@ export function gameReducer(state, action) {
         activeTab: "chronicle",
         churchDonation: 0,
         tavern: tavernSeasonReset,
+        watchtower: watchtowerSeasonReset,
+        market: marketSeasonReset,
+        military: updatedMilitary,
+        people: updatedPeople,
+        blacksmith: forgeSeasonReset,
         raids: { ...raidsWithCooldowns, activeRaid: null },
       };
     }
@@ -827,22 +1518,72 @@ export function gameReducer(state, action) {
       if (!activeRaid || activeRaid.phase !== "warning") return state;
 
       const raidType = activeRaid.type;
-      const result = resolveRaid(raidType, state.garrison, state.castleLevel, state.inventory);
+      const mil = state.military ?? getInitialMilitaryState(state.garrison);
+
+      // Calculate watchtower bonus
+      const wtWarnings = state.watchtower?.warnings ?? {};
+      let watchtowerBonus = 0;
+      if (raidType === "criminal") watchtowerBonus += (wtWarnings.criminalRaidBonus || 0);
+      if (raidType === "scottish") watchtowerBonus += (wtWarnings.scottishRaidBonus || 0);
+      watchtowerBonus += (wtWarnings.raidRequirementReduction || 0);
+
+      // Calculate defense rating (including forge equipment bonus)
+      const forgeEquipBonus = calculateForgeReadiness(
+        (state.blacksmith ?? {}).equipped || [], state.garrison
+      ).defenseBonus;
+      const defenseRating = calculateDefenseRating(mil, watchtowerBonus + forgeEquipBonus);
+      const defenseThreshold = raidType === "criminal" ? CRIMINAL_DEFENSE_THRESHOLD : SCOTTISH_DEFENSE_THRESHOLD;
+
+      const result = resolveRaid(raidType, defenseRating, defenseThreshold, state.garrison, state.castleLevel, state.inventory);
       if (!result) return state;
+
+      // Log watchtower intelligence if it helped
+      let raidChronicle = state.chronicle;
+      if (watchtowerBonus > 0) {
+        raidChronicle = addChronicle(
+          raidChronicle,
+          `Watchtower intelligence applied: defense rating boosted by ${watchtowerBonus}.`,
+          state.season, state.year, state.turn, "system"
+        );
+      }
+
+      // Update morale based on raid outcome
+      let raidMorale = mil.morale;
+      if (result.victory) {
+        raidMorale = Math.min(100, raidMorale + 15);
+      } else {
+        raidMorale = Math.max(0, raidMorale - 20);
+      }
 
       // Determine scribe's note for first-time raids
       const raidDef = RAID_TYPES[raidType];
       const scribesKey = raidType === "criminal" ? "criminalScribesNoteSeen" : "scottishScribesNoteSeen";
       const isFirstRaid = !raids[scribesKey];
-      const scribesNote = isFirstRaid ? raidDef.scribesNote : null;
+      const raidScribesNote = isFirstRaid ? raidDef.scribesNote : null;
+
+      // Also show feudal obligation scribe's note on first raid if not yet seen
+      let militaryScribesNote = null;
+      if (!mil.scribesNoteSeen?.feudalObligation) {
+        militaryScribesNote = MILITARY_SCRIBES_NOTES.feudalObligation;
+      }
 
       return {
         ...state,
         phase: "raid_result",
-        scribesNote,
+        scribesNote: raidScribesNote || militaryScribesNote || null,
+        chronicle: raidChronicle,
+        military: {
+          ...mil,
+          morale: raidMorale,
+          lastRaidOutcome: result.victory ? "victory" : "defeat",
+          idleSeasons: 0,
+          scribesNoteSeen: militaryScribesNote
+            ? { ...mil.scribesNoteSeen, feudalObligation: true }
+            : mil.scribesNoteSeen,
+        },
         raids: {
           ...raids,
-          activeRaid: { ...activeRaid, phase: "result", result },
+          activeRaid: { ...activeRaid, phase: "result", result, defenseRating, defenseThreshold },
           [scribesKey]: true,
         },
       };
@@ -863,7 +1604,6 @@ export function gameReducer(state, action) {
       // Apply resource changes
       let newDenarii = Math.max(0, state.denarii + result.denariiDelta);
       let newPopulation = Math.max(0, state.population + result.populationDelta);
-      let newGarrison = Math.max(0, state.garrison + result.garrisonDelta);
       let newInventory = { ...state.inventory };
 
       // Apply food delta to grain
@@ -880,8 +1620,32 @@ export function gameReducer(state, action) {
 
       const newFood = getTotalFood(newInventory);
 
+      // Reconcile typed garrison after raid losses
+      const raidMil = state.military ?? getInitialMilitaryState(state.garrison);
+      let raidGarrison = { ...raidMil.garrison };
+      let raidSoldiersLost = 0;
+      if (result.garrisonDelta < 0) {
+        const loss = Math.abs(result.garrisonDelta);
+        raidGarrison = removeFromGarrison(raidGarrison, loss);
+        raidSoldiersLost = loss;
+      }
+      // Add garrison gains (from victory — added as levy)
+      if (result.garrisonDelta > 0) {
+        raidGarrison = { ...raidGarrison, levy: (raidGarrison.levy || 0) + result.garrisonDelta };
+      }
+      let newGarrison = getTotalGarrison(raidGarrison);
+      newGarrison = Math.max(0, newGarrison);
+
+      const updatedRaidMil = {
+        ...raidMil,
+        garrison: raidGarrison,
+        soldiersLostToRaids: (raidMil.soldiersLostToRaids || 0) + raidSoldiersLost,
+      };
+
       // Build chronicle entry
-      const chronicleText = buildRaidChronicleText(raidType, result, season, year, state.garrison);
+      const defRating = activeRaid.defenseRating ?? 0;
+      const defThreshold = activeRaid.defenseThreshold ?? 0;
+      const chronicleText = buildRaidChronicleText(raidType, result, season, year, state.garrison, defRating, defThreshold);
       let nextChronicle = addChronicle(state.chronicle, chronicleText, season, year, turn, "event");
 
       // Update raid statistics
@@ -917,6 +1681,7 @@ export function gameReducer(state, action) {
           inventory: newInventory,
           chronicle: nextChronicle,
           raids: updatedRaids,
+          military: updatedRaidMil,
           phase: "game_over",
           gameOverReason: raidGameOver,
           currentEvent: null,
@@ -934,6 +1699,7 @@ export function gameReducer(state, action) {
         inventory: newInventory,
         chronicle: nextChronicle,
         raids: updatedRaids,
+        military: updatedRaidMil,
         phase: "seasonal_action",
         activeTab: "chronicle",
         resourceDeltas: {
@@ -1043,7 +1809,7 @@ export function gameReducer(state, action) {
       // Victory check
       if (turn >= MAX_TURNS) {
         const victoryText =
-          "Seven years have passed. Your reign has endured through war, famine, and feast. " +
+          "Ten years have passed. Your reign has endured through war, famine, and feast. " +
           "The chronicles will remember your name.";
         const { season, year } = turnToSeasonYear(turn);
         return {
@@ -1064,7 +1830,78 @@ export function gameReducer(state, action) {
       // Generate new market prices for the new season
       const newMarketPrices = generateMarketPrices();
 
+      // Update market: rotate foreign trader, reset haggle, clear event
+      const advMkt = state.market ?? {};
+      const foreignTrader = FOREIGN_TRADERS[nextSeason];
+      const advanceMarket = {
+        ...advMkt,
+        currentForeignTrader: nextSeason,
+        activeHaggle: null,
+        activeMarketEvent: null,
+        tradesThisSeason: 0,
+      };
+      if (foreignTrader && advMkt.currentForeignTrader !== nextSeason) {
+        nextChronicle = addChronicle(nextChronicle, foreignTrader.arrivalText, nextSeason, nextYear, nextTurn, "event");
+      }
+
       const zeroDeltas = { denarii: 0, food: 0, population: 0, garrison: 0 };
+
+      // Reset seasonal Great Hall limits (decree slots + feast flag)
+      // Phase 4: Small trust decay if lord didn't interact with the hall at all
+      const prevHallAdvance = state.greatHall ?? {};
+      const hallWasActive = prevHallAdvance.hasFeastedThisSeason
+        || prevHallAdvance.decreeSlotsUsed > 0
+        || (prevHallAdvance.disputesResolved || 0) > 0;
+      const trustDecay = hallWasActive ? 0 : -2;
+      const advanceTrust = Math.max(0, Math.min(100, (prevHallAdvance.stewardTrust || 50) + trustDecay));
+
+      // Phase 4: Recompute reputation from full ruling history each season
+      const advanceRep = computeReputation(prevHallAdvance.rulingHistory || []);
+
+      // Phase 5: Snapshot meter history for trend tracking
+      const prevMeterHistory = prevHallAdvance.meterHistory || [];
+      const meterSnapshot = {
+        turn: state.turn,
+        season: state.season,
+        year: state.year,
+        meters: { ...(prevHallAdvance.meters || { people: 50, treasury: 50, church: 50, military: 50 }) },
+      };
+
+      // Phase 5: Recompute compound flags
+      const advanceCompoundFlags = computeCompoundFlags(prevHallAdvance.rulingHistory || []);
+
+      // Phase 5: Check for crisis/peak events at season boundary
+      const advMeters = prevHallAdvance.meters || { people: 50, treasury: 50, church: 50, military: 50 };
+      const advCrisis = { ...(prevHallAdvance.crisisTriggered || {}) };
+      const advPeak = { ...(prevHallAdvance.peakTriggered || {}) };
+      let seasonHallEvent = null;
+      for (const [key, val] of Object.entries(advMeters)) {
+        if (val < 20 && !advCrisis[key] && CRISIS_EVENTS[key]) {
+          seasonHallEvent = { ...CRISIS_EVENTS[key], meter: key, type: "crisis" };
+          advCrisis[key] = true;
+        }
+        if (val > 80 && !advPeak[key] && PEAK_EVENTS[key]) {
+          seasonHallEvent = { ...PEAK_EVENTS[key], meter: key, type: "peak" };
+          advPeak[key] = true;
+        }
+        if (val >= 20) advCrisis[key] = false;
+        if (val <= 80) advPeak[key] = false;
+      }
+
+      const advanceHall = {
+        ...prevHallAdvance,
+        decreeSlotsUsed: 0,
+        hasFeastedThisSeason: false,
+        stewardTrust: advanceTrust,
+        reputation: advanceRep.title,
+        reputationTrack: advanceRep.track,
+        reputationScores: advanceRep.scores,
+        meterHistory: [...prevMeterHistory, meterSnapshot],
+        compoundFlags: advanceCompoundFlags,
+        pendingHallEvent: seasonHallEvent || prevHallAdvance.pendingHallEvent || null,
+        crisisTriggered: advCrisis,
+        peakTriggered: advPeak,
+      };
 
       // --- Synergy consecutive counters ---
       const prevSyn = state.synergies ?? {};
@@ -1134,6 +1971,8 @@ export function gameReducer(state, action) {
           seasonReport: [],
           synergies: synergiesAfterCheck,
           pendingSynergyNotifications: synNotifications,
+          market: advanceMarket,
+          greatHall: advanceHall,
           // Flip state
           currentFlipId: triggeredFlipId,
           currentFlipStats: getInitialFlipStats(triggeredFlipId),
@@ -1159,6 +1998,8 @@ export function gameReducer(state, action) {
         seasonReport: [],
         synergies: synergiesAfterCheck,
         pendingSynergyNotifications: synNotifications,
+        market: advanceMarket,
+        greatHall: advanceHall,
       };
     }
 
@@ -1167,6 +2008,10 @@ export function gameReducer(state, action) {
     // -----------------------------------------------------------------------
     case "DISMISS_SCRIBES_NOTE": {
       return { ...state, scribesNote: null };
+    }
+
+    case "SET_SCRIBES_NOTE": {
+      return { ...state, scribesNote: action.payload.text };
     }
 
     // -----------------------------------------------------------------------
@@ -1318,7 +2163,7 @@ export function gameReducer(state, action) {
       // Victory check
       if (turn >= MAX_TURNS) {
         const victoryText =
-          "Seven years have passed. Your reign has endured through war, famine, and feast. " +
+          "Ten years have passed. Your reign has endured through war, famine, and feast. " +
           "The chronicles will remember your name.";
         return {
           ...state,
@@ -1689,12 +2534,15 @@ export function gameReducer(state, action) {
         }
         case "recruit_referral": {
           if (state.denarii < 40) return state;
+          const refMil = state.military ?? getInitialMilitaryState(state.garrison ?? 0);
+          const refGarrison = { ...refMil.garrison, menAtArms: (refMil.garrison.menAtArms || 0) + 1 };
           return {
             ...state,
             denarii: state.denarii - 40,
-            garrison: (state.garrison ?? 0) + 2,
+            garrison: getTotalGarrison(refGarrison),
+            military: { ...refMil, garrison: refGarrison },
             tavern: baseAldricTavern,
-            chronicle: addChronicle(state.chronicle, "Aldric recruited a seasoned soldier for the garrison. Garrison +2.", state.season, state.year, state.turn, "action"),
+            chronicle: addChronicle(state.chronicle, "Aldric recruited a seasoned man-at-arms for the garrison.", state.season, state.year, state.turn, "action"),
           };
         }
         case "war_story_lesson": {
@@ -1723,6 +2571,1077 @@ export function gameReducer(state, action) {
           aldricOffersUsed: [...(prevTad.aldricOffersUsed ?? []), declinedAldricId],
         },
         chronicle: addChronicle(state.chronicle, "You declined Aldric\u2019s offer.", state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // CHAPEL ACTIONS
+    // -----------------------------------------------------------------------
+
+    case "CHAPEL_SET_VIEW": {
+      const { view } = action.payload ?? {};
+      const prevChapel = state.chapel ?? {};
+      const updates = { view };
+
+      // Randomize NPC greeting on first visit
+      if (view === "anselm" && !prevChapel.anselmGreeting) {
+        updates.anselmGreeting = ANSELM_GREETINGS[Math.floor(Math.random() * ANSELM_GREETINGS.length)];
+      }
+      if (view === "caedmon" && !prevChapel.caedmonGreeting) {
+        updates.caedmonGreeting = CAEDMON_GREETINGS[Math.floor(Math.random() * CAEDMON_GREETINGS.length)];
+      }
+      // Clear tithe response and dilemma result when navigating away
+      if (view === "nave") {
+        updates.titheResponse = null;
+        updates.dilemmaResult = null;
+        updates.currentDilemma = null;
+      }
+
+      return { ...state, chapel: { ...prevChapel, ...updates } };
+    }
+
+    case "CHAPEL_PAY_TITHE": {
+      if (state.phase !== "management") return state;
+      const { amount } = action.payload ?? {};
+      if (!amount || amount <= 0 || state.denarii < amount) return state;
+
+      const prevChapel = state.chapel ?? {};
+      const pct = amount / state.denarii;
+      const category = pct >= 0.10 ? "generous" : pct >= 0.03 ? "stingy" : "none";
+      const responses = TITHE_RESPONSES[category];
+      const response = responses[Math.floor(Math.random() * responses.length)];
+      const effects = TITHE_EFFECTS[category];
+
+      const newFaith = Math.min(100, Math.max(0, (prevChapel.faith ?? 50) + (effects.faith ?? 0)));
+      const newPiety = Math.min(100, Math.max(0, (prevChapel.piety ?? 30) + (effects.piety ?? 0)));
+
+      const logEntry = { text: `Tithed ${amount}d to Father Anselm (${category}).`, turn: state.turn, season: state.season };
+
+      return {
+        ...state,
+        denarii: state.denarii - amount,
+        churchDonation: (state.churchDonation || 0) + amount,
+        chapel: {
+          ...prevChapel,
+          faith: newFaith,
+          piety: newPiety,
+          titheResponse: response,
+          gameLog: [...(prevChapel.gameLog ?? []), logEntry],
+        },
+        chronicle: addChronicle(state.chronicle, `Tithed ${amount}d to the Chapel. Faith ${effects.faith >= 0 ? "+" : ""}${effects.faith}, Piety ${effects.piety >= 0 ? "+" : ""}${effects.piety}.`, state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    case "CHAPEL_BUY_ITEM": {
+      if (state.phase !== "management") return state;
+      const { itemId } = action.payload ?? {};
+      const item = SHOP_ITEMS.find((i) => i.id === itemId);
+      if (!item) return state;
+
+      const prevChapel = state.chapel ?? {};
+      const owned = prevChapel.inventory ?? [];
+      if (owned.includes(itemId)) return state;
+      if (state.denarii < item.cost) return state;
+
+      const effects = item.effects ?? {};
+      const newFaith = Math.min(100, Math.max(0, (prevChapel.faith ?? 50) + (effects.faith ?? 0)));
+      const newPiety = Math.min(100, Math.max(0, (prevChapel.piety ?? 30) + (effects.piety ?? 0)));
+      const newHappiness = Math.min(100, Math.max(0, (prevChapel.happiness ?? 60) + (effects.happiness ?? 0)));
+
+      // Apply food effect to main inventory
+      let newInventory = state.inventory;
+      let newFood = state.food;
+      if (effects.food) {
+        const foodGain = effects.food;
+        newInventory = { ...state.inventory, grain: (state.inventory.grain || 0) + foodGain };
+        newFood = getTotalFood(newInventory);
+      }
+
+      const logEntry = { text: `Purchased ${item.name} for ${item.cost}d from Brother Caedmon.`, turn: state.turn, season: state.season };
+
+      return {
+        ...state,
+        denarii: state.denarii - item.cost,
+        inventory: newInventory,
+        food: newFood,
+        chapel: {
+          ...prevChapel,
+          inventory: [...owned, itemId],
+          faith: newFaith,
+          piety: newPiety,
+          happiness: newHappiness,
+          gameLog: [...(prevChapel.gameLog ?? []), logEntry],
+        },
+        chronicle: addChronicle(state.chronicle, `Purchased ${item.name} from Brother Caedmon for ${item.cost}d.`, state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    case "CHAPEL_START_DILEMMA": {
+      if (state.phase !== "management") return state;
+      const prevChapel = state.chapel ?? {};
+      const completed = prevChapel.dilemmasCompleted ?? [];
+      const available = MORAL_DILEMMAS.filter((d) => !completed.includes(d.id));
+      if (available.length === 0) return state;
+
+      const dilemma = available[Math.floor(Math.random() * available.length)];
+
+      return {
+        ...state,
+        chapel: {
+          ...prevChapel,
+          view: "dilemma",
+          currentDilemma: dilemma,
+          dilemmaResult: null,
+        },
+      };
+    }
+
+    case "CHAPEL_RESOLVE_DILEMMA": {
+      if (state.phase !== "management") return state;
+      const { choiceIndex } = action.payload ?? {};
+      const prevChapel = state.chapel ?? {};
+      const dilemma = prevChapel.currentDilemma;
+      if (!dilemma || choiceIndex == null) return state;
+
+      const choice = dilemma.choices[choiceIndex];
+      if (!choice) return state;
+
+      const effects = choice.effects ?? {};
+
+      // Apply resource effects
+      let newDenarii = state.denarii + (effects.denarii ?? 0);
+      newDenarii = Math.max(0, newDenarii);
+
+      const newFaith = Math.min(100, Math.max(0, (prevChapel.faith ?? 50) + (effects.faith ?? 0)));
+      const newPiety = Math.min(100, Math.max(0, (prevChapel.piety ?? 30) + (effects.piety ?? 0)));
+      const newHappiness = Math.min(100, Math.max(0, (prevChapel.happiness ?? 60) + (effects.happiness ?? 0)));
+
+      const logEntry = {
+        text: `Moral dilemma "${dilemma.title}" — chose: ${choice.label}`,
+        turn: state.turn,
+        season: state.season,
+      };
+
+      // Build chronicle effect summary
+      const effectParts = [];
+      if (effects.denarii) effectParts.push(`${effects.denarii > 0 ? "+" : ""}${effects.denarii}d`);
+      if (effects.faith) effectParts.push(`Faith ${effects.faith > 0 ? "+" : ""}${effects.faith}`);
+      if (effects.piety) effectParts.push(`Piety ${effects.piety > 0 ? "+" : ""}${effects.piety}`);
+      if (effects.happiness) effectParts.push(`Happiness ${effects.happiness > 0 ? "+" : ""}${effects.happiness}`);
+      const effectStr = effectParts.length ? ` (${effectParts.join(", ")})` : "";
+
+      return {
+        ...state,
+        denarii: newDenarii,
+        chapel: {
+          ...prevChapel,
+          faith: newFaith,
+          piety: newPiety,
+          happiness: newHappiness,
+          dilemmaResult: { text: choice.result, effects },
+          dilemmasCompleted: [...(prevChapel.dilemmasCompleted ?? []), dilemma.id],
+          gameLog: [...(prevChapel.gameLog ?? []), logEntry],
+        },
+        chronicle: addChronicle(state.chronicle, `Chapel dilemma: "${dilemma.title}" — ${choice.label}.${effectStr}`, state.season, state.year, state.turn, "event"),
+      };
+    }
+
+    case "CHAPEL_MS_START": {
+      const prevChapel = state.chapel ?? {};
+      const patternLength = 3;
+      const pattern = Array.from({ length: patternLength }, () =>
+        Math.floor(Math.random() * MANUSCRIPT_SYMBOLS.length)
+      );
+      return {
+        ...state,
+        chapel: {
+          ...prevChapel,
+          view: "manuscript",
+          msPhase: "showing",
+          msPattern: pattern,
+          msPlayerInput: [],
+          msRound: 1,
+          msMaxRound: 4,
+          msActiveSymbol: null,
+          msFact: null,
+          msReward: 0,
+        },
+      };
+    }
+
+    case "CHAPEL_MS_FLASH": {
+      const { index } = action.payload ?? {};
+      return {
+        ...state,
+        chapel: { ...(state.chapel ?? {}), msActiveSymbol: index },
+      };
+    }
+
+    case "CHAPEL_MS_CLEAR_FLASH": {
+      return {
+        ...state,
+        chapel: { ...(state.chapel ?? {}), msActiveSymbol: null },
+      };
+    }
+
+    case "CHAPEL_MS_DONE_SHOWING": {
+      return {
+        ...state,
+        chapel: { ...(state.chapel ?? {}), msPhase: "input" },
+      };
+    }
+
+    case "CHAPEL_MS_INPUT": {
+      const { index } = action.payload ?? {};
+      const prevChapel = state.chapel ?? {};
+      if (prevChapel.msPhase !== "input") return state;
+
+      const newInput = [...(prevChapel.msPlayerInput ?? []), index];
+      const expected = prevChapel.msPattern ?? [];
+      const pos = newInput.length - 1;
+
+      // Wrong answer
+      if (newInput[pos] !== expected[pos]) {
+        const fact = MANUSCRIPT_FACTS[Math.floor(Math.random() * MANUSCRIPT_FACTS.length)];
+        return {
+          ...state,
+          chapel: { ...prevChapel, msPhase: "fail", msPlayerInput: newInput, msFact: fact },
+        };
+      }
+
+      // Correct so far, sequence not complete
+      if (newInput.length < expected.length) {
+        return {
+          ...state,
+          chapel: { ...prevChapel, msPlayerInput: newInput },
+        };
+      }
+
+      // Sequence complete — check if more rounds
+      const round = prevChapel.msRound ?? 1;
+      const maxRound = prevChapel.msMaxRound ?? 4;
+
+      if (round < maxRound) {
+        // Next round — longer pattern
+        const nextLength = 3 + round; // round 1=3, round 2=4, round 3=5, round 4=6
+        const nextPattern = Array.from({ length: nextLength }, () =>
+          Math.floor(Math.random() * MANUSCRIPT_SYMBOLS.length)
+        );
+        return {
+          ...state,
+          chapel: {
+            ...prevChapel,
+            msRound: round + 1,
+            msPattern: nextPattern,
+            msPlayerInput: [],
+            msPhase: "showing",
+            msActiveSymbol: null,
+          },
+        };
+      }
+
+      // All rounds complete — success!
+      const hasQuill = (prevChapel.inventory ?? []).includes("quill_ink");
+      const reward = hasQuill ? 20 : 15;
+      const fact = MANUSCRIPT_FACTS[Math.floor(Math.random() * MANUSCRIPT_FACTS.length)];
+      const newFaith = Math.min(100, (prevChapel.faith ?? 50) + 5);
+      const newPiety = Math.min(100, (prevChapel.piety ?? 30) + 3);
+
+      const logEntry = { text: `Completed manuscript copying: +${reward}d, +5 Faith, +3 Piety.`, turn: state.turn, season: state.season };
+
+      return {
+        ...state,
+        denarii: state.denarii + reward,
+        chapel: {
+          ...prevChapel,
+          msPhase: "success",
+          msPlayerInput: newInput,
+          msReward: reward,
+          msFact: fact,
+          faith: newFaith,
+          piety: newPiety,
+          gameLog: [...(prevChapel.gameLog ?? []), logEntry],
+        },
+        chronicle: addChronicle(state.chronicle, `Completed manuscript in the Scriptorium. Earned ${reward}d.`, state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // GREAT HALL — Dispute Resolution
+    // -----------------------------------------------------------------------
+
+    case "HALL_RULE_DISPUTE": {
+      const { disputeId, rulingId, consequences, decree } = action.payload;
+      const prevHall = state.greatHall;
+      const prevMeters = prevHall.meters;
+
+      const clamp = (v) => Math.max(0, Math.min(100, v));
+      const newMeters = {
+        people: clamp(prevMeters.people + (consequences.people || 0)),
+        treasury: clamp(prevMeters.treasury + (consequences.treasury || 0)),
+        church: clamp(prevMeters.church + (consequences.church || 0)),
+        military: clamp(prevMeters.military + (consequences.military || 0)),
+      };
+
+      const resolved = prevHall.disputesResolved + 1;
+
+      const rulingEntry = {
+        disputeId,
+        rulingId,
+        consequences,
+        decree,
+        turn: state.turn,
+        season: state.season,
+        year: state.year,
+      };
+
+      // Phase 4: Compute reputation from cumulative ruling patterns
+      const newHistory = [...prevHall.rulingHistory, rulingEntry];
+      const repResult = computeReputation(newHistory);
+
+      // Phase 4: Trust shifts — small trust bump for each ruling (engagement reward)
+      const trustDelta = 2;
+      const newTrust = Math.max(0, Math.min(100, (prevHall.stewardTrust || 50) + trustDelta));
+
+      // Phase 5: Compound flags and hall log
+      const newCompoundFlags = computeCompoundFlags(newHistory);
+      const disputeLogEntry = {
+        type: "dispute",
+        text: `Ruled on dispute: "${decree}"`,
+        turn: state.turn, season: state.season, year: state.year,
+        consequences,
+      };
+
+      // Phase 5: Check for crisis/peak triggers after meter change
+      let pendingEvent = null;
+      const prevCrisis = prevHall.crisisTriggered || {};
+      const prevPeak = prevHall.peakTriggered || {};
+      const newCrisis = { ...prevCrisis };
+      const newPeak = { ...prevPeak };
+      for (const [key, val] of Object.entries(newMeters)) {
+        if (val < 20 && !prevCrisis[key] && CRISIS_EVENTS[key]) {
+          pendingEvent = { ...CRISIS_EVENTS[key], meter: key, type: "crisis" };
+          newCrisis[key] = true;
+        }
+        if (val > 80 && !prevPeak[key] && PEAK_EVENTS[key]) {
+          pendingEvent = { ...PEAK_EVENTS[key], meter: key, type: "peak" };
+          newPeak[key] = true;
+        }
+        // Reset trigger if meter recovers
+        if (val >= 20) newCrisis[key] = false;
+        if (val <= 80) newPeak[key] = false;
+      }
+
+      const conParts = Object.entries(consequences)
+        .filter(([, v]) => v !== 0)
+        .map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)} ${v > 0 ? "+" : ""}${v}`);
+      const conText = conParts.length > 0 ? ` (${conParts.join(", ")})` : "";
+
+      return {
+        ...state,
+        greatHall: {
+          ...prevHall,
+          meters: newMeters,
+          reputation: repResult.title,
+          reputationTrack: repResult.track,
+          reputationScores: repResult.scores,
+          disputesResolved: resolved,
+          stewardTrust: newTrust,
+          rulingHistory: newHistory,
+          compoundFlags: newCompoundFlags,
+          hallLog: [...(prevHall.hallLog || []), disputeLogEntry],
+          pendingHallEvent: pendingEvent,
+          crisisTriggered: newCrisis,
+          peakTriggered: newPeak,
+        },
+        chronicle: addChronicle(
+          state.chronicle,
+          `Ruled on a dispute in the Great Hall: "${decree}"${conText}`,
+          state.season,
+          state.year,
+          state.turn,
+          "action"
+        ),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // GREAT HALL — Audience Response
+    // -----------------------------------------------------------------------
+
+    case "HALL_AUDIENCE_RESPOND": {
+      const { encounterId, consequences } = action.payload;
+      const prevHall = state.greatHall;
+      const prevMeters = prevHall.meters;
+
+      const clamp = (v) => Math.max(0, Math.min(100, v));
+      const newMeters = {
+        people: clamp(prevMeters.people + (consequences.people || 0)),
+        treasury: clamp(prevMeters.treasury + (consequences.treasury || 0)),
+        church: clamp(prevMeters.church + (consequences.church || 0)),
+        military: clamp(prevMeters.military + (consequences.military || 0)),
+      };
+
+      const conParts = Object.entries(consequences)
+        .filter(([, v]) => v !== 0)
+        .map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)} ${v > 0 ? "+" : ""}${v}`);
+      const conText = conParts.length > 0 ? ` (${conParts.join(", ")})` : "";
+
+      // Trust +1 for engaging with the people
+      const audTrust = Math.min(100, (prevHall.stewardTrust || 50) + 1);
+
+      // Phase 5: Hall log
+      const audLogEntry = {
+        type: "audience",
+        text: `Held audience with petitioner`,
+        turn: state.turn, season: state.season, year: state.year,
+        consequences,
+      };
+
+      return {
+        ...state,
+        greatHall: {
+          ...prevHall,
+          meters: newMeters,
+          audienceResolved: [...prevHall.audienceResolved, encounterId],
+          stewardTrust: audTrust,
+          hallLog: [...(prevHall.hallLog || []), audLogEntry],
+        },
+        chronicle: addChronicle(
+          state.chronicle,
+          `Held audience in the Great Hall${conText}`,
+          state.season, state.year, state.turn, "action"
+        ),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // GREAT HALL — Issue Decree
+    // -----------------------------------------------------------------------
+
+    case "HALL_ISSUE_DECREE": {
+      const { decreeId, effects } = action.payload;
+      const prevHall = state.greatHall;
+      const prevMeters = prevHall.meters;
+
+      const clamp = (v) => Math.max(0, Math.min(100, v));
+      const newMeters = {
+        people: clamp(prevMeters.people + (effects.people || 0)),
+        treasury: clamp(prevMeters.treasury + (effects.treasury || 0)),
+        church: clamp(prevMeters.church + (effects.church || 0)),
+        military: clamp(prevMeters.military + (effects.military || 0)),
+      };
+
+      const conParts = Object.entries(effects)
+        .filter(([, v]) => v !== 0)
+        .map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)} ${v > 0 ? "+" : ""}${v}`);
+      const conText = conParts.length > 0 ? ` (${conParts.join(", ")})` : "";
+
+      // Phase 5: Hall log
+      const decreeLogEntry = {
+        type: "decree",
+        text: `Issued decree: ${decreeId}`,
+        turn: state.turn, season: state.season, year: state.year,
+        consequences: effects,
+      };
+
+      return {
+        ...state,
+        greatHall: {
+          ...prevHall,
+          meters: newMeters,
+          activeDecrees: [...prevHall.activeDecrees, decreeId],
+          decreeSlotsUsed: prevHall.decreeSlotsUsed + 1,
+          hallLog: [...(prevHall.hallLog || []), decreeLogEntry],
+        },
+        chronicle: addChronicle(
+          state.chronicle,
+          `Issued a decree from the Great Hall${conText}`,
+          state.season, state.year, state.turn, "action"
+        ),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // GREAT HALL — Revoke Decree
+    // -----------------------------------------------------------------------
+
+    case "HALL_REVOKE_DECREE": {
+      const { decreeId } = action.payload;
+      const prevHall = state.greatHall;
+
+      // Phase 5: Hall log
+      const revokeLogEntry = {
+        type: "decree_revoke",
+        text: `Revoked decree: ${decreeId}`,
+        turn: state.turn, season: state.season, year: state.year,
+      };
+
+      return {
+        ...state,
+        greatHall: {
+          ...prevHall,
+          activeDecrees: prevHall.activeDecrees.filter((id) => id !== decreeId),
+          hallLog: [...(prevHall.hallLog || []), revokeLogEntry],
+        },
+        chronicle: addChronicle(
+          state.chronicle,
+          `Revoked a decree in the Great Hall.`,
+          state.season, state.year, state.turn, "action"
+        ),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // GREAT HALL — Council Vote
+    // -----------------------------------------------------------------------
+
+    case "HALL_COUNCIL_VOTE": {
+      const { topicId, consequences } = action.payload;
+      const prevHall = state.greatHall;
+      const prevMeters = prevHall.meters;
+
+      const clamp = (v) => Math.max(0, Math.min(100, v));
+      const newMeters = {
+        people: clamp(prevMeters.people + (consequences.people || 0)),
+        treasury: clamp(prevMeters.treasury + (consequences.treasury || 0)),
+        church: clamp(prevMeters.church + (consequences.church || 0)),
+        military: clamp(prevMeters.military + (consequences.military || 0)),
+      };
+
+      const conParts = Object.entries(consequences)
+        .filter(([, v]) => v !== 0)
+        .map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)} ${v > 0 ? "+" : ""}${v}`);
+      const conText = conParts.length > 0 ? ` (${conParts.join(", ")})` : "";
+
+      // Trust +1 for convening the council
+      const cncTrust = Math.min(100, (prevHall.stewardTrust || 50) + 1);
+
+      // Phase 5: Hall log
+      const councilLogEntry = {
+        type: "council",
+        text: `Council voted on: ${topicId}`,
+        turn: state.turn, season: state.season, year: state.year,
+        consequences,
+      };
+
+      return {
+        ...state,
+        greatHall: {
+          ...prevHall,
+          meters: newMeters,
+          councilResolved: [...prevHall.councilResolved, topicId],
+          stewardTrust: cncTrust,
+          hallLog: [...(prevHall.hallLog || []), councilLogEntry],
+        },
+        chronicle: addChronicle(
+          state.chronicle,
+          `The council voted on a matter in the Great Hall${conText}`,
+          state.season, state.year, state.turn, "action"
+        ),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // GREAT HALL — Feast Complete
+    // -----------------------------------------------------------------------
+
+    case "HALL_FEAST_COMPLETE": {
+      const { totalEffects } = action.payload;
+      const prevHall = state.greatHall;
+      const prevMeters = prevHall.meters;
+
+      const clamp = (v) => Math.max(0, Math.min(100, v));
+      const newMeters = {
+        people: clamp(prevMeters.people + (totalEffects.people || 0)),
+        treasury: clamp(prevMeters.treasury + (totalEffects.treasury || 0)),
+        church: clamp(prevMeters.church + (totalEffects.church || 0)),
+        military: clamp(prevMeters.military + (totalEffects.military || 0)),
+      };
+
+      const conParts = Object.entries(totalEffects)
+        .filter(([, v]) => v !== 0)
+        .map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)} ${v > 0 ? "+" : ""}${v}`);
+      const conText = conParts.length > 0 ? ` (${conParts.join(", ")})` : "";
+
+      // Trust +3 for hosting a feast (shows generosity)
+      const fstTrust = Math.min(100, (prevHall.stewardTrust || 50) + 3);
+
+      // Phase 5: Hall log
+      const feastLogEntry = {
+        type: "feast",
+        text: "Hosted a feast in the Great Hall",
+        turn: state.turn, season: state.season, year: state.year,
+        consequences: totalEffects,
+      };
+
+      return {
+        ...state,
+        greatHall: {
+          ...prevHall,
+          meters: newMeters,
+          hasFeastedThisSeason: true,
+          feastHistory: [...prevHall.feastHistory, {
+            season: state.season,
+            year: state.year,
+            totalEffects,
+          }],
+          stewardTrust: fstTrust,
+          hallLog: [...(prevHall.hallLog || []), feastLogEntry],
+        },
+        chronicle: addChronicle(
+          state.chronicle,
+          `Hosted a feast in the Great Hall${conText}`,
+          state.season, state.year, state.turn, "action"
+        ),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // GREAT HALL — Dismiss Event (Phase 5)
+    // -----------------------------------------------------------------------
+
+    case "HALL_DISMISS_EVENT": {
+      const prevHall = state.greatHall;
+      const evt = prevHall.pendingHallEvent;
+      if (!evt) return state;
+
+      // Apply crisis/peak effects
+      const clamp = (v) => Math.max(0, Math.min(100, v));
+      const pMeters = prevHall.meters;
+      const eff = evt.effects || {};
+      const eMeters = {
+        people: clamp(pMeters.people + (eff.people || 0)),
+        treasury: clamp(pMeters.treasury + (eff.treasury || 0)),
+        church: clamp(pMeters.church + (eff.church || 0)),
+        military: clamp(pMeters.military + (eff.military || 0)),
+      };
+
+      // Log the event
+      const evtLogEntry = {
+        type: evt.type,
+        text: evt.chronicle || evt.text,
+        turn: state.turn, season: state.season, year: state.year,
+        consequences: eff,
+      };
+
+      return {
+        ...state,
+        greatHall: {
+          ...prevHall,
+          meters: eMeters,
+          pendingHallEvent: null,
+          hallLog: [...(prevHall.hallLog || []), evtLogEntry],
+        },
+        chronicle: addChronicle(
+          state.chronicle,
+          evt.chronicle || "A notable event occurred in the Great Hall.",
+          state.season, state.year, state.turn, "event"
+        ),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // WATCHTOWER actions
+    // -----------------------------------------------------------------------
+    case "WATCHTOWER_SCAN_COMPLETE": {
+      const { anomaliesTotal, anomaliesFound, rating, denariiBonus, warnings, foundList } = action.payload ?? {};
+      const prevWt = state.watchtower ?? {};
+      const { season: wtSeason, year: wtYear, turn: wtTurn } = state;
+
+      const isPerfect = anomaliesFound === anomaliesTotal;
+
+      const foundNames = (foundList ?? []).map((a) => a.name).join(", ");
+      const logText = anomaliesFound > 0
+        ? `Scanned horizon \u2014 spotted ${foundNames}. Rating: ${rating}.`
+        : `Scanned horizon \u2014 clear. No threats spotted. Rating: ${rating}.`;
+
+      const newLog = [
+        ...(prevWt.signalLog ?? []),
+        { turn: wtTurn, season: wtSeason, year: wtYear, text: logText, type: "scan" },
+      ];
+
+      let wtChronicle = addChronicle(
+        state.chronicle,
+        `You climbed the Watchtower and scanned the horizon. Rating: ${rating}. Spotted ${anomaliesFound} of ${anomaliesTotal} anomalies.`,
+        wtSeason, wtYear, wtTurn, "action"
+      );
+
+      if (warnings) {
+        if (warnings.criminalRaidBonus > 0) {
+          wtChronicle = addChronicle(wtChronicle, "Advance warning: campfire smoke spotted \u2014 bandit threat detected.", wtSeason, wtYear, wtTurn, "system");
+        }
+        if (warnings.scottishRaidBonus > 0) {
+          wtChronicle = addChronicle(wtChronicle, "Advance warning: dust cloud spotted \u2014 mounted riders approaching.", wtSeason, wtYear, wtTurn, "system");
+        }
+        if (warnings.raidRequirementReduction > 0) {
+          wtChronicle = addChronicle(wtChronicle, "Advance warning: signal fire spotted \u2014 allied lord warns of military threat.", wtSeason, wtYear, wtTurn, "system");
+        }
+        if (warnings.merchantPreview) {
+          wtChronicle = addChronicle(wtChronicle, `Advance warning: merchant wagon spotted \u2014 ${warnings.merchantPreview.name} approaches with ${warnings.merchantPreview.specialty}.`, wtSeason, wtYear, wtTurn, "system");
+        }
+      }
+
+      return {
+        ...state,
+        denarii: state.denarii + (denariiBonus || 0),
+        chronicle: wtChronicle,
+        resourceDeltas: denariiBonus > 0
+          ? { ...state.resourceDeltas, denarii: (state.resourceDeltas?.denarii ?? 0) + denariiBonus }
+          : state.resourceDeltas,
+        watchtower: {
+          ...prevWt,
+          scannedThisSeason: true,
+          lastScanResult: { anomaliesTotal, anomaliesFound, rating },
+          warnings: warnings ?? prevWt.warnings,
+          totalScans: (prevWt.totalScans ?? 0) + 1,
+          totalAnomaliesSpotted: (prevWt.totalAnomaliesSpotted ?? 0) + (anomaliesFound ?? 0),
+          totalAnomaliesMissed: (prevWt.totalAnomaliesMissed ?? 0) + ((anomaliesTotal ?? 0) - (anomaliesFound ?? 0)),
+          perfectScans: isPerfect ? (prevWt.perfectScans ?? 0) + 1 : (prevWt.perfectScans ?? 0),
+          signalLog: newLog,
+        },
+      };
+    }
+
+    case "WATCHTOWER_RODERIC_SCRIBES_NOTE_SEEN": {
+      return {
+        ...state,
+        watchtower: { ...(state.watchtower ?? {}), rodericScribesNoteSeen: true },
+      };
+    }
+
+    case "WATCHTOWER_SCAN_SCRIBES_NOTE_SEEN": {
+      return {
+        ...state,
+        watchtower: { ...(state.watchtower ?? {}), scanScribesNoteSeen: true },
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // BLACKSMITH_FORGE_COMPLETE — Record a forged item, deduct resources
+    // -----------------------------------------------------------------------
+    case "BLACKSMITH_FORGE_COMPLETE": {
+      const {
+        itemId, itemName, itemCost, category, grade, qualityScore,
+        goldCost, statMultiplier, tradeMultiplier, baseMilitary,
+        baseTradeValue, durability,
+      } = action.payload ?? {};
+      if (!itemName) return state;
+
+      const bs = state.blacksmith ?? {};
+      const newDenarii = Math.max(0, state.denarii - (goldCost || 0));
+      const isMasterwork = grade === "Masterwork";
+
+      // Deduct forge material costs from main inventory
+      const forgeInv = { ...state.inventory };
+      if (itemCost) {
+        for (const [key, amt] of Object.entries(itemCost)) {
+          if (key !== "gold" && forgeInv[key] != null) {
+            forgeInv[key] = Math.max(0, forgeInv[key] - amt);
+          }
+        }
+      }
+
+      // Create inventory item
+      const uid = bs.nextItemUid || 1;
+      const forgedItem = {
+        uid,
+        itemId: itemId || "unknown",
+        name: itemName,
+        category: category || "weapon",
+        grade: grade || "Standard",
+        qualityScore: qualityScore || 50,
+        militaryBonus: Math.round((baseMilitary || 0) * (statMultiplier || 1)),
+        tradeValue: Math.round((baseTradeValue || 0) * (tradeMultiplier || 1)),
+        durability: durability || "Good",
+        cost: itemCost || {},
+        forgedTurn: state.turn,
+      };
+
+      return {
+        ...state,
+        denarii: newDenarii,
+        inventory: forgeInv,
+        blacksmith: {
+          ...bs,
+          inventory: [...(bs.inventory || []), forgedItem],
+          nextItemUid: uid + 1,
+          totalItemsForged: (bs.totalItemsForged || 0) + 1,
+          masterworksCreated: (bs.masterworksCreated || 0) + (isMasterwork ? 1 : 0),
+          godricRespect: Math.max(0, Math.min(100,
+            (bs.godricRespect || 50)
+            + (grade === "Masterwork" ? 3 : 0)
+            + (grade === "Fine" ? 1 : 0)
+            + (grade === "Rough" ? -2 : 0)
+            + (grade === "Scrap" ? -5 : 0)
+          )),
+          totalGoldInvested: (bs.totalGoldInvested || 0) + (goldCost || 0),
+          productionLog: [...(bs.productionLog || []), {
+            itemId: itemId || "unknown",
+            name: itemName,
+            category: category || "weapon",
+            grade: grade || "Standard",
+            qualityScore: qualityScore || 50,
+            tradeValue: forgedItem.tradeValue,
+            militaryBonus: forgedItem.militaryBonus,
+            turn: state.turn,
+            season: state.season,
+            goldCost: goldCost || 0,
+          }],
+        },
+        chronicle: addChronicle(
+          state.chronicle,
+          `The forge produced a ${grade} ${itemName}${isMasterwork ? " — a masterwork!" : grade === "Scrap" ? " — ruined." : "."}${qualityScore ? ` (Quality: ${qualityScore}%)` : ""}`,
+          state.season,
+          state.year,
+          state.turn,
+          "action"
+        ),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // BLACKSMITH_EQUIP_ITEM — Move item from inventory to equipped
+    // -----------------------------------------------------------------------
+    case "BLACKSMITH_EQUIP_ITEM": {
+      const { itemUid } = action.payload ?? {};
+      const bs = state.blacksmith ?? {};
+      const inv = bs.inventory || [];
+      const item = inv.find(i => i.uid === itemUid);
+      if (!item) return state;
+
+      return {
+        ...state,
+        blacksmith: {
+          ...bs,
+          inventory: inv.filter(i => i.uid !== itemUid),
+          equipped: [...(bs.equipped || []), item],
+        },
+        chronicle: addChronicle(
+          state.chronicle,
+          `Equipped a ${item.grade} ${item.name} to the garrison (+${item.militaryBonus} military).`,
+          state.season, state.year, state.turn, "action"
+        ),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // BLACKSMITH_SELL_ITEM — Sell item from inventory for gold
+    // -----------------------------------------------------------------------
+    case "BLACKSMITH_SELL_ITEM": {
+      const { itemUid } = action.payload ?? {};
+      const bs = state.blacksmith ?? {};
+      const inv = bs.inventory || [];
+      const item = inv.find(i => i.uid === itemUid);
+      if (!item) return state;
+
+      const sellPrice = action.payload?.price ?? item.tradeValue ?? 0;
+      return {
+        ...state,
+        denarii: state.denarii + sellPrice,
+        blacksmith: {
+          ...bs,
+          inventory: inv.filter(i => i.uid !== itemUid),
+          totalGoldEarned: (bs.totalGoldEarned || 0) + sellPrice,
+          salesThisSeason: (bs.salesThisSeason || 0) + 1,
+          soldToMortimer: bs.soldToMortimer || (action.payload?.buyerId === "mortimer_agent"),
+          godricRespect: action.payload?.respectCost
+            ? Math.max(0, Math.min(100, (bs.godricRespect || 50) + action.payload.respectCost))
+            : bs.godricRespect,
+        },
+        chronicle: addChronicle(
+          state.chronicle,
+          action.payload?.buyerName
+            ? `Sold a ${item.grade} ${item.name} to ${action.payload.buyerName} for ${sellPrice} denarii.`
+            : `Sold a ${item.grade} ${item.name} for ${sellPrice} denarii.`,
+          state.season, state.year, state.turn, "action"
+        ),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // BLACKSMITH_SCRAP_ITEM — Destroy item, recover partial materials
+    // -----------------------------------------------------------------------
+    case "BLACKSMITH_SCRAP_ITEM": {
+      const { itemUid } = action.payload ?? {};
+      const bs = state.blacksmith ?? {};
+      const inv = bs.inventory || [];
+      const item = inv.find(i => i.uid === itemUid);
+      if (!item) return state;
+
+      const scrapInv = { ...state.inventory };
+      const recovered = {};
+      if (item.cost) {
+        for (const [key, amt] of Object.entries(item.cost)) {
+          if (key !== "gold" && amt > 0) {
+            const rec = Math.floor(amt * 0.4);
+            if (rec > 0) {
+              scrapInv[key] = (scrapInv[key] || 0) + rec;
+              recovered[key] = rec;
+            }
+          }
+        }
+      }
+      const recText = Object.entries(recovered).map(([k, v]) => `${v} ${k}`).join(", ");
+
+      return {
+        ...state,
+        inventory: scrapInv,
+        blacksmith: {
+          ...bs,
+          inventory: inv.filter(i => i.uid !== itemUid),
+        },
+        chronicle: addChronicle(
+          state.chronicle,
+          `Scrapped a ${item.grade} ${item.name}.${recText ? ` Recovered: ${recText}.` : ""}`,
+          state.season, state.year, state.turn, "action"
+        ),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // BLACKSMITH_BUY_RESOURCE — Purchase forge materials from market
+    // -----------------------------------------------------------------------
+    case "BLACKSMITH_BUY_RESOURCE": {
+      const { resource, quantity, totalCost } = action.payload ?? {};
+      if (!resource || !quantity || !totalCost) return state;
+      if (state.denarii < totalCost) return state;
+
+      const buyInv = { ...state.inventory };
+      buyInv[resource] = (buyInv[resource] || 0) + quantity;
+
+      const bsBuy = state.blacksmith ?? {};
+      return {
+        ...state,
+        denarii: state.denarii - totalCost,
+        inventory: buyInv,
+        blacksmith: {
+          ...bsBuy,
+          totalGoldInvested: (bsBuy.totalGoldInvested || 0) + totalCost,
+        },
+        chronicle: addChronicle(
+          state.chronicle,
+          `Purchased ${quantity} ${resource} for ${totalCost} denarii.`,
+          state.season, state.year, state.turn, "action"
+        ),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // BLACKSMITH_VISIT — Track forge visits, adjust respect
+    // -----------------------------------------------------------------------
+    case "BLACKSMITH_VISIT": {
+      const bs = state.blacksmith ?? {};
+      const turnsSinceVisit = state.turn - (bs.lastVisitTurn || 0);
+
+      // +1 respect for visiting, -3 if 3+ turns since last visit
+      let respectDelta = 1;
+      if (turnsSinceVisit >= 3 && bs.lastVisitTurn > 0) {
+        respectDelta = -3;
+      }
+
+      return {
+        ...state,
+        blacksmith: {
+          ...bs,
+          lastVisitTurn: state.turn,
+          godricRespect: Math.max(0, Math.min(100, (bs.godricRespect || 50) + respectDelta)),
+        },
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // BLACKSMITH_ADVANCE_WAT — Cycle Wat's fact index
+    // -----------------------------------------------------------------------
+    case "BLACKSMITH_ADVANCE_WAT": {
+      const bs = state.blacksmith ?? {};
+      return {
+        ...state,
+        blacksmith: {
+          ...bs,
+          watFactIndex: (bs.watFactIndex || 0) + 1,
+        },
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // BLACKSMITH_ADVANCE_BANTER — Cycle banter index
+    // -----------------------------------------------------------------------
+    case "BLACKSMITH_ADVANCE_BANTER": {
+      const bs = state.blacksmith ?? {};
+      return {
+        ...state,
+        blacksmith: {
+          ...bs,
+          banterIndex: (bs.banterIndex || 0) + 1,
+        },
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // BLACKSMITH_DISMISS_SUPPLY_EVENT — Clear after player reads
+    // -----------------------------------------------------------------------
+    case "BLACKSMITH_DISMISS_SUPPLY_EVENT": {
+      const bsEvt = state.blacksmith ?? {};
+      const supplyEvt = bsEvt.activeSupplyEvent;
+      if (!supplyEvt) return state;
+
+      let seInv = { ...state.inventory };
+      let seDenarii = state.denarii;
+      let seText = `Forge event: ${supplyEvt.name}.`;
+
+      if (supplyEvt.effect === "steel_bonus_5") {
+        seInv.steel = (seInv.steel || 0) + 5;
+        seText += " Acquired 5 superior steel bars.";
+      } else if (supplyEvt.effect === "iron_loss_30") {
+        const lost = Math.floor((seInv.iron || 0) * 0.3);
+        seInv.iron = Math.max(0, (seInv.iron || 0) - lost);
+        seText += ` Lost ${lost} iron to rust.`;
+      } else if (supplyEvt.effect === "royal_reward_50") {
+        seDenarii += 50;
+        seText += " Received 50 denarii from the Crown.";
+      }
+
+      return {
+        ...state,
+        denarii: seDenarii,
+        inventory: seInv,
+        blacksmith: {
+          ...bsEvt,
+          activeSupplyEvent: supplyEvt.duration > 0 ? supplyEvt : null,
+          supplyEventTurnsLeft: supplyEvt.duration > 0 ? supplyEvt.duration : 0,
+          usedSupplyEventIds: [...(bsEvt.usedSupplyEventIds || []), supplyEvt.id],
+        },
+        chronicle: addChronicle(state.chronicle, seText, state.season, state.year, state.turn, "event"),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // BLACKSMITH_INVEST_IRON_VEIN — Spend denarii for +iron/season
+    // -----------------------------------------------------------------------
+    case "BLACKSMITH_INVEST_IRON_VEIN": {
+      const bsVein = state.blacksmith ?? {};
+      const veinEvt = bsVein.activeSupplyEvent;
+      if (!veinEvt || veinEvt.effect !== "iron_investment") return state;
+      const veinCost = veinEvt.investCost || 30;
+      if (state.denarii < veinCost) return state;
+
+      return {
+        ...state,
+        denarii: state.denarii - veinCost,
+        blacksmith: {
+          ...bsVein,
+          ironVeinActive: true,
+          activeSupplyEvent: null,
+          supplyEventTurnsLeft: 0,
+          usedSupplyEventIds: [...(bsVein.usedSupplyEventIds || []), veinEvt.id],
+          totalGoldInvested: (bsVein.totalGoldInvested || 0) + veinCost,
+        },
+        chronicle: addChronicle(
+          state.chronicle,
+          `Invested ${veinCost} denarii in the iron vein. +${veinEvt.investReward || 3} iron per season.`,
+          state.season, state.year, state.turn, "action"
+        ),
       };
     }
 

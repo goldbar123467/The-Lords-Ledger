@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from "react";
 import { RAID_TYPES } from "../data/raids.js";
+import { CRIMINAL_DEFENSE_THRESHOLD, SCOTTISH_DEFENSE_THRESHOLD, calculateDefenseRating } from "../data/military.js";
 import { Skull, Swords } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -67,8 +68,8 @@ function ensureStyles() {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function GarrisonComparison({ garrison, required }) {
-  const isReady = garrison >= required;
+function DefenseComparison({ defenseRating, threshold }) {
+  const isReady = defenseRating >= threshold;
   return (
     <div
       className="rounded-lg p-4 my-4 text-center"
@@ -79,20 +80,20 @@ function GarrisonComparison({ garrison, required }) {
     >
       <div className="flex items-center justify-center gap-4 text-3xl font-bold" style={{ fontFamily: "Cinzel, serif" }}>
         <div>
-          <div className="text-sm uppercase tracking-wider mb-1" style={{ color: "#a89070" }}>Your Garrison</div>
-          <span style={{ color: isReady ? "#4a8a3a" : "#c62828" }}>{garrison}</span>
+          <div className="text-sm uppercase tracking-wider mb-1" style={{ color: "#a89070" }}>Defense Rating</div>
+          <span style={{ color: isReady ? "#4a8a3a" : "#c62828" }}>{defenseRating}</span>
         </div>
         <span style={{ color: "#6a5a42", fontSize: "1.5rem" }}>vs</span>
         <div>
           <div className="text-sm uppercase tracking-wider mb-1" style={{ color: "#a89070" }}>Required</div>
-          <span style={{ color: isReady ? "#4a8a3a" : "#c62828" }}>{required}</span>
+          <span style={{ color: isReady ? "#4a8a3a" : "#c62828" }}>{threshold}</span>
         </div>
       </div>
       <div
         className="mt-2 text-sm font-bold uppercase tracking-wider"
         style={{ color: isReady ? "#4a8a3a" : "#c62828" }}
       >
-        {isReady ? "\u2713 YOUR GARRISON IS READY" : "\u2717 YOUR GARRISON IS OUTNUMBERED"}
+        {isReady ? "\u2713 DEFENSES HOLD" : "\u2717 DEFENSES INSUFFICIENT"}
       </div>
     </div>
   );
@@ -165,7 +166,7 @@ function GainLine({ text, delay }) {
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function RaidScreen({ raidState, garrison, onDefend, onContinue }) {
+export default function RaidScreen({ raidState, garrison, military, onDefend, onContinue }) {
   const [showShake, setShowShake] = useState(false);
   const [showParticles, setShowParticles] = useState(false);
 
@@ -239,8 +240,13 @@ export default function RaidScreen({ raidState, garrison, onDefend, onContinue }
             {warningText}
           </p>
 
-          {/* Garrison comparison */}
-          <GarrisonComparison garrison={garrison} required={def.garrisonRequired} />
+          {/* Defense comparison */}
+          {(() => {
+            const mil = military || { garrison: { levy: garrison, menAtArms: 0, knights: 0 }, walls: 1, gate: 0, moat: 0, morale: 50 };
+            const dr = calculateDefenseRating(mil);
+            const threshold = type === "criminal" ? CRIMINAL_DEFENSE_THRESHOLD : SCOTTISH_DEFENSE_THRESHOLD;
+            return <DefenseComparison defenseRating={dr} threshold={threshold} />;
+          })()}
 
           {/* Defend button */}
           <div className="text-center mt-4">
