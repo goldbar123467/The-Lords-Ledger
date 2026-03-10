@@ -96,16 +96,30 @@ export const RODERIC_HISTORICAL_LESSONS = [
 
 export const RODERIC_STRATEGIC_TIPS = [
   (state) => {
-    if ((state.garrison ?? 0) < 5 && state.turn >= 4) {
-      const needed = 5 - (state.garrison ?? 0);
-      return `My recommendation: hire soldiers immediately. ${needed} more men would bring us to criminal defense threshold. It\u2019s cheaper than what the outlaws will take.`;
+    const mil = state.military ?? {};
+    const g = mil.garrison ?? {};
+    const walls = mil.walls ?? 0;
+    const gate = mil.gate ?? 0;
+    const moat = mil.moat ?? 0;
+    const garrisonDef = (g.levy || 0) * 1 + (g.menAtArms || 0) * 3 + (g.knights || 0) * 8;
+    const fortDef = [0,5,15,25,40][walls] + [0,3,7,12,18][gate] + [0,4,10,15][moat];
+    const rating = Math.round((garrisonDef + fortDef) * (1 + (mil.morale ?? 50 > 60 ? 0.1 : 0)));
+    if (rating < 25 && state.turn >= 4) {
+      return `My recommendation: strengthen our defenses immediately. Our defense rating is ${rating} \u2014 we need 25 to repel outlaws. Recruit soldiers or upgrade fortifications.`;
     }
     return null;
   },
   (state) => {
-    if ((state.garrison ?? 0) >= 5 && (state.garrison ?? 0) < 10 && state.turn >= 8) {
-      const needed = 10 - (state.garrison ?? 0);
-      return `We can handle bandits. But the Scots are a different beast. I need ${needed} more soldiers to hold against a border raid. Your call, my lord \u2014 but I\u2019d rather have them and not need them.`;
+    const mil = state.military ?? {};
+    const g = mil.garrison ?? {};
+    const walls = mil.walls ?? 0;
+    const gate = mil.gate ?? 0;
+    const moat = mil.moat ?? 0;
+    const garrisonDef = (g.levy || 0) * 1 + (g.menAtArms || 0) * 3 + (g.knights || 0) * 8;
+    const fortDef = [0,5,15,25,40][walls] + [0,3,7,12,18][gate] + [0,4,10,15][moat];
+    const rating = Math.round((garrisonDef + fortDef) * (1 + (mil.morale ?? 50 > 60 ? 0.1 : 0)));
+    if (rating >= 25 && rating < 50 && state.turn >= 8) {
+      return `We can handle bandits. But the Scots are a different beast. Our defense rating is ${rating} \u2014 we need 50 to hold against a border raid. Upgrade walls or recruit men-at-arms.`;
     }
     return null;
   },

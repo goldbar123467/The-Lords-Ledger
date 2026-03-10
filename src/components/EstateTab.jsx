@@ -106,7 +106,7 @@ function TipBar({ state }) {
   });
   const buildingsNeedRepair = buildings.some((b) => typeof b !== "string" && (b.condition ?? 100) < 75);
   const buildingsRuined = buildings.some((b) => typeof b !== "string" && (b.condition ?? 100) <= 24);
-  const netIncome = getPassiveIncome(state.castleLevel, buildings) - getTotalBuildingUpkeep(buildings) - getGarrisonUpkeep(state.garrison);
+  const netIncome = getPassiveIncome(state.castleLevel, buildings) - getTotalBuildingUpkeep(buildings) - getGarrisonUpkeep(state.garrison, state.military);
 
   let tip = "";
   if (state.turn === 1 && buildings.length === 0) {

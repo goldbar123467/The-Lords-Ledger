@@ -198,7 +198,8 @@ export const MARTA_MARKET_TIPS = [
   "Iron is expensive to mine but every castle upgrade demands it. Control your own supply or you\u2019ll pay through the nose at market.",
   (state) => {
     const bUpkeep = (state.buildings || []).length * 3;
-    const gUpkeep = (state.garrison || 0) * 2;
+    const mil = state.military?.garrison || {};
+    const gUpkeep = (mil.levy || 0) * 1 + (mil.menAtArms || 0) * 3 + (mil.knights || 0) * 8;
     return `I\u2019ve seen lords go bankrupt building everything at once. Your upkeep is roughly ${bUpkeep + gUpkeep}d per season \u2014 can your income cover that?`;
   },
   "The Church buys herbs and honey for their infirmaries. A steady supplier earns both coin and favor.",
