@@ -27,6 +27,7 @@ import RaidScreen from "./components/RaidScreen";
 import GreatHall from "./components/GreatHall";
 import ChapelTab from "./components/ChapelTab";
 import BlacksmithTab from "./components/BlacksmithTab";
+import TutorialPopup from "./components/TutorialPopup";
 
 
 const seasonalEvents = Object.values(seasonalEventsData).flat();
@@ -61,6 +62,7 @@ export default function App() {
     cyoaEndingType,
     pendingSynergyNotifications,
     synergies,
+    tutorialsSeen,
   } = state;
 
   const payload = useMemo(
@@ -169,6 +171,10 @@ export default function App() {
     dispatch({ type: "DISMISS_SYNERGY_NOTIFICATION" });
   }
 
+  function handleDismissTutorial(tab) {
+    dispatch({ type: "DISMISS_TUTORIAL", payload: { tab } });
+  }
+
   // --- Raid handlers ---
   function handleRaidDefend() {
     dispatch({ type: "RAID_DEFEND" });
@@ -234,6 +240,7 @@ export default function App() {
   }, [currentFlipId, flipConsequenceFlags, phase, cyoaEndingType]);
 
   const displayTab = isEventPhase ? "chronicle" : activeTab;
+  const showTutorial = isManagement && !isFlipPhase && !tutorialsSeen?.includes(displayTab);
 
   // --- Title Screen ---
   if (phase === "title") {
@@ -270,6 +277,14 @@ export default function App() {
     >
       {/* Scribe's Note overlay */}
       <ScribesNote text={scribesNote} onDismiss={handleDismissScribesNote} />
+
+      {/* Tutorial popup for first tab visit */}
+      {showTutorial && (
+        <TutorialPopup
+          tab={displayTab}
+          onDismiss={() => handleDismissTutorial(displayTab)}
+        />
+      )}
 
       {/* Raid overlay */}
       {isRaidPhase && state.raids?.activeRaid && (

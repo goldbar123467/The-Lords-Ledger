@@ -111,6 +111,7 @@ export const initialState = {
 
   // UI state
   activeTab: "estate",
+  tutorialsSeen: [],
   seasonReport: [],
 
   // Event system
@@ -562,6 +563,12 @@ export function gameReducer(state, action) {
       const { tab } = action.payload ?? {};
       if (!tab) return state;
       return { ...state, activeTab: tab };
+    }
+
+    case "DISMISS_TUTORIAL": {
+      const { tab } = action.payload ?? {};
+      if (!tab || state.tutorialsSeen.includes(tab)) return state;
+      return { ...state, tutorialsSeen: [...state.tutorialsSeen, tab] };
     }
 
     // -----------------------------------------------------------------------
