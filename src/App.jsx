@@ -289,6 +289,7 @@ export default function App() {
           food={food}
           population={population}
           garrison={state.garrison}
+          morale={state.military?.morale ?? 50}
           faith={state.chapel?.faith ?? 50}
           piety={state.chapel?.piety ?? 30}
           season={season}

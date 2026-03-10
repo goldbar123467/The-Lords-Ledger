@@ -6,13 +6,15 @@
  * Row 2: Season info, turn progress bar
  */
 
-import { Coins, Wheat, Users, Swords, Cross, Church } from "lucide-react";
+import { Coins, Wheat, Users, Swords, Cross, Church, Heart } from "lucide-react";
+import { getMoraleLevel } from "../data/military.js";
 
 const RESOURCE_THEMES = {
   denarii: { color: "#c4a24a", Icon: Coins },
   food: { color: "#4a8a3a", Icon: Wheat },
   families: { color: "#2962a8", Icon: Users },
   garrison: { color: "#8b1a1a", Icon: Swords },
+  morale: { color: "#d48a2a", Icon: Heart },
   faith: { color: "#7eb8d4", Icon: Cross },
   piety: { color: "#b89adb", Icon: Church },
 };
@@ -71,6 +73,56 @@ function ResourceStat({ resourceKey, label, value, warning, delta }) {
             {delta > 0 ? `+${delta}` : delta}
           </span>
         )}
+      </div>
+    </div>
+  );
+}
+
+function MoraleStat({ morale }) {
+  const level = getMoraleLevel(morale);
+  const warning = morale <= 20;
+
+  return (
+    <div
+      className={`flex flex-col items-center gap-1 px-3 py-2${warning ? " critical-pulse" : ""}`}
+      style={{
+        minWidth: 80,
+        borderBottom: `3px solid ${level.color}`,
+      }}
+    >
+      <div className="flex items-center gap-1.5">
+        <Heart size={16} color="#a89070" aria-hidden="true" />
+        <span
+          className="font-heading font-semibold"
+          style={{
+            color: "#a89070",
+            fontSize: "0.7rem",
+            fontVariant: "small-caps",
+            letterSpacing: "2px",
+            textTransform: "uppercase",
+          }}
+        >
+          Morale
+        </span>
+      </div>
+      <div className="flex flex-col items-center">
+        <span
+          className="text-2xl"
+          style={{
+            color: level.color,
+            fontWeight: 700,
+            transition: "all 0.5s ease",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {morale}
+        </span>
+        <span
+          className="text-xs font-semibold"
+          style={{ color: level.color, lineHeight: 1 }}
+        >
+          {level.label}
+        </span>
       </div>
     </div>
   );
@@ -214,6 +266,7 @@ export default function Dashboard({
   food,
   population,
   garrison,
+  morale,
   faith,
   piety,
   season,
@@ -268,6 +321,7 @@ export default function Dashboard({
             warning={garrison <= 0}
             delta={deltas.garrison}
           />
+          <MoraleStat morale={morale ?? 50} />
           <ResourceStat
             resourceKey="faith"
             label="Faith"
