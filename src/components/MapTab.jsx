@@ -888,7 +888,10 @@ export default function MapTab({ state, onOpenTavern, onOpenWatchtower, onOpenMa
   // Count built instances of each building type
   const counts = useMemo(() => {
     const c = {};
-    buildings.forEach((id) => { c[id] = (c[id] || 0) + 1; });
+    buildings.forEach((b) => {
+      const id = typeof b === "string" ? b : b.type;
+      c[id] = (c[id] || 0) + 1;
+    });
     return c;
   }, [buildings]);
 
