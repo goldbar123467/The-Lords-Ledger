@@ -156,3 +156,119 @@ button:active:not(:disabled) {
   height: 1px;
   background: var(--color-gold-dim);
 }
+
+/* ============================================================
+   TAVERN STYLES
+   ============================================================ */
+
+/* Tavern enter/exit overlay transition */
+@keyframes tavern-enter {
+  0% { opacity: 0; }
+  40% { opacity: 1; background-color: rgba(10, 8, 4, 1); }
+  100% { opacity: 1; background-color: transparent; }
+}
+
+.tavern-enter {
+  animation: tavern-enter 600ms ease forwards;
+}
+
+/* Tavern grain texture overlay */
+.tavern-grain {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+}
+
+/* Tavern card hover glow */
+.tavern-card {
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.tavern-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 16px rgba(196, 162, 74, 0.25);
+}
+
+/* Knight's Gambit card flip */
+@keyframes gambit-flip {
+  0% { transform: rotateY(180deg); }
+  100% { transform: rotateY(0deg); }
+}
+
+.gambit-flip {
+  animation: gambit-flip 500ms ease forwards;
+}
+
+/* Gold particle burst for win */
+@keyframes gold-burst {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.3); }
+}
+
+/* Screen shake for loss */
+@keyframes tavern-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+
+.tavern-shake {
+  animation: tavern-shake 300ms ease;
+}
+
+/* Red vignette for loss */
+@keyframes red-vignette {
+  0% { opacity: 0.5; }
+  100% { opacity: 0; }
+}
+
+/* Float up text for rats game */
+@keyframes float-up {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-20px); }
+}
+
+.float-up {
+  animation: float-up 800ms ease forwards;
+}
+
+/* Rat appear/disappear */
+@keyframes rat-appear {
+  0% { transform: scale(0); }
+  100% { transform: scale(1); }
+}
+
+.rat-appear {
+  animation: rat-appear 150ms ease forwards;
+}
+
+/* Cell flash for rat catch */
+@keyframes cell-flash-green {
+  0% { background-color: rgba(74, 138, 58, 0.5); }
+  100% { background-color: transparent; }
+}
+
+@keyframes cell-flash-red {
+  0% { background-color: rgba(198, 40, 40, 0.4); }
+  100% { background-color: transparent; }
+}
+
+/* Win amount float */
+@keyframes win-float {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-30px); }
+}
+
+.win-float {
+  animation: win-float 1200ms ease forwards;
+}
+
+/* Bard's Corner — quill-scratch text reveal */
+@keyframes quill-appear {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.quill-appear {
+  animation: quill-appear 400ms ease forwards;
+}

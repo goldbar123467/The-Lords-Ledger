@@ -22,6 +22,7 @@ import VictoryScreen from "./components/VictoryScreen";
 import FlipScreen from "./components/FlipScreen";
 import SynergyToast from "./components/SynergyToast";
 import TutorialHint from "./components/TutorialHint";
+import Tavern from "./components/Tavern";
 
 
 const seasonalEvents = Object.values(seasonalEventsData).flat();
@@ -92,6 +93,7 @@ export default function App() {
   }
 
   function handleSetTab(tab) {
+    setTavernOpen(false);
     dispatch({ type: "SET_TAB", payload: { tab } });
   }
 
@@ -160,16 +162,18 @@ export default function App() {
     dispatch({ type: "DISMISS_SYNERGY_NOTIFICATION" });
   }
 
+  const [tavernOpen, setTavernOpen] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
 
   const handleSimulateSeason = useCallback(() => {
     if (isResolving) return;
+    setTavernOpen(false);
     setIsResolving(true);
     requestAnimationFrame(() => {
       dispatch({ type: "SIMULATE_SEASON", payload });
       setIsResolving(false);
     });
-  }, [isResolving, payload]);
+  }, [isResolving, payload, setTavernOpen]);
 
   // --- Computed values ---
   const isManagement = phase === "management";
@@ -304,7 +308,15 @@ export default function App() {
 
         {/* --- MAP TAB --- */}
         {!isFlipPhase && displayTab === "map" && isManagement && (
-          <MapTab state={state} />
+          tavernOpen ? (
+            <Tavern
+              state={state}
+              dispatch={dispatch}
+              onClose={() => setTavernOpen(false)}
+            />
+          ) : (
+            <MapTab state={state} onOpenTavern={() => setTavernOpen(true)} />
+          )
         )}
 
         {/* --- TRADE TAB --- */}

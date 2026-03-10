@@ -552,7 +552,7 @@ function SmokePuff({ x, y, delay }) {
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function MapTab({ state }) {
+export default function MapTab({ state, onOpenTavern }) {
   const { buildings, castleLevel, population, season } = state;
   const pal = SEASON_PALETTE[season] || SEASON_PALETTE.spring;
 
@@ -774,6 +774,95 @@ export default function MapTab({ state }) {
             }}
           />
         )}
+
+        {/* ---- TAVERN (clickable) ---- */}
+        <button
+          onClick={onOpenTavern}
+          style={{
+            position: "absolute",
+            left: "36%",
+            top: "62%",
+            transform: "translate(-50%, -50%)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            zIndex: 16,
+            background: "none",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+          }}
+          title="Enter the Boar's Head Tavern"
+        >
+          {/* Building body */}
+          <div style={{ position: "relative", width: "38px", height: "28px" }}>
+            {/* Roof */}
+            <div style={{
+              position: "absolute",
+              top: "-9px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: 0,
+              height: 0,
+              borderLeft: "21px solid transparent",
+              borderRight: "21px solid transparent",
+              borderBottom: "11px solid #7a4a2a",
+              filter: "drop-shadow(0 -1px 1px rgba(0,0,0,0.15))",
+            }} />
+            {/* Hanging sign */}
+            <div style={{
+              position: "absolute",
+              top: "-16px",
+              right: "-8px",
+              width: "2px",
+              height: "10px",
+              backgroundColor: "#5a3a20",
+            }}>
+              <div style={{
+                position: "absolute",
+                bottom: 0,
+                left: "-5px",
+                width: "12px",
+                height: "8px",
+                backgroundColor: "#3a2515",
+                border: "1px solid #c4a24a",
+                borderRadius: "1px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}>
+                <span style={{ fontSize: "5px", color: "#c4a24a", lineHeight: 1 }}>{"\u2615"}</span>
+              </div>
+            </div>
+            {/* Walls */}
+            <div style={{
+              width: "100%",
+              height: "100%",
+              backgroundColor: "#d8c098",
+              border: "1.5px solid #7a4a2a",
+              borderRadius: "1px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "1px 2px 3px rgba(0,0,0,0.15)",
+            }}>
+              <span style={{ fontSize: "14px", lineHeight: 1 }}>{"\u26EA"}</span>
+            </div>
+          </div>
+          {/* Name */}
+          <span style={{
+            fontSize: "7px",
+            fontFamily: "Cinzel, serif",
+            fontWeight: "700",
+            color: "#c4a24a",
+            textShadow: "0 0 4px rgba(10, 8, 4, 0.9), 0 0 4px rgba(10, 8, 4, 0.9)",
+            whiteSpace: "nowrap",
+            marginTop: "1px",
+            letterSpacing: "0.3px",
+          }}>
+            Tavern
+          </span>
+        </button>
 
         {/* ---- COMPASS ROSE ---- */}
         <div

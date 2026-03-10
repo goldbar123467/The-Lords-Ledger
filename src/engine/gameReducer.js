@@ -111,6 +111,23 @@ export const initialState = {
     foodSurplusTurns: 0,
   },
   pendingSynergyNotifications: [],
+
+  // Tavern state
+  tavern: {
+    gambitRoundsThisSeason: 0,
+    gambitLastChoice: null,
+    gambitTotalWins: 0,
+    gambitTotalLosses: 0,
+    gambitNetEarnings: 0,
+    ratsPlayedThisSeason: false,
+    ratsBestScore: 0,
+    bardRiddlesSolved: 0,
+    wallStashFound: false,
+    strangerAppearedThisSeason: false,
+    totalVisits: 0,
+    gambitScribesNoteSeen: false,
+    ratsScribesNoteSeen: false,
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -310,6 +327,21 @@ export function gameReducer(state, action) {
           lowTaxTurns: 0, foodSurplusTurns: 0,
         },
         pendingSynergyNotifications: [],
+        tavern: {
+          gambitRoundsThisSeason: 0,
+          gambitLastChoice: null,
+          gambitTotalWins: 0,
+          gambitTotalLosses: 0,
+          gambitNetEarnings: 0,
+          ratsPlayedThisSeason: false,
+          ratsBestScore: 0,
+          bardRiddlesSolved: 0,
+          wallStashFound: false,
+          strangerAppearedThisSeason: false,
+          totalVisits: 0,
+          gambitScribesNoteSeen: false,
+          ratsScribesNoteSeen: false,
+        },
       };
     }
 
@@ -655,6 +687,14 @@ export function gameReducer(state, action) {
         seasonalEvents,
       );
 
+      // Reset tavern seasonal limits
+      const tavernSeasonReset = {
+        ...state.tavern,
+        gambitRoundsThisSeason: 0,
+        ratsPlayedThisSeason: false,
+        strangerAppearedThisSeason: false,
+      };
+
       return {
         ...state,
         denarii: econResult.denarii,
@@ -676,6 +716,7 @@ export function gameReducer(state, action) {
         usedSeasonalIds: nextUsedSeasonalIds,
         activeTab: "chronicle",
         churchDonation: 0,
+        tavern: tavernSeasonReset,
       };
     }
 
@@ -1065,6 +1106,166 @@ export function gameReducer(state, action) {
       return {
         ...state,
         pendingSynergyNotifications: queue.slice(1),
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // TAVERN ACTIONS
+    // -----------------------------------------------------------------------
+
+    case "TAVERN_VISIT": {
+      if (state.phase !== "management") return state;
+      const prevTavern = state.tavern ?? {};
+      return {
+        ...state,
+        tavern: {
+          ...prevTavern,
+          totalVisits: (prevTavern.totalVisits ?? 0) + 1,
+        },
+        chronicle: addChronicle(state.chronicle, "You visited the Boar\u2019s Head Tavern.", state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    case "TAVERN_GAMBIT_RESULT": {
+      if (state.phase !== "management") return state;
+      const { result, wager } = action.payload ?? {};
+      // result: "win" | "lose" | "draw"
+      const prevT = state.tavern ?? {};
+      const net = result === "win" ? wager : result === "lose" ? -wager : 0;
+      const newDenarii = Math.max(0, state.denarii + net);
+
+      const label = result === "win" ? "won" : result === "lose" ? "lost" : "drew at";
+      const absNet = Math.abs(net);
+
+      return {
+        ...state,
+        denarii: newDenarii,
+        tavern: {
+          ...prevT,
+          gambitRoundsThisSeason: (prevT.gambitRoundsThisSeason ?? 0) + 1,
+          gambitTotalWins: (prevT.gambitTotalWins ?? 0) + (result === "win" ? 1 : 0),
+          gambitTotalLosses: (prevT.gambitTotalLosses ?? 0) + (result === "lose" ? 1 : 0),
+          gambitNetEarnings: (prevT.gambitNetEarnings ?? 0) + net,
+        },
+        chronicle: addChronicle(
+          state.chronicle,
+          result === "draw"
+            ? `You ${label} Knight\u2019s Gambit. No coins changed hands.`
+            : `You ${label} ${absNet}d at Knight\u2019s Gambit.`,
+          state.season, state.year, state.turn, "action",
+        ),
+      };
+    }
+
+    case "TAVERN_GAMBIT_SET_LAST": {
+      const { choice } = action.payload ?? {};
+      return {
+        ...state,
+        tavern: { ...state.tavern, gambitLastChoice: choice },
+      };
+    }
+
+    case "TAVERN_GAMBIT_SCRIBES_NOTE_SEEN": {
+      return {
+        ...state,
+        tavern: { ...state.tavern, gambitScribesNoteSeen: true },
+      };
+    }
+
+    case "TAVERN_RATS_RESULT": {
+      if (state.phase !== "management") return state;
+      const { caught, foodLost, reward } = action.payload ?? {};
+      const prevTav = state.tavern ?? {};
+      const newFood = Math.max(0, state.food - foodLost);
+      const newDen = state.denarii + (reward ?? 0);
+
+      // Apply food loss to inventory (remove from grain first, then livestock, then fish)
+      let remainingLoss = foodLost;
+      const newInv = { ...state.inventory };
+      for (const key of ["grain", "livestock", "fish"]) {
+        if (remainingLoss <= 0) break;
+        const available = newInv[key] || 0;
+        const take = Math.min(available, remainingLoss);
+        newInv[key] = available - take;
+        remainingLoss -= take;
+      }
+
+      return {
+        ...state,
+        denarii: newDen,
+        food: newFood,
+        inventory: newInv,
+        tavern: {
+          ...prevTav,
+          ratsPlayedThisSeason: true,
+          ratsBestScore: Math.max(prevTav.ratsBestScore ?? 0, caught),
+        },
+        chronicle: addChronicle(
+          state.chronicle,
+          `You cleared ${caught} rats from the cellar. ${foodLost > 0 ? `${foodLost} food was lost to vermin.` : "No food was lost!"}${reward > 0 ? ` Earned ${reward}d for your efforts.` : ""}`,
+          state.season, state.year, state.turn, "action",
+        ),
+      };
+    }
+
+    case "TAVERN_RATS_SCRIBES_NOTE_SEEN": {
+      return {
+        ...state,
+        tavern: { ...state.tavern, ratsScribesNoteSeen: true },
+      };
+    }
+
+    case "TAVERN_BARD_RIDDLE_SOLVED": {
+      if (state.phase !== "management") return state;
+      const prevTvn = state.tavern ?? {};
+      return {
+        ...state,
+        denarii: state.denarii + 10,
+        tavern: {
+          ...prevTvn,
+          bardRiddlesSolved: (prevTvn.bardRiddlesSolved ?? 0) + 1,
+        },
+        chronicle: addChronicle(state.chronicle, "The bard\u2019s riddle earned you 10d.", state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    case "TAVERN_WALL_STASH": {
+      if (state.phase !== "management") return state;
+      const prevTv = state.tavern ?? {};
+      if (prevTv.wallStashFound) return state;
+      return {
+        ...state,
+        denarii: state.denarii + 25,
+        tavern: { ...prevTv, wallStashFound: true },
+        chronicle: addChronicle(state.chronicle, "You found a hidden coin purse in the tavern wall! +25d.", state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    case "TAVERN_STRANGER_TRADE": {
+      if (state.phase !== "management") return state;
+      const { cost, foodReward } = action.payload ?? {};
+      if (state.denarii < cost) return state;
+      const prevTa = state.tavern ?? {};
+
+      const newInvStr = { ...state.inventory };
+      newInvStr.grain = (newInvStr.grain || 0) + (foodReward ?? 0);
+
+      return {
+        ...state,
+        denarii: state.denarii - cost,
+        inventory: newInvStr,
+        food: getTotalFood(newInvStr),
+        tavern: { ...prevTa, strangerAppearedThisSeason: true },
+        chronicle: addChronicle(state.chronicle, "A mysterious stranger sold you provisions.", state.season, state.year, state.turn, "action"),
+      };
+    }
+
+    case "TAVERN_STRANGER_DISMISS": {
+      const prevTab = state.tavern ?? {};
+      return {
+        ...state,
+        tavern: { ...prevTab, strangerAppearedThisSeason: true },
+        chronicle: addChronicle(state.chronicle, "A mysterious stranger offered you counsel.", state.season, state.year, state.turn, "action"),
       };
     }
 
