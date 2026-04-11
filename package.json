@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "npx playwright test",
+    "test:visual": "npx playwright test tests/e2e/visual/",
+    "test:update-snapshots": "npx playwright test --update-snapshots",
+    "test:report": "npx playwright show-report"
   },
   "dependencies": {
     "@vercel/analytics": "^1.6.1",
@@ -17,6 +21,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.2.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
