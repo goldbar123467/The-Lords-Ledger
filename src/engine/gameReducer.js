@@ -1544,8 +1544,8 @@ export function gameReducer(state, action) {
           garrison: econResult.garrison,
         }),
         bankruptcyTurns,
-        phase: seasonalEvent ? "seasonal_action" : "seasonal_resolve",
-        currentEvent: seasonalEvent,
+        phase: (seasonalEvent && seasonalEvent.options?.length > 0) ? "seasonal_action" : "seasonal_resolve",
+        currentEvent: (seasonalEvent && seasonalEvent.options?.length > 0) ? seasonalEvent : null,
         usedSeasonalIds: nextUsedSeasonalIds,
         activeTab: "chronicle",
         churchDonation: 0,
@@ -1764,7 +1764,8 @@ export function gameReducer(state, action) {
         raids: updatedRaids,
         military: updatedRaidMil,
         bankruptcyTurns: raidBankruptcyTurns,
-        phase: state.currentEvent ? "seasonal_action" : "seasonal_resolve",
+        scribesNote: null,
+        phase: (state.currentEvent && state.currentEvent.options?.length > 0) ? "seasonal_action" : "seasonal_resolve",
         activeTab: "chronicle",
         resourceDeltas: {
           denarii: newDenarii - state.denarii,
@@ -2038,7 +2039,8 @@ export function gameReducer(state, action) {
           scribesNote: null,
           seasonReport: [],
           synergies: synergiesAfterCheck,
-          pendingSynergyNotifications: synNotifications,
+          pendingSynergyNotifications: [],
+          deferredSynergyNotifications: synNotifications,
           market: advanceMarket,
           greatHall: advanceHall,
           // Flip state
@@ -2475,7 +2477,8 @@ export function gameReducer(state, action) {
         watchtower: flipWtReset,
         blacksmith: flipBsReset,
         synergies: flipSynergiesAfterCheck,
-        pendingSynergyNotifications: flipSynNotifications,
+        pendingSynergyNotifications: [...(state.deferredSynergyNotifications ?? []), ...flipSynNotifications],
+        deferredSynergyNotifications: [],
       };
     }
 
