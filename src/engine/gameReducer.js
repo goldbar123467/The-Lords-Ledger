@@ -108,6 +108,8 @@ export const initialState = {
 
   // Bankruptcy tracking (4 consecutive turns at 0 denarii = game over)
   bankruptcyTurns: 0,
+  // Starvation tracking (3 consecutive turns at 0 food = game over)
+  starvationTurns: 0,
 
   // UI state
   activeTab: "estate",
@@ -406,7 +408,7 @@ function applyChoice(state, event, optionIndex, chronicleType) {
 
   // Reconcile typed garrison with flat garrison changes from events
   const garrisonDelta = applied.garrison - state.garrison;
-  let updatedMilitary = state.military;
+  let updatedMilitary = applied.military || state.military;
   if (garrisonDelta !== 0 && updatedMilitary) {
     const milGarrison = { ...updatedMilitary.garrison };
     if (garrisonDelta > 0) {
@@ -525,6 +527,7 @@ export function gameReducer(state, action) {
         seasonReport: [],
         resourceDeltas: { denarii: 0, food: 0, population: 0, garrison: 0 },
         bankruptcyTurns: 0,
+        starvationTurns: 0,
         synergies: {
           activated: [], tradeTypes: [], woolTrades: 0, spicePurchases: 0,
           lowTaxTurns: 0, foodSurplusTurns: 0,
@@ -1221,23 +1224,32 @@ export function gameReducer(state, action) {
       if (upkeepCost > 0 && econResult.denarii >= 0) {
         milMorale = Math.min(100, milMorale + 3);
       } else if (upkeepCost > 0 && econResult.denarii <= 0) {
-        milMorale = Math.max(0, milMorale - 15);
+        milMorale = Math.max(0, milMorale - 10);
       }
 
-      // Morale: food stores (tiered thresholds for gradual recovery)
-      if (econResult.food > 200) {
+      // Morale: food stores (tiered thresholds scaled to population)
+      const foodPerPerson = econResult.population > 0 ? econResult.food / econResult.population : 0;
+      if (foodPerPerson > 5) {
         milMorale = Math.min(100, milMorale + 5);
-      } else if (econResult.food > 100) {
+      } else if (foodPerPerson > 3) {
         milMorale = Math.min(100, milMorale + 2);
-      } else if (econResult.food < 25) {
-        milMorale = Math.max(0, milMorale - 10);
-      } else if (econResult.food < 50) {
-        milMorale = Math.max(0, milMorale - 5);
+      } else if (econResult.food <= 0) {
+        milMorale = Math.max(0, milMorale - 15);
+      } else if (foodPerPerson < 1) {
+        milMorale = Math.max(0, milMorale - 8);
+      } else if (foodPerPerson < 2) {
+        milMorale = Math.max(0, milMorale - 3);
       }
 
       // Morale: population unhappiness
       if (econResult.population < 10) {
-        milMorale = Math.max(0, milMorale - 5);
+        milMorale = Math.max(0, milMorale - 3);
+      }
+
+      // Morale: passive recovery — even in bad times, morale slowly drifts toward a baseline
+      // This prevents morale from being permanently stuck at 0
+      if (milMorale < 30) {
+        milMorale = Math.min(30, milMorale + 2);
       }
 
       // Track idle seasons (used for narrative flavor, no morale penalty)
@@ -1285,6 +1297,14 @@ export function gameReducer(state, action) {
         bankruptcyTurns += 1;
       } else {
         bankruptcyTurns = 0;
+      }
+
+      // 2b. Track starvation (food at 0 for consecutive turns)
+      let starvationTurns = state.starvationTurns || 0;
+      if (econResult.food <= 0) {
+        starvationTurns += 1;
+      } else {
+        starvationTurns = 0;
       }
 
       // 3. Add economic report to chronicle
@@ -1341,6 +1361,8 @@ export function gameReducer(state, action) {
       const afterState = {
         population: econResult.population,
         bankruptcyTurns,
+        starvationTurns,
+        difficulty: state.difficulty,
       };
       const econGameOver = checkGameOver(afterState);
       if (econGameOver) {
@@ -1362,6 +1384,7 @@ export function gameReducer(state, action) {
             garrison: econResult.garrison,
           }),
           bankruptcyTurns,
+          starvationTurns,
           phase: "game_over",
           gameOverReason: econGameOver,
           currentEvent: null,
@@ -1507,6 +1530,7 @@ export function gameReducer(state, action) {
             garrison: econResult.garrison,
           }),
           bankruptcyTurns,
+          starvationTurns,
           phase: "raid_warning",
           currentEvent: seasonalEvent,
           usedSeasonalIds: nextUsedSeasonalIds,
@@ -1543,6 +1567,7 @@ export function gameReducer(state, action) {
           garrison: econResult.garrison,
         }),
         bankruptcyTurns,
+        starvationTurns,
         phase: seasonalEvent ? "seasonal_action" : "seasonal_resolve",
         currentEvent: seasonalEvent,
         usedSeasonalIds: nextUsedSeasonalIds,
@@ -1723,7 +1748,7 @@ export function gameReducer(state, action) {
       };
 
       // Check game over after raid losses
-      const postRaidState = { population: newPopulation, bankruptcyTurns: state.bankruptcyTurns };
+      const postRaidState = { population: newPopulation, bankruptcyTurns: state.bankruptcyTurns, starvationTurns: state.starvationTurns, difficulty: state.difficulty };
       const raidGameOver = checkGameOver(postRaidState);
       if (raidGameOver) {
         return {

@@ -432,8 +432,9 @@ export function simulateEconomy(state) {
     // On Hard difficulty, complete food exhaustion can kill the last family (no immortal floor)
     const totalFoodAfter = getTotalFood(currentInventory);
     const floorPop = (difficulty === "hard" && totalFoodAfter === 0) ? 0 : 1;
-    const maxAttrition = Math.max(1, Math.ceil(currentPopulation * 0.2));
-    const familiesLeave = Math.min(currentPopulation - floorPop, maxAttrition, Math.round(Math.min(5, consumption.shortfall) * penaltyScale));
+    const maxAttrition = Math.max(1, Math.ceil(currentPopulation * 0.25));
+    const baseAttrition = Math.max(1, Math.ceil(consumption.shortfall * penaltyScale));
+    const familiesLeave = Math.min(currentPopulation - floorPop, maxAttrition, baseAttrition);
     if (familiesLeave > 0) {
       currentPopulation -= familiesLeave;
       report.push(`${familiesLeave} ${familiesLeave === 1 ? "family" : "families"} left due to hunger.`);
@@ -594,6 +595,16 @@ export function simulateEconomy(state) {
   // Decline from starvation
   if (consumption.shortfall > 0 && populationChange > 0) {
     populationChange = 0; // Cancel growth during famine
+  }
+
+  // Population recovery — when critically low, wandering families trickle in
+  // This prevents an unrecoverable death spiral
+  if (currentPopulation > 0 && currentPopulation < 10 && consumption.shortfall === 0 && populationChange <= 0) {
+    // Higher chance of recovery when population is lower
+    const recoveryChance = currentPopulation < 5 ? 0.7 : 0.5;
+    if (Math.random() < recoveryChance) {
+      populationChange = 1;
+    }
   }
 
   currentPopulation = Math.max(0, currentPopulation + populationChange);

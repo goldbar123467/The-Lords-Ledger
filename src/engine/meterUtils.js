@@ -25,12 +25,16 @@
 export function translateEffects(effects) {
   if (!effects) return { denarii: 0, food: 0, population: 0, garrison: 0 };
 
-  const result = { denarii: 0, food: 0, population: 0, garrison: 0 };
+  const result = { denarii: 0, food: 0, population: 0, garrison: 0, morale: 0 };
 
   // Translate old meter keys to resource effects
   if (effects.treasury) result.denarii += effects.treasury * 10;
   if (effects.people) result.food += effects.people * 3;
-  if (effects.military) result.garrison += effects.military > 0 ? Math.ceil(effects.military / 5) : Math.floor(effects.military / 5);
+  if (effects.military) {
+    result.garrison += effects.military > 0 ? Math.ceil(effects.military / 5) : Math.floor(effects.military / 5);
+    // Military events also affect garrison morale
+    result.morale += effects.military * 3;
+  }
   if (effects.faith) result.denarii += effects.faith * 5;
 
   // Direct resource keys override/stack
@@ -38,6 +42,7 @@ export function translateEffects(effects) {
   if (effects.food) result.food += effects.food;
   if (effects.population) result.population += effects.population;
   if (effects.garrison) result.garrison += effects.garrison;
+  if (effects.morale) result.morale += effects.morale;
 
   return result;
 }
@@ -69,12 +74,21 @@ export function applyResourceEffects(state, resourceEffects, maxGarrison = 25) {
   const FOOD_RESOURCES = ["grain", "livestock", "fish"];
   const newFood = FOOD_RESOURCES.reduce((sum, r) => sum + (newInventory[r] || 0), 0);
 
+  // Apply morale changes to military state
+  let newMilitary = state.military;
+  if (resourceEffects.morale && newMilitary) {
+    const currentMorale = newMilitary.morale ?? 50;
+    const newMorale = Math.max(0, Math.min(100, currentMorale + resourceEffects.morale));
+    newMilitary = { ...newMilitary, morale: newMorale };
+  }
+
   return {
     denarii: newDenarii,
     population: newPopulation,
     garrison: newGarrison,
     inventory: newInventory,
     food: newFood,
+    military: newMilitary,
   };
 }
 
@@ -99,6 +113,13 @@ export function checkGameOver(state) {
     return {
       type: "bankruptcy",
       reason: "Your creditors have seized the estate after seasons of empty coffers.",
+    };
+  }
+  const famineThreshold = state.difficulty === "easy" ? 4 : state.difficulty === "hard" ? 2 : 3;
+  if ((state.starvationTurns || 0) >= famineThreshold) {
+    return {
+      type: "famine",
+      reason: "After seasons of famine, your people have scattered to seek sustenance elsewhere.",
     };
   }
   return null;
