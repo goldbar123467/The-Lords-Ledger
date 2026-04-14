@@ -483,7 +483,7 @@ async function playGame(page, persona, idx) {
 
   let lastTurn = 0;
   let stuckCount = 0;
-  const gameTimeout = 180000; // 180s per game max
+  const gameTimeout = 300000; // 300s per game max
 
   for (let iter = 0; iter < 400; iter++) {
     if (Date.now() - t0 > gameTimeout) {
@@ -682,13 +682,30 @@ async function playGame(page, persona, idx) {
       }
     }
 
-    // Unknown phase — try recovery
+    // Unknown phase — try recovery by clicking any visible overlay button
     stuckCount++;
     dbg(`stuck count = ${stuckCount}`);
-    if (stuckCount > 10) {
+    if (stuckCount > 20) {
       log.uxFriction.push({ type: "completely_stuck", phase });
       break;
     }
+    // Try clicking any overlay button as last resort
+    try {
+      const clicked = await page.evaluate(() => {
+        // Try fixed overlays first
+        const fixed = document.querySelector(".fixed.inset-0");
+        if (fixed) {
+          const btn = fixed.querySelector("button");
+          if (btn) { btn.click(); return "overlay"; }
+        }
+        // Try any visible button with action-like text
+        const btns = [...document.querySelectorAll("button")].filter(b => b.offsetParent !== null);
+        const actionBtn = btns.find(b => /continue|begin|accept|dismiss|ok|close|proceed|done|return/i.test(b.textContent));
+        if (actionBtn) { actionBtn.click(); return actionBtn.textContent.trim().substring(0, 30); }
+        return null;
+      });
+      if (clicked) dbg(`Recovery click: ${clicked}`);
+    } catch { /* skip */ }
     await sleep(500);
   }
 

@@ -9,40 +9,43 @@
 |--------|-------|
 | Total games | 6 |
 | Victories | 1 (17%) |
-| Game Overs | 2 (33%) |
-| Stuck/Crashed | 3 |
-| Avg turns survived | 16.5/40 |
-| Avg playthrough time | 145.5s |
+| Game Overs | 3 (50%) |
+| Stuck/Crashed | 2 |
+| Avg turns survived | 16.3/40 |
+| Avg playthrough time | 201.1s |
 
 ## Per-Persona Results
 
 | Persona | Difficulty | Outcome | Turns | Buildings | Trades | Flips | Synergies | Time |
 |---------|-----------|---------|-------|-----------|--------|-------|-----------|------|
-| Impulsive Builder | normal | WIN | 33 | 0 | 0 | Yes | 2 | 143.1s |
-| War Kid | normal | STUCK | 5 | 0 | 0 | Yes | 1 | 200.6s |
-| Cautious Explorer | easy | STUCK | 22 | 0 | 0 | Yes | 3 | 180.5s |
-| Random Clicker | normal | LOSS | 22 | 0 | 0 | Yes | 0 | 99.9s |
-| Trader Kid | normal | STUCK | 4 | 0 | 0 | No | 0 | 194.3s |
-| Speedrunner | hard | LOSS | 13 | 0 | 0 | Yes | 2 | 54.6s |
+| Impulsive Builder | normal | LOSS | 16 | 0 | 0 | Yes | 3 | 73.6s |
+| War Kid | normal | STUCK | 7 | 0 | 0 | Yes | 1 | 328.2s |
+| Cautious Explorer | easy | WIN | 35 | 0 | 0 | Yes | 3 | 278.0s |
+| Random Clicker | normal | LOSS | 18 | 0 | 0 | Yes | 1 | 78.5s |
+| Trader Kid | normal | STUCK | 6 | 0 | 0 | Yes | 1 | 384.7s |
+| Speedrunner | hard | LOSS | 16 | 0 | 0 | Yes | 1 | 63.3s |
 
 ## Game Over Analysis
 
 ### Death Causes
 
-- **famine — The Great Famine**: 2x
+- **famine — The Great Famine**: 3x
 
 ### Death Details
 
-- **Random Clicker** (normal): Died at turn 22
+- **Impulsive Builder** (normal): Died at turn 16
   - Reason: famine — The Great Famine
   - Final resources: Denarii:? Food:? Pop:? Garrison:? Morale:?
-- **Speedrunner** (hard): Died at turn 13
+- **Random Clicker** (normal): Died at turn 18
+  - Reason: famine — The Great Famine
+  - Final resources: Denarii:? Food:? Pop:? Garrison:? Morale:?
+- **Speedrunner** (hard): Died at turn 16
   - Reason: famine — The Great Famine
   - Final resources: Denarii:? Food:? Pop:? Garrison:? Morale:?
 
 ## Victory Analysis
 
-- **Impulsive Builder** (normal): Won at turn 33
+- **Cautious Explorer** (easy): Won at turn 35
   - Final resources: Denarii:? Food:? Pop:? Garrison:? Morale:?
   - Buildings built: 0, Trades: 0
 
@@ -51,16 +54,14 @@
 Moments where a 6th grader would get confused, frustrated, or stuck.
 
 ### Meter Critically Low (danger zone)
-- **Occurrences**: 17
-- **Personas affected**: Impulsive Builder, Random Clicker, Speedrunner
+- **Occurrences**: 7
+- **Personas affected**: Impulsive Builder, Cautious Explorer, Random Clicker, Speedrunner
 - **Meters affected**:
-  - morale: 8x
-  - food: 6x
-  - population: 3x
+  - food: 7x
 
 ### game_timeout
-- **Occurrences**: 3
-- **Personas affected**: War Kid, Cautious Explorer, Trader Kid
+- **Occurrences**: 2
+- **Personas affected**: War Kid, Trader Kid
 
 ## Console Errors
 
@@ -94,129 +95,128 @@ No buildings were constructed across all playthroughs.
 | Turn | Denarii | Food | Population | Garrison | Morale |
 |------|---------|------|------------|----------|--------|
 | 1 | 500 | 200 | 20 | 5 | 50 |
-| 2 | 443 | 233 | 20 | 5 | 55 |
-| 3 | 591 | 239 | 21 | 5 | 63 |
-| 4 | 875 | 238 | 21 | 5 | 71 |
-| 6 | 918 | 212 | 22 | 9 | 100 |
-| 7 | 902 | 218 | 22 | 9 | 100 |
-| 8 | 1181 | 164 | 23 | 9 | 100 |
-| 9 | 1226 | 122 | 24 | 9 | 100 |
-| 11 | 1152 | 132 | 25 | 10 | 100 |
-| 13 | 1324 | 120 | 26 | 11 | 100 |
-| 14 | 1400 | 125 | 27 | 11 | 100 |
-| 16 | 1443 | 118 | 27 | 13 | 100 |
-| 17 | 1354 | 81 | 25 | 15 | 100 |
-| 19 | 1344 | 50 | 26 | 19 | 100 |
-| 20 | 1431 | 39 | 26 | 21 | 100 |
-| 21 | 1497 | 30 | 26 | 22 | 100 |
-| 22 | 1568 | 42 | 26 | 22 | 85 |
-| 23 | 1524 | 30 | 26 | 22 | 80 |
-| 24 | 1586 | 36 | 26 | 23 | 83 |
-| 25 | 1567 | 13 | 25 | 23 | 58 |
-| 26 | 1596 | 0 | 18 | 19 | 55 |
-| 28 | 1485 | 63 | 13 | 17 | 73 |
-| 29 | 1639 | 51 | 13 | 16 | 64 |
-| 30 | 1668 | 19 | 13 | 19 | 100 |
-| 31 | 1557 | 17 | 13 | 23 | 100 |
-| 32 | 1717 | 0 | 13 | 22 | 85 |
-| 34 | 1583 | 81 | 9 | 17 | 70 |
-| 35 | 1439 | 128 | 10 | 17 | 73 |
-| 36 | 1470 | 129 | 11 | 17 | 78 |
-| 37 | 1528 | 120 | 12 | 18 | 92 |
-| 38 | 1692 | 80 | 12 | 19 | 100 |
-| 39 | 1561 | 82 | 12 | 22 | 100 |
-| 40 | 1537 | 98 | 13 | 24 | 100 |
+| 2 | 433 | 203 | 21 | 8 | 94 |
+| 3 | 336 | 195 | 21 | 10 | 100 |
+| 4 | 420 | 193 | 21 | 13 | 100 |
+| 6 | 413 | 231 | 24 | 16 | 100 |
+| 7 | 319 | 212 | 24 | 17 | 100 |
+| 8 | 598 | 160 | 24 | 17 | 100 |
+| 9 | 654 | 116 | 27 | 20 | 100 |
+| 11 | 587 | 156 | 28 | 21 | 100 |
+| 13 | 889 | 108 | 28 | 23 | 100 |
+| 15 | 958 | 75 | 29 | 24 | 100 |
+| 17 | 1219 | 66 | 30 | 25 | 100 |
+| 18 | 1202 | 56 | 35 | 25 | 100 |
+| 19 | 1380 | 26 | 35 | 25 | 92 |
+| 20 | 1568 | 0 | 35 | 22 | 86 |
+| 21 | 1457 | 0 | 26 | 22 | 100 |
 
 ### War Kid (normal)
 
 | Turn | Denarii | Food | Population | Garrison | Morale |
 |------|---------|------|------------|----------|--------|
 | 1 | 500 | 200 | 20 | 5 | 50 |
-| 2 | 433 | 185 | 20 | 6 | 64 |
-| 3 | 401 | 169 | 20 | 7 | 75 |
-| 4 | 701 | 135 | 20 | 7 | 80 |
-| 6 | 894 | 120 | 21 | 7 | 85 |
+| 2 | 363 | 212 | 20 | 5 | 58 |
+| 3 | 386 | 206 | 20 | 5 | 66 |
+| 4 | 551 | 179 | 21 | 5 | 74 |
+| 6 | 484 | 204 | 21 | 6 | 97 |
+| 7 | 367 | 165 | 21 | 15 | 100 |
+| 8 | 706 | 111 | 21 | 15 | 100 |
 
 ### Cautious Explorer (easy)
 
 | Turn | Denarii | Food | Population | Garrison | Morale |
 |------|---------|------|------------|----------|--------|
 | 1 | 700 | 280 | 22 | 5 | 50 |
-| 2 | 809 | 271 | 23 | 5 | 58 |
-| 3 | 754 | 292 | 24 | 5 | 66 |
-| 4 | 696 | 301 | 26 | 8 | 100 |
-| 6 | 783 | 306 | 26 | 10 | 100 |
-| 7 | 650 | 323 | 26 | 10 | 100 |
-| 8 | 733 | 289 | 28 | 10 | 100 |
-| 9 | 732 | 297 | 32 | 11 | 91 |
-| 11 | 829 | 313 | 33 | 12 | 99 |
-| 13 | 1013 | 338 | 36 | 12 | 100 |
-| 14 | 1197 | 291 | 37 | 13 | 100 |
-| 16 | 1221 | 256 | 38 | 16 | 100 |
-| 18 | 1466 | 226 | 38 | 19 | 89 |
-| 19 | 1556 | 199 | 38 | 20 | 100 |
-| 20 | 1669 | 196 | 41 | 21 | 100 |
-| 21 | 1827 | 168 | 44 | 23 | 100 |
-| 22 | 1843 | 164 | 45 | 23 | 100 |
-| 23 | 1789 | 163 | 45 | 23 | 100 |
-| 24 | 1991 | 135 | 48 | 25 | 100 |
-| 25 | 2051 | 124 | 53 | 25 | 100 |
-| 26 | 1964 | 156 | 53 | 25 | 100 |
-| 27 | 2002 | 143 | 53 | 25 | 100 |
+| 2 | 614 | 322 | 22 | 5 | 58 |
+| 3 | 508 | 370 | 23 | 5 | 66 |
+| 4 | 657 | 316 | 26 | 6 | 86 |
+| 6 | 719 | 315 | 29 | 10 | 100 |
+| 7 | 599 | 314 | 29 | 11 | 100 |
+| 8 | 585 | 306 | 32 | 14 | 100 |
+| 9 | 657 | 268 | 35 | 17 | 100 |
+| 11 | 702 | 232 | 36 | 19 | 100 |
+| 13 | 1049 | 205 | 39 | 19 | 100 |
+| 15 | 985 | 205 | 40 | 24 | 100 |
+| 17 | 1103 | 189 | 42 | 25 | 100 |
+| 18 | 1402 | 169 | 48 | 25 | 100 |
+| 19 | 1437 | 141 | 49 | 25 | 100 |
+| 20 | 1675 | 86 | 52 | 25 | 100 |
+| 21 | 1663 | 70 | 55 | 25 | 100 |
+| 22 | 1769 | 63 | 55 | 25 | 92 |
+| 23 | 1685 | 80 | 55 | 25 | 100 |
+| 24 | 1939 | 61 | 57 | 25 | 98 |
+| 25 | 2056 | 89 | 62 | 25 | 100 |
+| 26 | 1978 | 88 | 62 | 25 | 97 |
+| 27 | 1930 | 93 | 62 | 25 | 100 |
+| 28 | 2134 | 80 | 64 | 25 | 97 |
+| 29 | 2403 | 76 | 64 | 24 | 83 |
+| 30 | 2377 | 69 | 64 | 24 | 78 |
+| 31 | 2431 | 48 | 64 | 25 | 100 |
+| 32 | 2585 | 38 | 66 | 25 | 92 |
+| 33 | 2590 | 40 | 69 | 25 | 100 |
+| 34 | 2678 | 55 | 69 | 25 | 92 |
+| 35 | 2606 | 54 | 69 | 25 | 100 |
+| 36 | 2964 | 50 | 71 | 25 | 92 |
+| 37 | 3089 | 13 | 71 | 25 | 96 |
+| 38 | 3111 | 0 | 67 | 23 | 90 |
+| 39 | 3143 | 0 | 57 | 20 | 78 |
+| 40 | 3525 | 0 | 49 | 18 | 66 |
 
 ### Random Clicker (normal)
 
 | Turn | Denarii | Food | Population | Garrison | Morale |
 |------|---------|------|------------|----------|--------|
 | 1 | 500 | 200 | 20 | 5 | 50 |
-| 2 | 498 | 179 | 21 | 5 | 55 |
-| 3 | 581 | 175 | 22 | 6 | 72 |
-| 4 | 653 | 184 | 20 | 6 | 77 |
-| 6 | 706 | 118 | 21 | 7 | 94 |
-| 7 | 729 | 107 | 21 | 7 | 97 |
-| 9 | 1014 | 96 | 20 | 7 | 100 |
-| 11 | 1022 | 65 | 21 | 7 | 100 |
-| 13 | 1307 | 45 | 19 | 6 | 88 |
-| 14 | 1353 | 39 | 19 | 6 | 68 |
-| 16 | 1424 | 48 | 19 | 6 | 54 |
-| 17 | 1314 | 39 | 14 | 5 | 29 |
-| 19 | 1296 | 27 | 15 | 6 | 35 |
-| 20 | 1400 | 10 | 13 | 6 | 30 |
-| 21 | 1390 | 15 | 6 | 0 | 0 |
-| 22 | 1339 | 33 | 6 | 0 | 2 |
-| 23 | 1353 | 48 | 6 | 0 | 0 |
-| 24 | 1502 | 48 | 4 | 0 | 2 |
-| 25 | 1499 | 24 | 3 | 0 | 0 |
-| 26 | 1496 | 0 | 4 | 2 | 20 |
-| 27 | 1488 | 0 | 3 | 0 | 0 |
-| 28 | 1410 | 0 | 1 | 0 | 2 |
+| 2 | 543 | 221 | 20 | 4 | 49 |
+| 3 | 426 | 239 | 21 | 4 | 57 |
+| 4 | 711 | 226 | 19 | 2 | 41 |
+| 6 | 820 | 193 | 18 | 2 | 29 |
+| 7 | 910 | 165 | 18 | 3 | 43 |
+| 8 | 981 | 152 | 20 | 3 | 42 |
+| 9 | 925 | 133 | 19 | 3 | 30 |
+| 11 | 886 | 140 | 20 | 5 | 38 |
+| 13 | 827 | 139 | 23 | 10 | 100 |
+| 14 | 787 | 114 | 23 | 11 | 100 |
+| 16 | 732 | 103 | 23 | 12 | 100 |
+| 17 | 793 | 62 | 20 | 11 | 80 |
+| 18 | 761 | 48 | 21 | 11 | 80 |
+| 19 | 674 | 45 | 21 | 13 | 100 |
+| 20 | 733 | 24 | 21 | 13 | 97 |
+| 21 | 851 | 12 | 23 | 11 | 85 |
+| 22 | 790 | 0 | 17 | 11 | 100 |
 
 ### Trader Kid (normal)
 
 | Turn | Denarii | Food | Population | Garrison | Morale |
 |------|---------|------|------------|----------|--------|
 | 1 | 500 | 200 | 20 | 5 | 50 |
-| 2 | 558 | 167 | 20 | 8 | 91 |
-| 3 | 836 | 157 | 20 | 8 | 96 |
-| 4 | 986 | 135 | 20 | 10 | 100 |
+| 2 | 528 | 134 | 20 | 6 | 67 |
+| 3 | 411 | 121 | 20 | 8 | 100 |
+| 4 | 591 | 54 | 20 | 9 | 100 |
+| 6 | 829 | 42 | 20 | 10 | 100 |
+| 7 | 702 | 38 | 20 | 12 | 100 |
 
 ### Speedrunner (hard)
 
 | Turn | Denarii | Food | Population | Garrison | Morale |
 |------|---------|------|------------|----------|--------|
 | 1 | 400 | 130 | 18 | 3 | 50 |
-| 2 | 260 | 150 | 19 | 6 | 91 |
-| 3 | 326 | 117 | 19 | 8 | 100 |
-| 4 | 591 | 66 | 20 | 8 | 100 |
-| 6 | 649 | 96 | 24 | 10 | 100 |
-| 7 | 515 | 91 | 24 | 13 | 100 |
-| 8 | 604 | 103 | 25 | 13 | 100 |
-| 9 | 766 | 68 | 23 | 14 | 95 |
-| 11 | 865 | 90 | 24 | 15 | 95 |
-| 13 | 1148 | 30 | 24 | 16 | 100 |
-| 15 | 1103 | 29 | 24 | 16 | 92 |
-| 17 | 1181 | 28 | 24 | 19 | 100 |
-| 18 | 1231 | 0 | 24 | 20 | 100 |
+| 2 | 500 | 120 | 19 | 3 | 58 |
+| 3 | 371 | 118 | 19 | 5 | 96 |
+| 4 | 606 | 131 | 19 | 5 | 100 |
+| 6 | 637 | 157 | 20 | 6 | 100 |
+| 7 | 560 | 153 | 20 | 6 | 100 |
+| 8 | 810 | 128 | 20 | 6 | 100 |
+| 9 | 894 | 118 | 15 | 5 | 80 |
+| 11 | 1012 | 105 | 15 | 7 | 100 |
+| 13 | 1058 | 85 | 15 | 10 | 100 |
+| 14 | 946 | 113 | 15 | 10 | 100 |
+| 16 | 864 | 90 | 16 | 13 | 100 |
+| 17 | 888 | 52 | 17 | 13 | 100 |
+| 19 | 887 | 30 | 17 | 16 | 100 |
+| 20 | 1012 | 9 | 17 | 19 | 100 |
+| 21 | 1142 | 0 | 15 | 16 | 100 |
 
 ## Recommendations for Gameplay Fixes & Additions
 
@@ -257,7 +257,7 @@ If a game-over feels unfair, let kids rewind 1-2 turns. Reduces frustration with
 ## Appendix: Action Log Summary
 
 ### Impulsive Builder
-- Total actions: 34
+- Total actions: 17
 - Buildings built: 0
 - Trades made: 0
 - Events faced: 0
@@ -266,7 +266,7 @@ If a game-over feels unfair, let kids rewind 1-2 turns. Reduces frustration with
 - Disabled clicks: 0
 
 ### War Kid
-- Total actions: 9
+- Total actions: 17
 - Buildings built: 0
 - Trades made: 0
 - Events faced: 0
@@ -275,25 +275,25 @@ If a game-over feels unfair, let kids rewind 1-2 turns. Reduces frustration with
 - Disabled clicks: 0
 
 ### Cautious Explorer
-- Total actions: 45
+- Total actions: 71
 - Buildings built: 0
 - Trades made: 0
 - Events faced: 0
-- Friction points: 1
+- Friction points: 3
 - Console errors: 4
 - Disabled clicks: 0
 
 ### Random Clicker
-- Total actions: 33
+- Total actions: 28
 - Buildings built: 0
 - Trades made: 0
 - Events faced: 0
-- Friction points: 14
-- Console errors: 6
+- Friction points: 1
+- Console errors: 12
 - Disabled clicks: 0
 
 ### Trader Kid
-- Total actions: 5
+- Total actions: 7
 - Buildings built: 0
 - Trades made: 0
 - Events faced: 0
@@ -302,7 +302,7 @@ If a game-over feels unfair, let kids rewind 1-2 turns. Reduces frustration with
 - Disabled clicks: 0
 
 ### Speedrunner
-- Total actions: 14
+- Total actions: 17
 - Buildings built: 0
 - Trades made: 0
 - Events faced: 0

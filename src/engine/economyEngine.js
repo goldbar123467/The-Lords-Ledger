@@ -398,6 +398,11 @@ export function simulateEconomy(state) {
   let currentInventory = production.inventory;
   report.push(...production.report);
 
+  // Baseline subsistence: peasant families forage and tend small garden plots
+  const farmMult = SEASON_FARM_MULTIPLIERS[season] ?? 1.0;
+  const subsistenceGrain = Math.max(1, Math.floor(currentPopulation * 0.3 * farmMult));
+  currentInventory = { ...currentInventory, grain: (currentInventory.grain || 0) + subsistenceGrain };
+
   // Summarize production
   const prodEntries = Object.entries(production.produced);
   if (prodEntries.length > 0) {
