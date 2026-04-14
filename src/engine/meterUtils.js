@@ -71,7 +71,7 @@ export function applyResourceEffects(state, resourceEffects, maxGarrison = 25) {
   }
 
   // Recalculate total food from inventory
-  const FOOD_RESOURCES = ["grain", "livestock", "fish"];
+  const FOOD_RESOURCES = ["grain", "livestock", "fish", "flour"];
   const newFood = FOOD_RESOURCES.reduce((sum, r) => sum + (newInventory[r] || 0), 0);
 
   // Apply morale changes to military state

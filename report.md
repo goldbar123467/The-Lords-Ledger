@@ -1,244 +1,342 @@
-# The Lord's Ledger - Playtest Bug & Balance Report
-
-## Test Methodology
-
-6 automated Playwright playthroughs across all difficulty levels and strategy archetypes.
-Date: 2026-04-14, Playwright 1.59.1, Chromium headless.
-
-| Run | Difficulty | Strategy | Turns | Outcome | Time |
-|-----|-----------|----------|-------|---------|------|
-| 1 | Hard | Passive | 36 | Game Over (depopulation) | 149s |
-| 2 | Normal | Military | 29 | Softlock (sim button missing) | 149s |
-| 3 | Easy | Passive | 37 | Softlock (possible) | 180s |
-| 4 | Hard | Builder | 30 | Softlock (possible) | 181s |
-| 5 | Easy | Builder | 28 | Softlock (possible) | 181s |
-| 6 | Normal | Balanced | 27 | Crash (toast intercepts clicks) | 300s |
-
-**Only 1 of 6 runs reached a natural game ending.** The rest hit softlocks or crashes.
+# The Lord's Ledger — Playwright Playtest Report
+> Generated: 2026-04-14 | Games: 6 | Method: Headless Playwright + 6th-grader personas
 
 ---
 
-## Bugs Found (25)
+## Executive Summary
 
-### Critical - Softlocks & Crashes
+| Metric | Value |
+|--------|-------|
+| Total games | 6 |
+| Victories | 2 (33%) |
+| Game Overs | 1 (17%) |
+| Stuck/Crashed | 3 |
+| Avg turns survived | 24.3/40 |
+| Avg playthrough time | 246.4s |
 
-**BUG-01: SynergyToast Tier1 blocks Simulate Season button clicks**
-- File: `src/components/SynergyToast.jsx` (Tier1Toast, lines 10-57)
-- The toast is `fixed z-50` and intercepts pointer events even while fading (opacity transitions from 1 to 0 over 400ms, but the element stays in DOM). The Simulate Season button is at `z-30`. During the 5.4s window the toast exists, all clicks on the simulate button are intercepted.
-- Caused Normal/Balanced run to fully crash with timeout.
-- Fix: Add `pointerEvents: "none"` to the container and `pointerEvents: "auto"` only to the clickable inner area. Or set `pointerEvents: opacity < 0.1 ? "none" : "auto"`.
+## Per-Persona Results
 
-**BUG-02: SynergyToast Tier2Card never auto-dismisses**
-- File: `src/components/SynergyToast.jsx` (Tier2Card, lines 60-111)
-- Tier2Card slides in from the right but has NO auto-dismiss timer. It only dismisses on click. If the player doesn't notice it (e.g., during event phases), it persists indefinitely, blocking the right side of the screen.
-- Fix: Add a 10-second auto-dismiss timer matching Tier1Toast pattern.
+| Persona | Difficulty | Outcome | Turns | Buildings | Trades | Flips | Synergies | Time |
+|---------|-----------|---------|-------|-----------|--------|-------|-----------|------|
+| Impulsive Builder | normal | WIN | 40 | 0 | 0 | Yes | 6 | 181.6s |
+| War Kid | normal | STUCK | 7 | 0 | 0 | Yes | 5 | 336.6s |
+| Cautious Explorer | easy | STUCK | 36 | 0 | 0 | Yes | 6 | 300.2s |
+| Random Clicker | normal | WIN | 40 | 0 | 0 | Yes | 6 | 191.9s |
+| Trader Kid | normal | STUCK | 6 | 0 | 0 | Yes | 4 | 390.6s |
+| Speedrunner | hard | LOSS | 17 | 0 | 0 | Yes | 6 | 77.2s |
 
-**BUG-03: RAID_CONTINUE does not clear scribesNote, stacking overlays**
-- File: `src/engine/gameReducer.js`, RAID_DEFEND (line 1624), RAID_CONTINUE (line 1646)
-- RAID_DEFEND sets `scribesNote` for first-time raids. RAID_CONTINUE does not clear it. Both the RaidScreen overlay and ScribesNote overlay render simultaneously. The scribe's note may be behind the raid screen, trapping the player.
-- Fix: Add `scribesNote: null` to RAID_CONTINUE return state.
+## Game Over Analysis
 
-**BUG-04: Event phase dead-end when seasonal event has no options**
-- File: `src/App.jsx` lines 596-624, `src/engine/eventSelector.js`
-- During `seasonal_action` phase, if `currentEvent` is truthy but has 0 valid options (exhausted event pool returns malformed event), EventCard renders with no choice buttons. No way to progress.
-- Fix: Add fallback auto-advance to seasonal_resolve when event has no options array.
+### Death Causes
 
-**BUG-05: Flip/synergy notification overlap causes input deadlock**
-- File: `src/engine/gameReducer.js` ADVANCE_TURN, `src/App.jsx` lines 631-635
-- If a perspective flip triggers on the same turn a synergy notification is pending, both FlipScreen and SynergyToast render. The flip screen expects exclusive input, but SynergyToast (z-50) sits above it capturing clicks.
-- Fix: Defer pending synergy notifications when entering flip phase (clear them from state, re-queue after flip).
+- **famine — The Great Famine**: 1x
 
-### High - Balance Issues
+### Death Details
 
-**BUG-06: No starting food-producing buildings**
-- File: `src/engine/gameReducer.js`, initialState (lines 88-93)
-- Starting buildings: coal_pit, tannery, sawmill, smelter. Zero food production.
-- 20 families * 3 food/season = 60 food consumed. Starting grain 280 (normal) lasts ~4-5 turns with zero production. Players MUST build farms immediately or face starvation. Every single run showed food crises.
-- Fix: Add 1 wheat_field and 1 pasture to starting buildings.
+- **Speedrunner** (hard): Died at turn 17
+  - Reason: famine — The Great Famine
+  - Final resources: Denarii:? Food:? Pop:? Garrison:? Morale:?
 
-**BUG-07: Food consumption vs production structurally imbalanced**
-- File: `src/engine/economyEngine.js` lines 315-346, `src/data/economy.js` lines 207-211
-- At 40 families: 120 food/season (150 in winter). Wheat field produces 10 grain * 0.5 (winter) = 5 grain. Need 30 farms for winter alone, but only 24 total land plots exist.
-- Fix: Reduce FOOD_PER_FAMILY from 3 to 2.
+## Victory Analysis
 
-**BUG-08: Estate maintenance cost double-stacks with building upkeep**
-- File: `src/engine/economyEngine.js` lines 537-546
-- Formula: `buildingCount * 2 + max(0, population - 15) * 0.5` charged ON TOP of per-building upkeep.
-- With 15 buildings and 30 pop: 38d extra/season PLUS 30-150d building upkeep. Builder strategy on Easy hit 0d by turn 27 despite 700d start.
-- Fix: Reduce multiplier from 2 to 1 and exempt freeUpkeep buildings from the count.
+- **Impulsive Builder** (normal): Won at turn 40
+  - Final resources: Denarii:? Food:? Pop:? Garrison:? Morale:?
+  - Buildings built: 0, Trades: 0
+- **Random Clicker** (normal): Won at turn 40
+  - Final resources: Denarii:? Food:? Pop:? Garrison:? Morale:?
+  - Buildings built: 0, Trades: 0
 
-**BUG-09: Garrison upkeep death spiral with no recovery**
-- File: `src/engine/economyEngine.js` lines 82-89, 481-492
-- When denarii hits 0: unpaid upkeep triggers desertion, lowering defense, making raids more devastating, causing more denarii loss. No escape mechanism exists.
-- Fix: Reduce levy upkeep from 2d to 1d and add a 1-season grace period for newly recruited soldiers.
+## UX Friction Points
 
-**BUG-10: Bankruptcy threshold (4 turns) spans one winter-spring cycle**
-- File: `src/engine/meterUtils.js` lines 91-105
-- Game over at 4 consecutive turns of 0 denarii. Winter has lowest income + highest costs. A normal winter-spring dip easily triggers 4 consecutive zero-denarii turns without the player doing anything wrong.
-- Fix: Increase threshold from 4 to 6 consecutive turns.
+Moments where a 6th grader would get confused, frustrated, or stuck.
 
-### Medium - Gameplay/Tuning Bugs
+### game_timeout
+- **Occurrences**: 3
+- **Personas affected**: War Kid, Cautious Explorer, Trader Kid
 
-**BUG-11: Population growth uncapped, scales into unavoidable famine**
-- File: `src/engine/economyEngine.js` lines 556-625
-- Population grows 1-2/turn with food surplus + ale. No cap. At 40+ families, food consumption (120+) exceeds max possible production from available land plots.
-- Fix: Add soft cap - growth rate halves when population exceeds 35, stops at 50.
+## Console Errors
 
-**BUG-12: Winter season is quadruple-punishing**
-- File: `src/data/economy.js` lines 207-224
-- Winter: farm output 0.5x, consumption 1.25x, building degradation 1.5x, no tax income. Creates annual resource valley where bankruptcy/starvation cluster.
-- Fix: Reduce winter consumption multiplier from 1.25 to 1.1.
+- `Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID`
+- `%s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, `
 
-**BUG-13: Quarterly market levy (non-autumn) negligible**
-- File: `src/engine/economyEngine.js` lines 515-521
-- Non-autumn levy: `Math.floor(population * 0.15)`. With 20 pop = 3d/season. Upkeep alone is 20-60d. The levy is a rounding error.
-- Fix: Increase multiplier from 0.15 to 0.25 and add a minimum floor of 5d.
+## Event & Decision Analysis
 
-**BUG-14: Building degradation too fast, repair too expensive**
-- File: `src/engine/gameReducer.js` building degradation, `src/data/economy.js` REPAIR_COST_PER_POINT
-- Buildings degrade 5-10%/season (15% in winter at 1.5x). Reaches "Ruined" in 10-15 turns. Repair at 2d/point means restoring from 50% costs 100d.
-- Fix: Reduce repair cost from 2d to 1d per point.
+### Events Encountered
 
-**BUG-15: Raid damage ignores difficulty level**
-- File: `src/engine/raidEngine.js`
-- Raid resource losses (denarii, food, garrison, population) are identical on Easy, Normal, and Hard. Easy mode players face the same devastating raids.
-- Fix: Scale raid losses by difficulty penaltyScale (0.5x Easy, 1.0x Normal, 1.5x Hard).
+No events were encountered (games may have ended before events fired).
 
-### Low - Minor Tuning Issues
+## Building Activity
 
-**BUG-16: RAID_CONTINUE bankruptcy counter double-counts**
-- File: `src/engine/gameReducer.js` lines 1726-1732
-- After raid, if denarii drops to 0, bankruptcy counter increments. But SIMULATE_SEASON already set the counter for this turn's economy. A bad raid can add +2 to the counter in a single turn.
-- Fix: Don't increment bankruptcy counter in RAID_CONTINUE if SIMULATE_SEASON already incremented it this turn.
+No buildings were constructed across all playthroughs.
 
-**BUG-17: No implicit food production from population**
-- Population growth benefits the lord (more tax, more levy) but costs more food with zero food production increase. No "more farmers = more food" mechanic.
-- Fix: Add +1 grain per 10 families from subsistence farming in production phase.
+## Tab Usage
 
-**BUG-18: Passive income populationIncome doesn't scale enough**
-- File: `src/engine/economyEngine.js` line 526
-- `Math.floor(population * 0.75)`: 20 pop = 15d, 40 pop = 30d. Upkeep scales faster.
-- Fix: Increase to `Math.floor(population * 1.0)`.
+| Tab | Games Used |
+|-----|------------|
+| Estate | 5/6 |
+| Military | 3/6 |
+| People | 2/6 |
+| Chronicle | 1/6 |
+| Trade | 0/6 |
 
-**BUG-19: Mill is net-negative food building**
-- File: `src/data/buildings.js`, `src/data/economy.js` line 8
-- Mill consumes 3 grain, produces flour. Both count equally as food (FOOD_RESOURCES includes flour). Mill adds processing cost for zero food benefit.
-- Fix: Make flour count as 1.5x food value, or increase mill output to produce more flour than grain consumed.
+## Meter Trajectories
 
-**BUG-20: Breadbasket synergy population bonus unreachable**
-- File: `src/engine/synergyEngine.js`
-- Requires `totalFood > pop * 1.5`. At 30+ pop, need 45+ food surplus AFTER consumption. With production limits, this threshold is nearly impossible.
-- Fix: Lower threshold to `pop * 1.0`.
+### Impulsive Builder (normal)
 
-**BUG-21: Watchtower defense bonus invisible to player**
-- File: `src/engine/gameReducer.js` lines 1575-1585, 1700-1703
-- Watchtower bonus applied to defense rating but not shown in raid chronicle entry. Players can't see the value of their watchtower investment.
-- Fix: Include watchtower bonus in buildRaidChronicleText output.
+| Turn | Denarii | Food | Population | Garrison | Morale |
+|------|---------|------|------------|----------|--------|
+| 1 | 500 | 365 | 20 | 5 | 50 |
+| 2 | 370 | 381 | 20 | 8 | 94 |
+| 3 | 240 | 423 | 20 | 8 | 100 |
+| 4 | 440 | 408 | 21 | 8 | 100 |
+| 5 | 531 | 369 | 22 | 10 | 100 |
+| 6 | 583 | 339 | 22 | 10 | 100 |
+| 7 | 720 | 315 | 22 | 11 | 100 |
+| 8 | 855 | 305 | 22 | 14 | 100 |
+| 9 | 967 | 271 | 22 | 14 | 100 |
+| 10 | 944 | 276 | 22 | 15 | 100 |
+| 11 | 946 | 290 | 22 | 15 | 100 |
+| 12 | 931 | 283 | 23 | 17 | 100 |
+| 13 | 899 | 266 | 26 | 23 | 100 |
+| 14 | 1139 | 243 | 26 | 23 | 100 |
+| 15 | 1049 | 265 | 27 | 23 | 100 |
+| 16 | 1286 | 256 | 27 | 23 | 100 |
+| 17 | 1336 | 244 | 33 | 25 | 100 |
+| 18 | 1476 | 258 | 34 | 25 | 100 |
+| 19 | 1511 | 235 | 34 | 25 | 100 |
+| 20 | 1684 | 259 | 34 | 25 | 100 |
+| 21 | 1819 | 234 | 37 | 25 | 91 |
+| 22 | 1827 | 210 | 37 | 25 | 100 |
+| 23 | 1785 | 209 | 37 | 25 | 100 |
+| 24 | 1947 | 198 | 38 | 25 | 100 |
+| 25 | 1931 | 173 | 39 | 25 | 100 |
+| 26 | 1881 | 165 | 39 | 25 | 100 |
+| 27 | 2046 | 131 | 40 | 25 | 100 |
+| 28 | 2492 | 89 | 40 | 25 | 100 |
+| 29 | 2418 | 143 | 43 | 25 | 100 |
+| 30 | 2342 | 147 | 43 | 25 | 100 |
+| 31 | 2376 | 153 | 43 | 25 | 100 |
+| 32 | 2752 | 163 | 44 | 25 | 100 |
+| 33 | 2707 | 124 | 45 | 25 | 100 |
+| 34 | 2823 | 138 | 45 | 25 | 100 |
+| 35 | 2864 | 100 | 46 | 25 | 100 |
+| 36 | 3189 | 96 | 46 | 25 | 100 |
+| 37 | 3106 | 108 | 46 | 25 | 100 |
+| 38 | 3073 | 101 | 46 | 25 | 97 |
+| 39 | 3150 | 114 | 47 | 25 | 100 |
+| 40 | 3479 | 75 | 47 | 25 | 100 |
 
-**BUG-22: Event pool exhaustion creates empty decision turns**
-- File: `src/engine/eventSelector.js`
-- With 40 turns and limited event pools, events repeat or pool empties. When empty, turns have no seasonal decision, feeling hollow.
-- Fix: Reset usedSeasonalIds when pool is exhausted (allow repeats after full cycle).
+### War Kid (normal)
 
-**BUG-23: Ale consumed even during famine (wasted)**
-- File: `src/engine/economyEngine.js` lines 561-567, 621-623
-- Ale is consumed for morale even when famine cancels any population growth benefit. The ale is wasted.
-- Fix: Skip ale consumption when `consumption.shortfall > 0`.
+| Turn | Denarii | Food | Population | Garrison | Morale |
+|------|---------|------|------------|----------|--------|
+| 1 | 500 | 365 | 20 | 5 | 50 |
+| 2 | 660 | 333 | 21 | 5 | 58 |
+| 3 | 686 | 319 | 21 | 5 | 66 |
+| 4 | 951 | 317 | 21 | 5 | 74 |
+| 5 | 1057 | 354 | 24 | 6 | 88 |
+| 6 | 1121 | 351 | 25 | 14 | 96 |
+| 7 | 1005 | 372 | 26 | 17 | 100 |
 
-**BUG-24: removeFromGarrison can underflow typed counts to negative**
-- File: `src/engine/gameReducer.js` removeFromGarrison function
-- If loss exceeds total garrison, individual type counts (levy, menAtArms, knights) can go negative.
-- Fix: Clamp each type to `Math.max(0, ...)` after removal.
+### Cautious Explorer (easy)
 
-**BUG-25: No population recovery mechanism below 10 families**
-- File: `src/engine/economyEngine.js`
-- Once population drops below ~10, passive income drops, making recovery nearly impossible. No wandering settlers or baseline recovery exists below this threshold.
-- Fix: Add +1 family chance (40%) when pop < 8, food > 0, and denarii > 0.
+| Turn | Denarii | Food | Population | Garrison | Morale |
+|------|---------|------|------------|----------|--------|
+| 1 | 700 | 480 | 22 | 5 | 50 |
+| 2 | 827 | 477 | 22 | 5 | 58 |
+| 3 | 904 | 468 | 22 | 5 | 66 |
+| 4 | 1026 | 429 | 24 | 6 | 80 |
+| 5 | 1060 | 464 | 24 | 7 | 100 |
+| 6 | 1114 | 458 | 24 | 7 | 100 |
+| 7 | 1038 | 464 | 25 | 7 | 100 |
+| 8 | 982 | 504 | 27 | 8 | 100 |
+| 9 | 896 | 463 | 26 | 10 | 100 |
+| 10 | 1076 | 448 | 26 | 11 | 100 |
+| 11 | 1241 | 423 | 27 | 11 | 100 |
+| 12 | 1431 | 394 | 30 | 11 | 100 |
+| 13 | 1487 | 417 | 30 | 11 | 100 |
+| 14 | 1423 | 399 | 31 | 14 | 100 |
+| 15 | 1335 | 370 | 31 | 17 | 100 |
+| 16 | 1509 | 398 | 34 | 17 | 100 |
+| 17 | 1719 | 379 | 35 | 17 | 100 |
+| 18 | 1635 | 388 | 35 | 17 | 100 |
+| 19 | 1681 | 416 | 36 | 18 | 100 |
+| 20 | 1943 | 441 | 38 | 18 | 100 |
+| 21 | 1852 | 500 | 38 | 18 | 100 |
+| 22 | 1811 | 473 | 39 | 21 | 100 |
+| 23 | 1721 | 459 | 39 | 25 | 100 |
+| 24 | 1881 | 478 | 42 | 25 | 100 |
+| 25 | 1964 | 473 | 47 | 25 | 100 |
+| 26 | 2041 | 459 | 47 | 25 | 100 |
+| 27 | 1948 | 472 | 47 | 25 | 100 |
+| 28 | 2270 | 426 | 49 | 25 | 100 |
+| 29 | 2385 | 393 | 52 | 25 | 100 |
+| 30 | 2428 | 404 | 52 | 25 | 100 |
+| 31 | 2371 | 448 | 53 | 25 | 100 |
+| 32 | 2399 | 500 | 55 | 25 | 100 |
+| 33 | 2444 | 468 | 55 | 25 | 100 |
+| 34 | 2614 | 452 | 55 | 25 | 100 |
+| 35 | 2689 | 494 | 56 | 25 | 100 |
+| 36 | 2865 | 530 | 58 | 25 | 100 |
 
----
+### Random Clicker (normal)
 
-## Resource Trend Analysis
+| Turn | Denarii | Food | Population | Garrison | Morale |
+|------|---------|------|------------|----------|--------|
+| 1 | 500 | 365 | 20 | 5 | 50 |
+| 2 | 500 | 342 | 21 | 5 | 58 |
+| 3 | 531 | 328 | 22 | 5 | 66 |
+| 4 | 546 | 311 | 23 | 8 | 100 |
+| 5 | 499 | 290 | 24 | 6 | 82 |
+| 6 | 658 | 312 | 24 | 6 | 81 |
+| 7 | 697 | 274 | 24 | 6 | 89 |
+| 8 | 731 | 299 | 25 | 7 | 94 |
+| 9 | 705 | 269 | 26 | 7 | 100 |
+| 10 | 655 | 261 | 26 | 6 | 100 |
+| 11 | 695 | 238 | 26 | 6 | 100 |
+| 12 | 968 | 255 | 25 | 7 | 100 |
+| 13 | 1092 | 240 | 29 | 11 | 100 |
+| 14 | 1110 | 232 | 30 | 13 | 100 |
+| 15 | 1178 | 222 | 30 | 11 | 82 |
+| 16 | 1463 | 231 | 29 | 11 | 81 |
+| 17 | 1420 | 198 | 27 | 9 | 60 |
+| 18 | 1605 | 184 | 28 | 10 | 68 |
+| 19 | 1587 | 219 | 28 | 10 | 67 |
+| 20 | 1734 | 228 | 26 | 11 | 84 |
+| 21 | 1674 | 230 | 26 | 11 | 92 |
+| 22 | 1659 | 206 | 27 | 12 | 100 |
+| 23 | 1864 | 174 | 28 | 11 | 85 |
+| 24 | 2101 | 140 | 29 | 11 | 93 |
+| 25 | 2017 | 107 | 27 | 11 | 90 |
+| 26 | 2152 | 83 | 28 | 12 | 93 |
+| 27 | 2164 | 96 | 28 | 13 | 96 |
+| 28 | 2361 | 125 | 29 | 13 | 99 |
+| 29 | 2359 | 119 | 33 | 19 | 100 |
+| 30 | 2424 | 125 | 34 | 19 | 100 |
+| 31 | 2484 | 106 | 35 | 21 | 100 |
+| 32 | 2582 | 100 | 35 | 23 | 100 |
+| 33 | 2618 | 143 | 41 | 25 | 91 |
+| 34 | 2880 | 102 | 42 | 25 | 94 |
+| 35 | 2953 | 93 | 42 | 23 | 79 |
+| 36 | 3074 | 84 | 42 | 24 | 94 |
+| 37 | 3127 | 81 | 42 | 25 | 100 |
+| 38 | 3165 | 79 | 42 | 24 | 88 |
+| 39 | 3078 | 97 | 43 | 24 | 88 |
+| 40 | 3289 | 58 | 46 | 23 | 79 |
 
-### Denarii
-| Run | Min | Max | Final | Consecutive 0-turns |
-|-----|-----|-----|-------|---------------------|
-| Hard/Passive | 182 | 919 | 182 | 0 |
-| Normal/Military | 496 | 1172 | 1116 | 0 |
-| Easy/Passive | 700 | 2327 | 2327 | 0 |
-| Hard/Builder | 0 | 400 | 0 | 4 |
-| Easy/Builder | 0 | 773 | 107 | 1 |
-| Normal/Balanced | 0 | 561 | 105 | 1 |
+### Trader Kid (normal)
 
-### Food
-| Run | Min | Max | Turns at 0 food |
-|-----|-----|-----|-----------------|
-| Hard/Passive | 0 | 255 | 6 turns |
-| Normal/Military | 0 | 365 | 2 turns |
-| Easy/Passive | 30 | 480 | 0 |
-| Hard/Builder | 82 | 255 | 0 |
-| Easy/Builder | 171 | 480 | 0 |
-| Normal/Balanced | 4 | 365 | 0 |
+| Turn | Denarii | Food | Population | Garrison | Morale |
+|------|---------|------|------------|----------|--------|
+| 1 | 500 | 365 | 20 | 5 | 50 |
+| 2 | 570 | 375 | 21 | 5 | 58 |
+| 3 | 461 | 364 | 22 | 7 | 96 |
+| 4 | 686 | 340 | 23 | 7 | 100 |
+| 5 | 784 | 325 | 23 | 8 | 100 |
+| 6 | 1022 | 302 | 23 | 8 | 100 |
 
-### Population
-| Run | Min | Max | Final |
-|-----|-----|-----|-------|
-| Hard/Passive | 1 | 19 | 1 |
-| Normal/Military | 4 | 28 | 4 |
-| Easy/Passive | 22 | 40 | 40 |
-| Hard/Builder | 17 | 28 | 25 |
-| Easy/Builder | 22 | 44 | 44 |
-| Normal/Balanced | 20 | 39 | 33 |
+### Speedrunner (hard)
 
----
+| Turn | Denarii | Food | Population | Garrison | Morale |
+|------|---------|------|------------|----------|--------|
+| 1 | 400 | 255 | 18 | 3 | 50 |
+| 2 | 428 | 204 | 19 | 4 | 67 |
+| 3 | 337 | 203 | 19 | 6 | 100 |
+| 4 | 477 | 144 | 19 | 9 | 100 |
+| 5 | 566 | 172 | 20 | 9 | 100 |
+| 6 | 566 | 150 | 21 | 12 | 100 |
+| 7 | 492 | 103 | 21 | 14 | 100 |
+| 8 | 462 | 128 | 22 | 15 | 100 |
+| 9 | 424 | 120 | 26 | 20 | 100 |
+| 10 | 564 | 88 | 26 | 22 | 100 |
+| 11 | 604 | 106 | 26 | 22 | 100 |
+| 12 | 772 | 95 | 27 | 22 | 100 |
+| 13 | 912 | 79 | 30 | 25 | 100 |
+| 14 | 1098 | 44 | 31 | 25 | 97 |
+| 15 | 1255 | 31 | 31 | 25 | 92 |
+| 16 | 1414 | 28 | 31 | 25 | 100 |
+| 17 | 1434 | 21 | 24 | 16 | 56 |
 
-## Fix Status & Verification
+## Recommendations for Gameplay Fixes & Additions
 
-All 25 bugs have been addressed. Fixes applied and merged to main on 2026-04-14.
+Based on the playtest data, here are prioritized suggestions:
 
-### Bugs Fixed in This Session (code changes committed)
+### [MEDIUM] Engagement: Trade tab never used
 
-| Bug | Fix Applied | Commit |
-|-----|-----------|--------|
-| BUG-01 | Lowered SynergyToast Tier1/Tier2 z-index from z-50 to z-20 (below Simulate Season z-30) | e8f9119 |
-| BUG-02 | Stabilized auto-dismiss timers with refs to prevent reset on re-render | e8f9119 |
-| BUG-03 | Added `scribesNote: null` to RAID_CONTINUE game_over path | e8f9119 |
-| BUG-04 | Null out currentEvent in RAID_CONTINUE when event has no options | e8f9119 |
-| BUG-05 | Hide SynergyToast during flip phases (`!isFlipPhase` guard) | e8f9119 |
-| BUG-09 | Aligned SOLDIER_TYPES display upkeep values (levy:1, menAtArms:4, knights:8) with economy engine | 4903e0c |
+No persona visited the trade tab. Consider: tutorial prompt directing there, auto-switching when it unlocks, or making it visually prominent.
 
-### Bugs Already Fixed in Prior Commits (verified still correct)
+### [MEDIUM] UX: Add contextual "What should I do?" hints
 
-| Bug | Current State |
-|-----|--------------|
-| BUG-06 | Starting buildings include strip_farm + pasture (food production from turn 1) |
-| BUG-07 | FOOD_PER_FAMILY = 2 (not 3) |
-| BUG-08 | Estate maintenance uses `buildingCount * 1` (not 2), excludes freeUpkeep buildings |
-| BUG-10 | Bankruptcy threshold at 6 consecutive turns (not 4) |
-| BUG-11 | Population soft cap at 35, hard cap at 50 |
-| BUG-12 | Winter consumption multiplier at 1.1 (not 1.25) |
-| BUG-13 | Quarterly levy at `Math.max(5, Math.floor(pop * 0.25))` with 5d minimum |
-| BUG-14 | Repair costs tiered by rarity (0.3/0.6/1.0 per point), degradation halved (rate * 0.5) |
-| BUG-15 | Raid losses scaled by difficulty (0.5x Easy, 1.0x Normal, 1.5x Hard) |
-| BUG-16 | RAID_CONTINUE uses `Math.max` for bankruptcy counter (no double-count) |
-| BUG-17 | Subsistence grain: `Math.floor(pop * 0.3 * farmMult)` per season |
-| BUG-18 | Population income at `Math.floor(pop * 1.0)` |
-| BUG-19 | Mill produces 6 flour from 3 grain (net +3 food/season) |
-| BUG-20 | Breadbasket tier 2 requires `foodSurplusTurns: 3` (food > 100 for 3 turns) |
-| BUG-21 | `buildRaidChronicleText` includes watchtower bonus in both victory and defeat text |
-| BUG-22 | `filterUnused` resets implicitly when all events used (returns full list) |
-| BUG-23 | Ale NOT consumed during famine (`hasAle = !isFamine && ...`) |
-| BUG-24 | `removeFromGarrison` clamps all types to `Math.max(0, ...)` |
-| BUG-25 | Population recovery: 50-70% chance of +1 family when pop < 10 and no starvation |
+6th graders need guidance. A hint button per tab ("Try building a Strip Farm!") would reduce confusion.
 
-### Verification Playtest Results
+### [MEDIUM] Engagement: Add a "quick tips" loading screen between seasons
 
-Post-fix verification run (2026-04-14):
+Show tips like "Sell goods on the Trade tab to earn more denarii!" during the season transition.
 
-| Run | Persona | Difficulty | Strategy | Turns | Outcome | Friction |
-|-----|---------|-----------|----------|-------|---------|----------|
-| 1 | Impulsive Builder | Normal | build_everything | 40 | **VICTORY** | 0 |
-| 2 | War Kid | Normal | military_focused | 7 | Bot stuck* | 1 |
+### [LOW] Engagement: Add achievements/milestones
 
-\* War Kid "stuck" is a playtest bot limitation (bot can't scroll to click event options behind sticky header), not a game bug. The event buttons are visible and clickable by a real player.
+Badges like "First Trade!", "Castle Upgraded!", "Survived 14 Turns!" give tangible goals and dopamine hits.
 
-**Key improvement**: Previous run had 0/6 victories (5 softlocks, 1 game over). Post-fix run achieved a clean 40-turn victory with 0 friction points on the first game tested, confirming critical softlock/crash bugs (BUG-01 to BUG-05) are resolved.
+### [LOW] UX: Add undo/confirmation for costly actions
+
+Kids misclick. Confirm expensive purchases (>200d) or irreversible actions (demolish).
+
+### [LOW] Balance: Consider an auto-save / checkpoint system
+
+If a game-over feels unfair, let kids rewind 1-2 turns. Reduces frustration without removing consequences.
+
+## Appendix: Action Log Summary
+
+### Impulsive Builder
+- Total actions: 41
+- Buildings built: 0
+- Trades made: 0
+- Events faced: 0
+- Friction points: 0
+- Console errors: 2
+- Disabled clicks: 0
+
+### War Kid
+- Total actions: 17
+- Buildings built: 0
+- Trades made: 0
+- Events faced: 0
+- Friction points: 1
+- Console errors: 2
+- Disabled clicks: 0
+
+### Cautious Explorer
+- Total actions: 73
+- Buildings built: 0
+- Trades made: 0
+- Events faced: 0
+- Friction points: 1
+- Console errors: 4
+- Disabled clicks: 0
+
+### Random Clicker
+- Total actions: 61
+- Buildings built: 0
+- Trades made: 0
+- Events faced: 0
+- Friction points: 0
+- Console errors: 8
+- Disabled clicks: 0
+
+### Trader Kid
+- Total actions: 7
+- Buildings built: 0
+- Trades made: 0
+- Events faced: 0
+- Friction points: 1
+- Console errors: 2
+- Disabled clicks: 0
+
+### Speedrunner
+- Total actions: 18
+- Buildings built: 0
+- Trades made: 0
+- Events faced: 0
+- Friction points: 0
+- Console errors: 2
+- Disabled clicks: 0

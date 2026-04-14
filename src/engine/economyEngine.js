@@ -402,7 +402,7 @@ export function simulateEconomy(state) {
 
   // Baseline subsistence: peasant families forage and tend small garden plots
   const farmMult = SEASON_FARM_MULTIPLIERS[season] ?? 1.0;
-  const subsistenceGrain = Math.max(1, Math.floor(currentPopulation * 0.3 * farmMult));
+  const subsistenceGrain = Math.max(1, Math.floor(currentPopulation * 0.2 * farmMult));
   currentInventory = { ...currentInventory, grain: (currentInventory.grain || 0) + subsistenceGrain };
 
   // Summarize production
@@ -518,7 +518,7 @@ export function simulateEconomy(state) {
       }
     }
   } else if (season !== "autumn" && currentPopulation > 0) {
-    const quarterlyLevy = Math.max(5, Math.floor(currentPopulation * 0.25));
+    const quarterlyLevy = Math.max(3, Math.floor(currentPopulation * 0.15));
     currentDenarii += quarterlyLevy;
     report.push(`Quarterly market levy: ${quarterlyLevy}d from ${currentPopulation} families.`);
   }
@@ -526,7 +526,7 @@ export function simulateEconomy(state) {
   // ----- 5. PASSIVE INCOME -----
   const passiveIncome = getPassiveIncome(castleLevel, buildings);
   // Population generates income from cottage industries and market activity
-  const populationIncome = Math.floor(currentPopulation * 1.0);
+  const populationIncome = Math.floor(currentPopulation * 0.5);
   const totalPassiveIncome = passiveIncome + populationIncome;
   currentDenarii += totalPassiveIncome;
   if (totalPassiveIncome > 0) {
@@ -602,8 +602,8 @@ export function simulateEconomy(state) {
   const popHardCap = 50;
   const growthChanceMod = currentPopulation >= popHardCap ? 0 : currentPopulation >= popSoftCap ? 0.3 : 1.0;
   if (foodSurplus && hasAle && growthChanceMod > 0) {
-    populationChange += Math.random() < (0.6 * growthChanceMod) ? 2 : (Math.random() < growthChanceMod ? 1 : 0);
-  } else if (foodSurplus && Math.random() < (0.4 * growthChanceMod)) {
+    populationChange += Math.random() < (0.4 * growthChanceMod) ? 2 : (Math.random() < (0.5 * growthChanceMod) ? 1 : 0);
+  } else if (foodSurplus && Math.random() < (0.25 * growthChanceMod)) {
     populationChange += 1;
   }
 

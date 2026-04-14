@@ -137,8 +137,10 @@ export function resolveRaid(raidType, defenseRating, defenseThreshold, garrison,
   }
 
   // DEFEAT — calculate losses based on how close defense was
-  const defenseRatio = defenseRating > 0 ? defenseRating / defenseThreshold : 0;
-  const lossMultiplier = 1 - defenseRatio;
+  const defenseRatio = (defenseRating > 0 && defenseThreshold > 0)
+    ? Math.min(1, defenseRating / defenseThreshold)
+    : 0;
+  const lossMultiplier = Math.max(0, 1 - defenseRatio);
 
   const losses = def.losses;
 

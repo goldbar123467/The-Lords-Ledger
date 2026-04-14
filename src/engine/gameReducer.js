@@ -1225,7 +1225,7 @@ export function gameReducer(state, action) {
       // Morale: upkeep paid?
       const upkeepCost = getMilitaryUpkeep(prevMil.garrison);
       if (upkeepCost > 0 && econResult.denarii >= 0) {
-        milMorale = Math.min(100, milMorale + 3);
+        milMorale = Math.min(100, milMorale + 2);
       } else if (upkeepCost > 0 && econResult.denarii <= 0) {
         milMorale = Math.max(0, milMorale - 10);
       }
@@ -1233,9 +1233,9 @@ export function gameReducer(state, action) {
       // Morale: food stores (tiered thresholds scaled to population)
       const foodPerPerson = econResult.population > 0 ? econResult.food / econResult.population : 0;
       if (foodPerPerson > 5) {
-        milMorale = Math.min(100, milMorale + 5);
+        milMorale = Math.min(100, milMorale + 3);
       } else if (foodPerPerson > 3) {
-        milMorale = Math.min(100, milMorale + 2);
+        milMorale = Math.min(100, milMorale + 1);
       } else if (econResult.food <= 0) {
         milMorale = Math.max(0, milMorale - 15);
       } else if (foodPerPerson < 1) {
@@ -1249,9 +1249,11 @@ export function gameReducer(state, action) {
         milMorale = Math.max(0, milMorale - 3);
       }
 
-      // Morale: passive recovery — even in bad times, morale slowly drifts toward a baseline
-      // This prevents morale from being permanently stuck at 0
-      if (milMorale < 30) {
+      // Morale: natural drift toward equilibrium (70)
+      // Above 70: slow decay to prevent permanent max. Below 30: slow recovery.
+      if (milMorale > 70) {
+        milMorale -= 1;
+      } else if (milMorale < 30) {
         milMorale = Math.min(30, milMorale + 2);
       }
 
