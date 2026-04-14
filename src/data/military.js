@@ -20,7 +20,7 @@ export const SOLDIER_TYPES = {
     subtitle: "Fyrd",
     icon: "\u2692",  // hammers
     recruitCost: 5,
-    upkeep: 2,
+    upkeep: 1,
     defenseValue: 1,
     max: null,  // limited by population (25% cap before food penalty)
     borderColor: "#6a5a42",
@@ -34,7 +34,7 @@ export const SOLDIER_TYPES = {
     subtitle: "Professional Soldiers",
     icon: "\u2694",  // crossed swords
     recruitCost: 15,
-    upkeep: 5,
+    upkeep: 4,
     defenseValue: 3,
     max: 10,
     borderColor: "#8b1a1a",
@@ -48,7 +48,7 @@ export const SOLDIER_TYPES = {
     subtitle: "Mounted Elite",
     icon: "\u265B",  // queen chess piece
     recruitCost: 50,
-    upkeep: 10,
+    upkeep: 8,
     defenseValue: 8,
     max: 3,
     borderColor: "#c4a24a",
