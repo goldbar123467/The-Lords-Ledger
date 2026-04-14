@@ -532,6 +532,18 @@ export function simulateEconomy(state) {
     report.push(`Passive income: ${parts.join(", ")}.`);
   }
 
+  // ----- 5.25. ESTATE MAINTENANCE — scales with size to prevent denarii snowball -----
+  // BUG-18 FIX: Add maintenance cost based on building count + population scale
+  const buildingCount = buildings.filter(b => {
+    if (typeof b === "string") return true;
+    return (b.condition ?? 100) > 0;
+  }).length;
+  const estateMaintenance = Math.floor(buildingCount * 2 + Math.max(0, currentPopulation - 15) * 0.5);
+  if (estateMaintenance > 0) {
+    currentDenarii = Math.max(0, currentDenarii - estateMaintenance);
+    report.push(`Estate maintenance: ${estateMaintenance}d for ${buildingCount} buildings and road upkeep.`);
+  }
+
   // ----- 5.5. SYNERGY BONUSES -----
   const activatedSynergies = state.synergies?.activated ?? [];
   const synergyIncome = getSynergyPassiveIncome(activatedSynergies);
@@ -592,6 +604,15 @@ export function simulateEconomy(state) {
   if (hasSynergyPopulationBonus(activatedSynergies) && foodSurplus) {
     if (populationChange === 0 && Math.random() < 0.25) {
       populationChange = 1;
+    }
+  }
+
+  // BUG-19 FIX: Wandering settlers can arrive when population is critically low
+  // Prevents unrecoverable death spiral
+  if (currentPopulation < 8 && currentPopulation > 0 && consumption.shortfall === 0 && currentDenarii > 0) {
+    if (populationChange <= 0 && Math.random() < 0.4) {
+      populationChange += 1;
+      report.push("A wandering family, seeking a lord's protection, has settled on your estate.");
     }
   }
 

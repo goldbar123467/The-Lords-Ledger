@@ -1722,8 +1722,15 @@ export function gameReducer(state, action) {
         activeRaid: null,
       };
 
+      // BUG-16 FIX: Update bankruptcy counter after raid losses
+      let raidBankruptcyTurns = state.bankruptcyTurns || 0;
+      if (newDenarii <= 0) {
+        raidBankruptcyTurns += 1;
+      }
+      // Don't reset to 0 here — the counter was already set by SIMULATE_SEASON this turn
+
       // Check game over after raid losses
-      const postRaidState = { population: newPopulation, bankruptcyTurns: state.bankruptcyTurns };
+      const postRaidState = { population: newPopulation, bankruptcyTurns: raidBankruptcyTurns };
       const raidGameOver = checkGameOver(postRaidState);
       if (raidGameOver) {
         return {
@@ -1736,6 +1743,7 @@ export function gameReducer(state, action) {
           chronicle: nextChronicle,
           raids: updatedRaids,
           military: updatedRaidMil,
+          bankruptcyTurns: raidBankruptcyTurns,
           phase: "game_over",
           gameOverReason: raidGameOver,
           currentEvent: null,
@@ -1754,6 +1762,7 @@ export function gameReducer(state, action) {
         chronicle: nextChronicle,
         raids: updatedRaids,
         military: updatedRaidMil,
+        bankruptcyTurns: raidBankruptcyTurns,
         phase: state.currentEvent ? "seasonal_action" : "seasonal_resolve",
         activeTab: "chronicle",
         resourceDeltas: {
