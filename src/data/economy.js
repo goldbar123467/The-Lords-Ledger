@@ -216,7 +216,7 @@ export const SEASON_CONSUMPTION_MULTIPLIERS = {
   spring: 1.0,
   summer: 1.0,
   autumn: 1.0,
-  winter: 1.25,  // more food needed for heating/preservation
+  winter: 1.1,  // slightly more food needed for heating/preservation
 };
 
 /** Building degradation multiplier by season */

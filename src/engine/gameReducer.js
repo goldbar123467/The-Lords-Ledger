@@ -1322,7 +1322,7 @@ export function gameReducer(state, action) {
         if (typeof b === "string") return b; // Legacy string format — skip
         const def = BUILDINGS[getBuildingType(b)];
         const rate = def?.degradeRate ?? 5;
-        const loss = Math.round(rate * 0.7 * degradeMult);
+        const loss = Math.round(rate * 0.5 * degradeMult);
         const newCondition = Math.max(0, (b.condition ?? 100) - loss);
         return { ...b, condition: newCondition };
       });
@@ -1612,7 +1612,7 @@ export function gameReducer(state, action) {
       const defenseRating = calculateDefenseRating(mil, watchtowerBonus + forgeEquipBonus);
       const defenseThreshold = raidType === "criminal" ? CRIMINAL_DEFENSE_THRESHOLD : SCOTTISH_DEFENSE_THRESHOLD;
 
-      const result = resolveRaid(raidType, defenseRating, defenseThreshold, state.garrison, state.castleLevel, state.inventory);
+      const result = resolveRaid(raidType, defenseRating, defenseThreshold, state.garrison, state.castleLevel, state.inventory, state.difficulty);
       if (!result) return state;
 
       // Log watchtower intelligence if it helped

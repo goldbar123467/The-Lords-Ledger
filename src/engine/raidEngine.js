@@ -112,7 +112,8 @@ export function checkForRaid(raids, turn) {
  *             garrisonDelta: number, tradeGoodLost: { resource: string, amount: number } | null,
  *             narrativeLine: string, raidName: string }}
  */
-export function resolveRaid(raidType, defenseRating, defenseThreshold, garrison, castleLevel, inventory) {
+export function resolveRaid(raidType, defenseRating, defenseThreshold, garrison, castleLevel, inventory, difficulty) {
+  const difficultyScale = difficulty === "easy" ? 0.5 : difficulty === "hard" ? 1.5 : 1.0;
   const def = RAID_TYPES[raidType];
   if (!def) return null;
 
@@ -148,7 +149,7 @@ export function resolveRaid(raidType, defenseRating, defenseThreshold, garrison,
   } else {
     baseDenLoss = randInt(losses.denariiMin, losses.denariiMax);
   }
-  const denariiLoss = Math.round(baseDenLoss * lossMultiplier);
+  const denariiLoss = Math.round(baseDenLoss * lossMultiplier * difficultyScale);
 
   // Food loss
   let baseFoodLoss;
@@ -157,12 +158,12 @@ export function resolveRaid(raidType, defenseRating, defenseThreshold, garrison,
   } else {
     baseFoodLoss = randInt(losses.foodMin, losses.foodMax);
   }
-  const foodLoss = Math.round(baseFoodLoss * lossMultiplier);
+  const foodLoss = Math.round(baseFoodLoss * lossMultiplier * difficultyScale);
 
   // Population loss — capped at 25% of current population in reducer to prevent wipeouts
-  let popLoss = Math.round((losses.populationLoss || 0) * lossMultiplier);
+  let popLoss = Math.round((losses.populationLoss || 0) * lossMultiplier * difficultyScale);
   if (garrison === 0) {
-    popLoss += 3; // Penalty for zero garrison (reduced from 5)
+    popLoss += Math.round(3 * difficultyScale); // Penalty for zero garrison
   }
 
   // Garrison loss (Scottish only)
