@@ -285,7 +285,7 @@ export const DIFFICULTY_CONFIGS = {
   hard: {
     label: "Hard",
     description: "Fewer resources, harsher consequences",
-    startingDenarii: 350,
+    startingDenarii: 400,
     startingInventory: { grain: 100, livestock: 20, fish: 10, iron: 10, steel: 3, coal: 30, leather: 5, wood: 8 },
     startingPopulation: 18,
     startingGarrison: 3,

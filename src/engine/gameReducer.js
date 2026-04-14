@@ -1644,9 +1644,13 @@ export function gameReducer(state, action) {
       const { type: raidType, result } = activeRaid;
       const { season, year, turn } = state;
 
-      // Apply resource changes
+      // Apply resource changes — cap population loss at 25% per raid
       let newDenarii = Math.max(0, state.denarii + result.denariiDelta);
-      let newPopulation = Math.max(0, state.population + result.populationDelta);
+      const maxPopLoss = Math.ceil(state.population * 0.25);
+      const cappedPopDelta = result.populationDelta < 0
+        ? Math.max(result.populationDelta, -maxPopLoss)
+        : result.populationDelta;
+      let newPopulation = Math.max(0, state.population + cappedPopDelta);
       let newInventory = { ...state.inventory };
 
       // Apply food delta to grain

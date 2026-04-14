@@ -435,7 +435,7 @@ export function simulateEconomy(state) {
   }
 
   // ----- 2.5. GARRISON FOOD — soldiers eat too -----
-  const garrisonFoodNeeded = Math.ceil(currentGarrison / 2);
+  const garrisonFoodNeeded = Math.ceil(currentGarrison / 3);
   if (garrisonFoodNeeded > 0) {
     let garrisonRemaining = garrisonFoodNeeded;
     for (const resource of FOOD_RESOURCES) {
