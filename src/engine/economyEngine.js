@@ -82,7 +82,8 @@ export function getTotalBuildingUpkeep(buildings) {
 export function getGarrisonUpkeep(garrison, military) {
   if (military?.garrison) {
     const g = military.garrison;
-    return (g.levy || 0) * 1 + (g.menAtArms || 0) * 3 + (g.knights || 0) * 8;
+    // BUG-25 FIX: Increase levy upkeep from 1 to 2 to make garrison maintenance meaningful
+    return (g.levy || 0) * 2 + (g.menAtArms || 0) * 5 + (g.knights || 0) * 10;
   }
   return garrison * GARRISON_UPKEEP_PER_SOLDIER;
 }
@@ -481,9 +482,11 @@ export function simulateEconomy(state) {
   currentDenarii = upkeep.denarii;
   report.push(...upkeep.report);
 
-  // Unpaid upkeep: soldiers desert (capped by season max)
+  // BUG-08 FIX: Unpaid upkeep — soldiers desert proportional to unpaid ratio
   if (upkeep.unpaidUpkeep > 0) {
-    const rawDeserters = Math.min(currentGarrison, Math.ceil(2 * penaltyScale));
+    const garrisonCost = getGarrisonUpkeep(currentGarrison, state);
+    const unpaidRatio = garrisonCost > 0 ? Math.min(1, upkeep.unpaidUpkeep / garrisonCost) : 0;
+    const rawDeserters = Math.min(currentGarrison, Math.max(1, Math.ceil(currentGarrison * unpaidRatio * 0.2 * penaltyScale)));
     const deserters = Math.min(rawDeserters, maxDesertionThisSeason - totalDesertions);
     if (deserters > 0) {
       currentGarrison -= deserters;
@@ -532,6 +535,18 @@ export function simulateEconomy(state) {
     if (passiveIncome > 0) parts.push(`${passiveIncome}d from market tolls`);
     if (populationIncome > 0) parts.push(`${populationIncome}d from cottage industries`);
     report.push(`Passive income: ${parts.join(", ")}.`);
+  }
+
+  // ----- 5.25. ESTATE MAINTENANCE — scales with size to prevent denarii snowball -----
+  // BUG-18 FIX: Add maintenance cost based on building count + population scale
+  const buildingCount = buildings.filter(b => {
+    if (typeof b === "string") return true;
+    return (b.condition ?? 100) > 0;
+  }).length;
+  const estateMaintenance = Math.floor(buildingCount * 2 + Math.max(0, currentPopulation - 15) * 0.5);
+  if (estateMaintenance > 0) {
+    currentDenarii = Math.max(0, currentDenarii - estateMaintenance);
+    report.push(`Estate maintenance: ${estateMaintenance}d for ${buildingCount} buildings and road upkeep.`);
   }
 
   // ----- 5.5. SYNERGY BONUSES -----
@@ -594,6 +609,15 @@ export function simulateEconomy(state) {
   if (hasSynergyPopulationBonus(activatedSynergies) && foodSurplus) {
     if (populationChange === 0 && Math.random() < 0.25) {
       populationChange = 1;
+    }
+  }
+
+  // BUG-19 FIX: Wandering settlers can arrive when population is critically low
+  // Prevents unrecoverable death spiral
+  if (currentPopulation < 8 && currentPopulation > 0 && consumption.shortfall === 0 && currentDenarii > 0) {
+    if (populationChange <= 0 && Math.random() < 0.4) {
+      populationChange += 1;
+      report.push("A wandering family, seeking a lord's protection, has settled on your estate.");
     }
   }
 

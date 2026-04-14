@@ -176,8 +176,8 @@ export const GARRISON_UPKEEP_PER_SOLDIER = 3;
 /** Starting inventory capacity */
 export const STARTING_INVENTORY_CAPACITY = 300;
 
-/** Food consumption: 1 food per family per season */
-export const FOOD_PER_FAMILY = 1;
+/** Food consumption: 3 food per family per season */
+export const FOOD_PER_FAMILY = 3;
 
 /** Cost to recruit one soldier */
 export const RECRUIT_COST = 10;
@@ -268,7 +268,7 @@ export const DIFFICULTY_CONFIGS = {
     label: "Easy",
     description: "More resources, gentler penalties",
     startingDenarii: 700,
-    startingInventory: { grain: 200, livestock: 50, fish: 30, iron: 25, steel: 8, coal: 60, leather: 15, wood: 20 },
+    startingInventory: { grain: 350, livestock: 80, fish: 50, iron: 25, steel: 8, coal: 60, leather: 15, wood: 20 },
     startingPopulation: 22,
     startingGarrison: 5,
     penaltyScale: 0.5,
@@ -277,7 +277,7 @@ export const DIFFICULTY_CONFIGS = {
     label: "Normal",
     description: "The standard medieval experience",
     startingDenarii: 500,
-    startingInventory: { grain: 150, livestock: 30, fish: 20, iron: 20, steel: 5, coal: 50, leather: 10, wood: 15 },
+    startingInventory: { grain: 280, livestock: 50, fish: 35, iron: 20, steel: 5, coal: 50, leather: 10, wood: 15 },
     startingPopulation: 20,
     startingGarrison: 5,
     penaltyScale: 1.0,
@@ -286,7 +286,7 @@ export const DIFFICULTY_CONFIGS = {
     label: "Hard",
     description: "Fewer resources, harsher consequences",
     startingDenarii: 400,
-    startingInventory: { grain: 100, livestock: 20, fish: 10, iron: 10, steel: 3, coal: 30, leather: 5, wood: 8 },
+    startingInventory: { grain: 200, livestock: 35, fish: 20, iron: 10, steel: 3, coal: 30, leather: 5, wood: 8 },
     startingPopulation: 18,
     startingGarrison: 3,
     penaltyScale: 1.5,

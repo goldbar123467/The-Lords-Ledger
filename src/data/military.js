@@ -20,7 +20,7 @@ export const SOLDIER_TYPES = {
     subtitle: "Fyrd",
     icon: "\u2692",  // hammers
     recruitCost: 5,
-    upkeep: 1,
+    upkeep: 2,
     defenseValue: 1,
     max: null,  // limited by population (25% cap before food penalty)
     borderColor: "#6a5a42",
@@ -34,7 +34,7 @@ export const SOLDIER_TYPES = {
     subtitle: "Professional Soldiers",
     icon: "\u2694",  // crossed swords
     recruitCost: 15,
-    upkeep: 3,
+    upkeep: 5,
     defenseValue: 3,
     max: 10,
     borderColor: "#8b1a1a",
@@ -48,7 +48,7 @@ export const SOLDIER_TYPES = {
     subtitle: "Mounted Elite",
     icon: "\u265B",  // queen chess piece
     recruitCost: 50,
-    upkeep: 8,
+    upkeep: 10,
     defenseValue: 8,
     max: 3,
     borderColor: "#c4a24a",
@@ -245,6 +245,11 @@ export function removeFromGarrison(garrison, count) {
     const knightRemove = Math.min(newGarrison.knights || 0, remaining);
     newGarrison.knights = (newGarrison.knights || 0) - knightRemove;
   }
+
+  // BUG-21 FIX: Ensure no typed garrison count goes negative
+  newGarrison.levy = Math.max(0, newGarrison.levy || 0);
+  newGarrison.menAtArms = Math.max(0, newGarrison.menAtArms || 0);
+  newGarrison.knights = Math.max(0, newGarrison.knights || 0);
 
   return newGarrison;
 }
