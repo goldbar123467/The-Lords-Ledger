@@ -444,7 +444,7 @@ export function simulateEconomy(state) {
   const maxDesertionThisSeason = Math.max(1, Math.ceil(garrisonAtStart * 0.5));
   let totalDesertions = 0;
 
-  const garrisonFoodNeeded = Math.ceil(currentGarrison / 3);
+  const garrisonFoodNeeded = Math.ceil(currentGarrison / 5);
   if (garrisonFoodNeeded > 0) {
     let garrisonRemaining = garrisonFoodNeeded;
     for (const resource of FOOD_RESOURCES) {
@@ -511,7 +511,7 @@ export function simulateEconomy(state) {
   // ----- 5. PASSIVE INCOME -----
   const passiveIncome = getPassiveIncome(castleLevel, buildings);
   // Population generates small income from cottage industries and market activity
-  const populationIncome = Math.floor(currentPopulation * 0.5);
+  const populationIncome = Math.floor(currentPopulation * 0.75);
   const totalPassiveIncome = passiveIncome + populationIncome;
   currentDenarii += totalPassiveIncome;
   if (totalPassiveIncome > 0) {
@@ -532,7 +532,7 @@ export function simulateEconomy(state) {
   // ----- 6. POPULATION GROWTH/DECLINE -----
   let populationChange = 0;
   const totalFoodInInventory = getTotalFood(currentInventory);
-  const foodSurplus = totalFoodInInventory > currentPopulation * 2;
+  const foodSurplus = totalFoodInInventory > Math.ceil(currentPopulation * 1.5);
 
   // Ale consumed for morale — helps attract settlers
   const hasAle = (currentInventory.ale || 0) >= 3;

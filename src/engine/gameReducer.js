@@ -1224,11 +1224,15 @@ export function gameReducer(state, action) {
         milMorale = Math.max(0, milMorale - 15);
       }
 
-      // Morale: food stores
+      // Morale: food stores (tiered thresholds for gradual recovery)
       if (econResult.food > 200) {
         milMorale = Math.min(100, milMorale + 5);
-      } else if (econResult.food < 50) {
+      } else if (econResult.food > 100) {
+        milMorale = Math.min(100, milMorale + 2);
+      } else if (econResult.food < 25) {
         milMorale = Math.max(0, milMorale - 10);
+      } else if (econResult.food < 50) {
+        milMorale = Math.max(0, milMorale - 5);
       }
 
       // Morale: population unhappiness

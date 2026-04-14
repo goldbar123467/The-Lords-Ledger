@@ -208,7 +208,7 @@ export const SEASON_FARM_MULTIPLIERS = {
   spring: 0.6,   // planting season (early crops)
   summer: 1.0,   // growing season
   autumn: 1.5,   // harvest
-  winter: 0.4,   // dormant (stored produce, winter crops)
+  winter: 0.5,   // dormant (stored produce, winter crops)
 };
 
 /** Food consumption multiplier by season */
@@ -216,7 +216,7 @@ export const SEASON_CONSUMPTION_MULTIPLIERS = {
   spring: 1.0,
   summer: 1.0,
   autumn: 1.0,
-  winter: 1.5,   // more food needed for heating/preservation
+  winter: 1.25,  // more food needed for heating/preservation
 };
 
 /** Building degradation multiplier by season */
@@ -232,7 +232,7 @@ export const SEASON_INFO = {
   spring: { label: "Spring", symbol: "\u2E30", color: "#8dba6e", desc: "Planting season. Farm output \u00D70.5" },
   summer: { label: "Summer", symbol: "\u2600", color: "#c9a84c", desc: "Growing season. Normal output" },
   autumn: { label: "Autumn", symbol: "\u2766", color: "#d4864c", desc: "Harvest! Farm output \u00D71.5" },
-  winter: { label: "Winter", symbol: "\u2744", color: "#7eb8d4", desc: "Dormant. Farm output \u00D70.25, +50% food consumption" },
+  winter: { label: "Winter", symbol: "\u2744", color: "#7eb8d4", desc: "Dormant. Farm output \u00D70.5, +25% food consumption" },
 };
 
 // ---------------------------------------------------------------------------
