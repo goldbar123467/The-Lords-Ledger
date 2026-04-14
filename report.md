@@ -11,13 +11,13 @@
 | Run | Difficulty | Strategy | Turns Survived | Outcome | Time |
 |-----|-----------|----------|---------------|---------|------|
 | Easy/Passive | Easy | No actions | 29 / 40 | Game Over | 110.7s |
-| Easy/Builder | Easy | Build each turn | 33 / 40 | Game Over | 162.5s |
+| Easy/Builder | Easy | Build each turn | **40 / 40** | Game Over (BUG) | 162.5s |
 | Normal/Balanced | Normal | Alternate build/recruit | 25 / 40 | Game Over | 125.1s |
 | Normal/Military | Normal | Recruit every turn | 21 / 40 | Game Over | 98.2s |
 | Hard/Passive | Hard | No actions | 22 / 40 | Game Over | 84.8s |
 | Hard/Builder | Hard | Build each turn | 11 / 40 | Game Over | 67.1s |
 
-**No run achieved victory (turn 40).** Every playthrough ended in game over. Zero crashes or soft-locks occurred across all 6 runs.
+**No run achieved a victory screen**, though Easy/Builder survived all 40 turns and should have won. Instead, the game processed a 41st-turn raid after turn 40 and triggered game over — this is a **critical bug** (see BUG 4 below). Zero crashes or soft-locks occurred across all 6 runs.
 
 ---
 
@@ -53,7 +53,7 @@ Survival correlates with difficulty as expected (Easy ~30 turns, Normal ~23, Har
 
 On Hard, the builder strategy was the *worst* performer (11 turns vs. 22 for passive). The bot built 6 buildings, each costing 80-100d, draining 350 starting denarii rapidly. Buildings hit 0 denarii by turn 6 and 0 garrison by turn 7. The buildings couldn't generate enough return before the estate collapsed.
 
-On Easy, building was the *best* strategy (33 turns vs. 29 passive), confirming that buildings do help — but only if you can afford the upfront cost without going bankrupt.
+On Easy, building was the *best* strategy — it actually survived all 40 turns (though victory didn't trigger due to BUG 4). This confirms buildings do help long-term, but only if you can afford the upfront cost without going bankrupt.
 
 ### 4. Military Spending Accelerates Collapse
 
@@ -111,6 +111,30 @@ Turn 16: D=0    F=90   P=1   G=0   (Nearly depopulated)
 **Severity:** Medium (gameplay)
 **Details:** On Easy/Passive (no player actions taken), garrison fluctuated: 5 → 4 → 7 → 7 → 11 → 11 → 13 → 15 → 21 → 21 → 21 → 22 → 21 → 18 → ... The garrison *increased* from 5 to 25 without any recruitment. This means events and/or random occurrences are adding soldiers. The subsequent drops (25 → 19 → 14 → 10 → 5 → 3 → 1) suggest desertion or raid losses. Players may find it confusing that garrison changes so dramatically without their input.
 
+### BUG 4: Victory Does Not Trigger at Turn 40 (CRITICAL)
+
+**Severity:** Critical (gameplay-breaking)
+**Details:** Easy/Builder survived all 40 turns. The turn data clearly shows Turn 40, Winter Year 10 with resources D=125, F=64, P=6, G=1. However, instead of triggering the victory screen, the game processed *another* turn — a raid occurred after turn 40 that killed the estate. The final data entry shows a raid event with null resources, indicating the game continued past the victory condition.
+
+**Evidence:**
+```
+T39 Autumn Y10: D=96  F=58  P=5  G=0  (one turn away from victory)
+T40 Winter Y10: D=125 F=64  P=6  G=1  (should trigger victory here!)
+T?? null:       null                    (raid fires, game over)
+```
+
+**Root cause (likely):** The victory check in the reducer may only run *before* economy simulation, not after the final turn's random event phase. Or the turn counter increments before the check. The game should check for `turn >= 40` immediately after the final season resolves, before processing any further raids or events.
+
+### BUG 5: Raids Are Nearly Unbeatable (88% Success Rate)
+
+**Severity:** Medium (balance)
+**Details:** Across all 6 runs, approximately 34 raids occurred and only ~4 were repelled (12% repel rate). Even on Normal/Military with 22 garrison and 21 total recruits, zero raids were repelled. This suggests either:
+- The defense rating calculation undervalues garrison count relative to raid thresholds
+- Fortifications (walls/gate/moat) are essential but not communicated to the player
+- Raid strength scales too aggressively with game progression
+
+Some raids killed 50-80% of the population in a single event (Hard/Passive T22: 14 families → 3).
+
 ---
 
 ## Balance Recommendations
@@ -131,11 +155,19 @@ Turn 16: D=0    F=90   P=1   G=0   (Nearly depopulated)
 
 6. **Or reduce building costs on Hard** — A difficulty multiplier on build costs (0.8x) would make the building strategy viable without changing the overall challenge feel.
 
+### Important: Raid Rebalancing
+
+7. **Reduce raid population losses** — A single raid killing 50-80% of the population is too punishing. Cap population loss per raid at ~20-25% of current population.
+
+8. **Make garrison count matter more for defense** — 22 garrison should reliably repel criminal raids (threshold 25). Consider lowering thresholds or increasing per-soldier defense contribution.
+
+9. **Reduce raid frequency on Hard** — Raids every 3-4 turns on Hard doesn't leave enough recovery time. Consider 5-6 turn intervals.
+
 ### Minor: Military Balance
 
-7. **Reduce garrison upkeep** — Soldiers drain both denarii and food, making a military strategy unsustainable. Consider reducing food upkeep for soldiers, or having garrison partially forage for their own food.
+10. **Reduce garrison upkeep** — Soldiers drain both denarii and food, making a military strategy unsustainable. Consider reducing food upkeep for soldiers, or having garrison partially forage for their own food.
 
-8. **Add military income** — Garrison should occasionally generate income through patrols, bandit bounties, or escort fees — giving military investment some ROI beyond raid defense.
+11. **Add military income** — Garrison should occasionally generate income through patrols, bandit bounties, or escort fees — giving military investment some ROI beyond raid defense.
 
 ---
 
