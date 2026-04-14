@@ -513,7 +513,7 @@ export function simulateEconomy(state) {
   // ----- 6. POPULATION GROWTH/DECLINE -----
   let populationChange = 0;
   const totalFoodInInventory = getTotalFood(currentInventory);
-  const foodSurplus = totalFoodInInventory > currentPopulation;
+  const foodSurplus = totalFoodInInventory > currentPopulation * 3;
 
   // Ale consumed for morale — helps attract settlers
   const hasAle = (currentInventory.ale || 0) >= 3;

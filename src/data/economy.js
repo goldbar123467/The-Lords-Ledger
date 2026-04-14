@@ -208,7 +208,7 @@ export const SEASON_FARM_MULTIPLIERS = {
   spring: 0.5,   // planting season
   summer: 1.0,   // growing season
   autumn: 1.5,   // harvest
-  winter: 0.25,  // dormant
+  winter: 0.4,   // dormant (stored produce, winter crops)
 };
 
 /** Food consumption multiplier by season */
