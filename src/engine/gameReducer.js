@@ -1778,6 +1778,7 @@ export function gameReducer(state, action) {
           gameOverReason: raidGameOver,
           currentEvent: null,
           currentRandomEvent: null,
+          scribesNote: null,
         };
       }
 
@@ -1795,6 +1796,7 @@ export function gameReducer(state, action) {
         bankruptcyTurns: raidBankruptcyTurns,
         scribesNote: null,
         phase: (state.currentEvent && state.currentEvent.options?.length > 0) ? "seasonal_action" : "seasonal_resolve",
+        currentEvent: (state.currentEvent && state.currentEvent.options?.length > 0) ? state.currentEvent : null,
         activeTab: "chronicle",
         resourceDeltas: {
           denarii: newDenarii - state.denarii,

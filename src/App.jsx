@@ -628,11 +628,13 @@ export default function App() {
         )}
       </div>
 
-      {/* Synergy notification toast */}
-      <SynergyToast
-        notification={pendingSynergyNotifications?.[0] ?? null}
-        onDismiss={handleDismissSynergyNotification}
-      />
+      {/* Synergy notification toast — hidden during flip phases to avoid input deadlock */}
+      {!isFlipPhase && (
+        <SynergyToast
+          notification={pendingSynergyNotifications?.[0] ?? null}
+          onDismiss={handleDismissSynergyNotification}
+        />
+      )}
 
       {/* Simulate Season button */}
       {isManagement && !isFlipPhase && (
