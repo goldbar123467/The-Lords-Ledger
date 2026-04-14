@@ -433,7 +433,9 @@ export function simulateEconomy(state) {
     const totalFoodAfter = getTotalFood(currentInventory);
     const floorPop = (difficulty === "hard" && totalFoodAfter === 0) ? 0 : 1;
     const maxAttrition = Math.max(1, Math.ceil(currentPopulation * 0.2));
-    const familiesLeave = Math.min(currentPopulation - floorPop, maxAttrition, Math.round(Math.min(5, consumption.shortfall) * penaltyScale));
+    // BUG-06 FIX: Removed Math.min(5, ...) cap — let shortfall drive attrition proportionally.
+    // The 20% maxAttrition cap already prevents instant depopulation.
+    const familiesLeave = Math.min(currentPopulation - floorPop, maxAttrition, Math.round(consumption.shortfall * penaltyScale));
     if (familiesLeave > 0) {
       currentPopulation -= familiesLeave;
       report.push(`${familiesLeave} ${familiesLeave === 1 ? "family" : "families"} left due to hunger.`);
@@ -475,9 +477,11 @@ export function simulateEconomy(state) {
   currentDenarii = upkeep.denarii;
   report.push(...upkeep.report);
 
-  // Unpaid upkeep: soldiers desert (capped by season max)
+  // BUG-08 FIX: Unpaid upkeep — soldiers desert proportional to unpaid ratio
   if (upkeep.unpaidUpkeep > 0) {
-    const rawDeserters = Math.min(currentGarrison, Math.ceil(2 * penaltyScale));
+    const garrisonCost = getGarrisonUpkeep(currentGarrison, state);
+    const unpaidRatio = garrisonCost > 0 ? Math.min(1, upkeep.unpaidUpkeep / garrisonCost) : 0;
+    const rawDeserters = Math.min(currentGarrison, Math.max(1, Math.ceil(currentGarrison * unpaidRatio * 0.2 * penaltyScale)));
     const deserters = Math.min(rawDeserters, maxDesertionThisSeason - totalDesertions);
     if (deserters > 0) {
       currentGarrison -= deserters;
