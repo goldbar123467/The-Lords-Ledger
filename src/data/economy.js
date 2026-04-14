@@ -205,7 +205,7 @@ export const STARTING_TOTAL_PLOTS = 24;
 
 /** Farm output multiplier by season */
 export const SEASON_FARM_MULTIPLIERS = {
-  spring: 0.5,   // planting season
+  spring: 0.6,   // planting season (early crops)
   summer: 1.0,   // growing season
   autumn: 1.5,   // harvest
   winter: 0.4,   // dormant (stored produce, winter crops)

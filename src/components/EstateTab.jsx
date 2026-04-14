@@ -160,7 +160,7 @@ function EconomyOverview({ state }) {
     buildings, garrison, castleLevel, season,
   } = state;
 
-  const garrisonFood = Math.ceil(garrison / 2);
+  const garrisonFood = Math.ceil(garrison / 3);
   const consumption = getFoodConsumption(population) + garrisonFood;
   const buildingUpkeep = getTotalBuildingUpkeep(buildings);
   const garrisonUpkeep = getGarrisonUpkeep(garrison);

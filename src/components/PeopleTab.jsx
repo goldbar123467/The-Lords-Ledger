@@ -370,7 +370,7 @@ export default function PeopleTab({ state, dispatch }) {
 
   // Food calculations
   const totalFood = getTotalFood(inventory);
-  const garrisonFood = Math.ceil(garrison / 2);
+  const garrisonFood = Math.ceil(garrison / 3);
   const consumption = population * FOOD_PER_FAMILY + garrisonFood;
   const foodBalance = resourceDeltas?.food ?? (totalFood - consumption);
 

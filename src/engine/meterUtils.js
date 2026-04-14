@@ -30,7 +30,7 @@ export function translateEffects(effects) {
   // Translate old meter keys to resource effects
   if (effects.treasury) result.denarii += effects.treasury * 10;
   if (effects.people) result.food += effects.people * 3;
-  if (effects.military) result.garrison += Math.round(effects.military / 5);
+  if (effects.military) result.garrison += effects.military > 0 ? Math.ceil(effects.military / 5) : Math.floor(effects.military / 5);
   if (effects.faith) result.denarii += effects.faith * 5;
 
   // Direct resource keys override/stack
@@ -83,7 +83,7 @@ export function applyResourceEffects(state, resourceEffects, maxGarrison = 25) {
  *
  * Game over conditions:
  *   - Population reaches 0: everyone left or perished
- *   - Bankrupt for 3+ consecutive turns: creditors seize the estate
+ *   - Bankrupt for 4+ consecutive turns: creditors seize the estate
  *
  * @param {object} state - Game state with population and bankruptcyTurns
  * @returns {{ type: string, reason: string } | null}

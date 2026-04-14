@@ -336,7 +336,8 @@ function runConsumption(inventory, population, maxFoodLoss, season) {
     report.push(`Your ${population} families needed ${needed} food but only had ${foodEaten}. ${shortfall} families went hungry!`);
   } else {
     const seasonNote = consumptionMult > 1.0 ? ` (winter rations: \u00D7${consumptionMult})` : "";
-    report.push(`Your ${population} families consumed ${foodEaten} food${seasonNote}.`);
+    const capNote = (maxFoodLoss && seasonalNeeded > maxFoodLoss) ? ` (rationing saved ${seasonalNeeded - maxFoodLoss})` : "";
+    report.push(`Your ${population} families consumed ${foodEaten} food${seasonNote}${capNote}.`);
   }
 
   return { inventory: nextInventory, foodEaten, shortfall, report };
@@ -427,7 +428,10 @@ export function simulateEconomy(state) {
 
   // Food shortfall causes families to leave
   if (consumption.shortfall > 0) {
-    const familiesLeave = Math.min(currentPopulation - 1, Math.round(Math.min(5, consumption.shortfall) * penaltyScale));
+    // On Hard difficulty, complete food exhaustion can kill the last family (no immortal floor)
+    const totalFoodAfter = getTotalFood(currentInventory);
+    const floorPop = (difficulty === "hard" && totalFoodAfter === 0) ? 0 : 1;
+    const familiesLeave = Math.min(currentPopulation - floorPop, Math.round(Math.min(5, consumption.shortfall) * penaltyScale));
     if (familiesLeave > 0) {
       currentPopulation -= familiesLeave;
       report.push(`${familiesLeave} ${familiesLeave === 1 ? "family" : "families"} left due to hunger.`);
@@ -497,9 +501,15 @@ export function simulateEconomy(state) {
 
   // ----- 5. PASSIVE INCOME -----
   const passiveIncome = getPassiveIncome(castleLevel, buildings);
-  currentDenarii += passiveIncome;
-  if (passiveIncome > 0) {
-    report.push(`Passive income: ${passiveIncome}d from market tolls and mill fees.`);
+  // Population generates small income from cottage industries and market activity
+  const populationIncome = Math.floor(currentPopulation * 0.5);
+  const totalPassiveIncome = passiveIncome + populationIncome;
+  currentDenarii += totalPassiveIncome;
+  if (totalPassiveIncome > 0) {
+    const parts = [];
+    if (passiveIncome > 0) parts.push(`${passiveIncome}d from market tolls`);
+    if (populationIncome > 0) parts.push(`${populationIncome}d from cottage industries`);
+    report.push(`Passive income: ${parts.join(", ")}.`);
   }
 
   // ----- 5.5. SYNERGY BONUSES -----
@@ -513,7 +523,7 @@ export function simulateEconomy(state) {
   // ----- 6. POPULATION GROWTH/DECLINE -----
   let populationChange = 0;
   const totalFoodInInventory = getTotalFood(currentInventory);
-  const foodSurplus = totalFoodInInventory > currentPopulation * 3;
+  const foodSurplus = totalFoodInInventory > currentPopulation * 2;
 
   // Ale consumed for morale — helps attract settlers
   const hasAle = (currentInventory.ale || 0) >= 3;
@@ -570,7 +580,7 @@ export function simulateEconomy(state) {
     populationChange = 0; // Cancel growth during famine
   }
 
-  currentPopulation = Math.max(1, currentPopulation + populationChange);
+  currentPopulation = Math.max(0, currentPopulation + populationChange);
   if (populationChange > 0) {
     report.push(`${populationChange} new ${populationChange === 1 ? "family has" : "families have"} settled on your land.`);
   } else if (populationChange < 0) {

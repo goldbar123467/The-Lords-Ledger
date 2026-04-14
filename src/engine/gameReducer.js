@@ -106,7 +106,7 @@ export const initialState = {
   // Resource deltas (for dashboard display)
   resourceDeltas: { denarii: 0, food: 0, population: 0, garrison: 0 },
 
-  // Bankruptcy tracking (3 consecutive turns at 0 denarii = game over)
+  // Bankruptcy tracking (4 consecutive turns at 0 denarii = game over)
   bankruptcyTurns: 0,
 
   // UI state
@@ -1157,13 +1157,18 @@ export function gameReducer(state, action) {
       // Victory check BEFORE any season processing — prevents raids/events
       // from firing after the final turn (BUG 4 fix)
       if (state.turn >= MAX_TURNS) {
-        const victoryText =
-          "Ten years have passed. Your reign has endured through war, famine, and feast. " +
-          "The chronicles will remember your name.";
+        // Pyrrhic victory: survived but barely — population too low
+        const isPyrrhic = state.population < 3;
+        const victoryText = isPyrrhic
+          ? "Ten years have passed, but at what cost? Your estate barely clings to life. " +
+            "The chronicles will note your survival, though few remain to read them."
+          : "Ten years have passed. Your reign has endured through war, famine, and feast. " +
+            "The chronicles will remember your name.";
         const { season: vSeason, year: vYear } = turnToSeasonYear(state.turn);
         return {
           ...state,
           phase: "victory",
+          pyrrhicVictory: isPyrrhic,
           chronicle: addChronicle(state.chronicle, victoryText, vSeason, vYear, state.turn, "system"),
           currentEvent: null,
           currentRandomEvent: null,
@@ -1231,11 +1236,8 @@ export function gameReducer(state, action) {
         milMorale = Math.max(0, milMorale - 5);
       }
 
-      // Morale: idle garrison decay
+      // Track idle seasons (used for narrative flavor, no morale penalty)
       const idleSeasons = (prevMil.idleSeasons || 0) + 1;
-      if (idleSeasons >= 5) {
-        milMorale = Math.max(0, milMorale - 3);
-      }
 
       // Morale: mutinous desertion (10% chance per levy)
       const moraleLevel = getMoraleLevel(milMorale);
@@ -1855,13 +1857,17 @@ export function gameReducer(state, action) {
 
       // Victory check
       if (turn >= MAX_TURNS) {
-        const victoryText =
-          "Ten years have passed. Your reign has endured through war, famine, and feast. " +
-          "The chronicles will remember your name.";
+        const isPyrrhic = state.population < 3;
+        const victoryText = isPyrrhic
+          ? "Ten years have passed, but at what cost? Your estate barely clings to life. " +
+            "The chronicles will note your survival, though few remain to read them."
+          : "Ten years have passed. Your reign has endured through war, famine, and feast. " +
+            "The chronicles will remember your name.";
         const { season, year } = turnToSeasonYear(turn);
         return {
           ...state,
           phase: "victory",
+          pyrrhicVictory: isPyrrhic,
           chronicle: addChronicle(chronicle, victoryText, season, year, turn, "system"),
           currentEvent: null,
           currentRandomEvent: null,
@@ -2223,13 +2229,17 @@ export function gameReducer(state, action) {
 
       // Victory check
       if (turn >= MAX_TURNS) {
-        const victoryText =
-          "Ten years have passed. Your reign has endured through war, famine, and feast. " +
-          "The chronicles will remember your name.";
+        const isPyrrhic = (newState.population ?? state.population) < 3;
+        const victoryText = isPyrrhic
+          ? "Ten years have passed, but at what cost? Your estate barely clings to life. " +
+            "The chronicles will note your survival, though few remain to read them."
+          : "Ten years have passed. Your reign has endured through war, famine, and feast. " +
+            "The chronicles will remember your name.";
         return {
           ...state,
           ...newState,
           phase: "victory",
+          pyrrhicVictory: isPyrrhic,
           chronicle: addChronicle(nextChronicle, victoryText, flipSeason, flipYear, turn, "system"),
           perspectiveFlips: nextPerspectiveFlips,
           currentFlipId: null,

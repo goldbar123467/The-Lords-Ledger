@@ -64,8 +64,9 @@ export function checkForRaid(raids, turn) {
   const crimCd = raids.criminalCooldown || 0;
   const scotCd = raids.scottishCooldown || 0;
 
-  // Forced Scottish raid if none has fired by turn 16
-  if (turn >= scottishDef.forceTurn && (raids.totalScottishRaids || 0) === 0 && scotCd <= 0) {
+  // Forced Scottish raid if none has fired by turn 16 (respects cooldown from any recent raid)
+  const lastRaid = raids.lastRaidTurn || 0;
+  if (turn >= scottishDef.forceTurn && (raids.totalScottishRaids || 0) === 0 && scotCd <= 0 && (turn - lastRaid) >= 2) {
     return { type: "scottish" };
   }
 
@@ -158,7 +159,7 @@ export function resolveRaid(raidType, defenseRating, defenseThreshold, garrison,
   }
   const foodLoss = Math.round(baseFoodLoss * lossMultiplier);
 
-  // Population loss — capped at 25% of garrison count to prevent wipeouts
+  // Population loss — capped at 25% of current population in reducer to prevent wipeouts
   let popLoss = Math.round((losses.populationLoss || 0) * lossMultiplier);
   if (garrison === 0) {
     popLoss += 3; // Penalty for zero garrison (reduced from 5)
