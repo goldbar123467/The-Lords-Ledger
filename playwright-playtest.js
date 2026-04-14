@@ -583,6 +583,9 @@ async function playGame(page, persona, idx) {
             : (Math.random() > 0.7 ? Math.min(1, count - 1) : 0);
           const btn = options.nth(idx);
           const text = await btn.textContent().catch(() => "?");
+          // Scroll the option into view to clear the sticky dashboard
+          await btn.scrollIntoViewIfNeeded().catch(() => {});
+          await sleep(100);
           await btn.click({ timeout: 2000 });
           log.eventChoices.push({ event: title, choice: text.slice(0, 80), phase });
         }
@@ -647,7 +650,10 @@ async function playGame(page, persona, idx) {
         const count = await options.count();
         if (count > 0) {
           const idx = persona.strategy === "random" ? Math.floor(Math.random() * count) : 0;
-          await options.nth(Math.min(idx, count - 1)).click({ timeout: 2000 });
+          const btn = options.nth(Math.min(idx, count - 1));
+          await btn.scrollIntoViewIfNeeded().catch(() => {});
+          await sleep(100);
+          await btn.click({ timeout: 2000 });
         }
       } catch { /* skip */ }
       await sleep(300);
@@ -697,6 +703,12 @@ async function playGame(page, persona, idx) {
         if (fixed) {
           const btn = fixed.querySelector("button");
           if (btn) { btn.click(); return "overlay"; }
+        }
+        // Try event option buttons (scroll into view first)
+        const roleGroup = document.querySelector("[role='group']");
+        if (roleGroup) {
+          const btn = roleGroup.querySelector("button");
+          if (btn) { btn.scrollIntoView({ block: "center" }); btn.click(); return "event-option:" + btn.textContent.trim().substring(0, 30); }
         }
         // Try any visible button with action-like text
         const btns = [...document.querySelectorAll("button")].filter(b => b.offsetParent !== null);
