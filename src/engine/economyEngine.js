@@ -566,11 +566,11 @@ export function simulateEconomy(state) {
   const totalFoodInInventory = getTotalFood(currentInventory);
   const foodSurplus = totalFoodInInventory > Math.ceil(currentPopulation * 1.0);
 
-  // Ale consumed for morale — helps attract settlers (skip during famine)
+  // Ale consumed for morale — helps attract settlers
   const isFamine = consumption.shortfall > 0;
   const hasAle = !isFamine && (currentInventory.ale || 0) >= 3;
   if (hasAle) {
-    currentInventory.ale -= 3;
+    currentInventory = { ...currentInventory, ale: currentInventory.ale - 3 };
     report.push("Your people enjoyed 3 ale \u2014 morale is high!");
   }
 
@@ -619,10 +619,10 @@ export function simulateEconomy(state) {
     }
   }
 
-  // BUG-19 FIX: Wandering settlers can arrive when population is critically low
+  // Wandering settlers can arrive when population is critically low
   // Prevents unrecoverable death spiral
-  if (currentPopulation < 8 && currentPopulation > 0 && consumption.shortfall === 0 && currentDenarii > 0) {
-    if (populationChange <= 0 && Math.random() < 0.4) {
+  if (currentPopulation < 10 && currentPopulation > 0 && consumption.shortfall === 0) {
+    if (populationChange <= 0 && Math.random() < 0.5) {
       populationChange += 1;
       report.push("A wandering family, seeking a lord's protection, has settled on your estate.");
     }

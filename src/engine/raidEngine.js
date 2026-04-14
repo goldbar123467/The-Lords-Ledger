@@ -222,9 +222,10 @@ export function resolveRaid(raidType, defenseRating, defenseThreshold, garrison,
 /**
  * Build chronicle text for a raid outcome.
  */
-export function buildRaidChronicleText(raidType, result, season, year, garrison, defenseRating, defenseThreshold) {
+export function buildRaidChronicleText(raidType, result, season, year, garrison, defenseRating, defenseThreshold, watchtowerBonus) {
   if (result.victory) {
-    const parts = [`${result.raidName} attacked the estate. Your defenses held (rating ${defenseRating} vs ${defenseThreshold} required).`];
+    const wtNote = watchtowerBonus > 0 ? `, watchtower intel +${watchtowerBonus}` : "";
+    const parts = [`${result.raidName} attacked the estate. Your defenses held (rating ${defenseRating} vs ${defenseThreshold} required${wtNote}).`];
     if (result.denariiDelta > 0) parts.push(`Recovered ${result.denariiDelta}d in plunder`);
     if (result.foodDelta > 0) parts.push(`${result.foodDelta} food in captured supplies`);
     parts.push("The people celebrate.");
@@ -234,7 +235,8 @@ export function buildRaidChronicleText(raidType, result, season, year, garrison,
   // Defeat
   const parts = [`${result.raidName} raided the estate.`];
   if (garrison > 0) {
-    parts.push(`Your defenses were insufficient (rating ${defenseRating} vs ${defenseThreshold} required).`);
+    const wtNote = watchtowerBonus > 0 ? `, watchtower intel +${watchtowerBonus}` : "";
+    parts.push(`Your defenses were insufficient (rating ${defenseRating} vs ${defenseThreshold} required${wtNote}).`);
   } else {
     parts.push("There was no garrison to defend.");
   }
