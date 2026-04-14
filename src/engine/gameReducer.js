@@ -1154,6 +1154,23 @@ export function gameReducer(state, action) {
     case "SIMULATE_SEASON": {
       if (state.phase !== "management") return state;
 
+      // Victory check BEFORE any season processing — prevents raids/events
+      // from firing after the final turn (BUG 4 fix)
+      if (state.turn >= MAX_TURNS) {
+        const victoryText =
+          "Ten years have passed. Your reign has endured through war, famine, and feast. " +
+          "The chronicles will remember your name.";
+        const { season: vSeason, year: vYear } = turnToSeasonYear(state.turn);
+        return {
+          ...state,
+          phase: "victory",
+          chronicle: addChronicle(state.chronicle, victoryText, vSeason, vYear, state.turn, "system"),
+          currentEvent: null,
+          currentRandomEvent: null,
+          scribesNote: null,
+        };
+      }
+
       const { seasonalEvents = [] } = action.payload ?? {};
       const { turn, season, year, usedSeasonalIds } = state;
 

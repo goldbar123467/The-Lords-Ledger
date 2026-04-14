@@ -6,9 +6,9 @@
  * notes. Pure data and functions only — no side effects, no I/O, no DOM.
  *
  * Defense balance targets:
- *   Starting (5 levy, palisade, morale 50):   ~15  (below criminal threshold)
- *   By turn 4 (~75-155d invested):             >=25 (criminal threshold)
- *   By turn 8 (~230d+ invested):               >=50 (Scottish threshold)
+ *   Starting (5 levy, palisade, morale 50):   ~15  (meets criminal threshold)
+ *   By turn 4 (~75-155d invested):             >=18 (criminal threshold)
+ *   By turn 8 (~230d+ invested):               >=38 (Scottish threshold)
  */
 
 // ─── Soldier Types ────────────────────────────────────────────────
@@ -97,8 +97,8 @@ export const MORALE_LEVELS = [
 // ─── Constants ────────────────────────────────────────────────────
 
 export const BASE_CASTLE_DEFENSE = 5;  // Motte mound provides base defense
-export const CRIMINAL_DEFENSE_THRESHOLD = 25;
-export const SCOTTISH_DEFENSE_THRESHOLD = 50;
+export const CRIMINAL_DEFENSE_THRESHOLD = 18;
+export const SCOTTISH_DEFENSE_THRESHOLD = 38;
 export const LEVY_FOOD_PENALTY_THRESHOLD = 0.25;  // 25% of population
 export const LEVY_FOOD_PENALTY_PER_EXCESS = 0.10;  // 10% per excess levy
 

@@ -158,10 +158,10 @@ export function resolveRaid(raidType, defenseRating, defenseThreshold, garrison,
   }
   const foodLoss = Math.round(baseFoodLoss * lossMultiplier);
 
-  // Population loss
+  // Population loss — capped at 25% of garrison count to prevent wipeouts
   let popLoss = Math.round((losses.populationLoss || 0) * lossMultiplier);
   if (garrison === 0) {
-    popLoss += 5; // Additional penalty for zero garrison
+    popLoss += 3; // Penalty for zero garrison (reduced from 5)
   }
 
   // Garrison loss (Scottish only)

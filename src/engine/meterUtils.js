@@ -30,7 +30,7 @@ export function translateEffects(effects) {
   // Translate old meter keys to resource effects
   if (effects.treasury) result.denarii += effects.treasury * 10;
   if (effects.people) result.food += effects.people * 3;
-  if (effects.military) result.garrison += Math.round(effects.military / 3);
+  if (effects.military) result.garrison += Math.round(effects.military / 5);
   if (effects.faith) result.denarii += effects.faith * 5;
 
   // Direct resource keys override/stack

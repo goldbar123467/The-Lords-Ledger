@@ -177,8 +177,10 @@ async function playOneTurnLogged(page) {
         .isVisible({ timeout: 200 })
         .catch(() => false)
     ) {
-      // Capture game-over reason
+      // Capture game-over reason from data attribute (BUG 1 fix)
       const reasonText = await page.evaluate(() => {
+        const el = document.querySelector('[data-gameover-reason]');
+        if (el) return el.getAttribute('data-gameover-reason');
         const body = document.body.innerText;
         const match = body.match(
           /(depopulat|bankrupt|population.*reached.*0|denarii.*0|no.*families)/i
