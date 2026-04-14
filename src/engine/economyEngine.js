@@ -485,13 +485,13 @@ export function simulateEconomy(state) {
     }
   }
 
-  // ----- 4. TAX COLLECTION (Autumn only) -----
+  // ----- 4. TAX COLLECTION (Autumn full + quarterly levy) -----
   const taxIncome = getTaxIncome(currentPopulation, taxRate, season);
   if (taxIncome > 0) {
     currentDenarii += taxIncome;
     report.push(`Autumn tax collection: ${taxIncome}d from ${currentPopulation} families at ${TAX_RATES[taxRate]?.label || "medium"} rate.`);
 
-    // Tax rate affects population
+    // Tax rate affects population (Autumn only)
     const taxConfig = TAX_RATES[taxRate];
     if (taxConfig && taxConfig.populationMod) {
       const popChange = taxConfig.populationMod;
@@ -505,6 +505,12 @@ export function simulateEconomy(state) {
         currentPopulation += popChange;
         report.push(`${popChange} new ${popChange === 1 ? "family" : "families"} settled thanks to low taxes.`);
       }
+    }
+  } else if (season !== "autumn" && currentPopulation > 0) {
+    const quarterlyLevy = Math.floor(currentPopulation * 0.15);
+    if (quarterlyLevy > 0) {
+      currentDenarii += quarterlyLevy;
+      report.push(`Quarterly market levy: ${quarterlyLevy}d from ${currentPopulation} families.`);
     }
   }
 
@@ -534,23 +540,23 @@ export function simulateEconomy(state) {
   const totalFoodInInventory = getTotalFood(currentInventory);
   const foodSurplus = totalFoodInInventory > Math.ceil(currentPopulation * 1.5);
 
-  // Ale consumed for morale — helps attract settlers
-  const hasAle = (currentInventory.ale || 0) >= 3;
+  // Ale consumed for morale — helps attract settlers (skip during famine)
+  const isFamine = consumption.shortfall > 0;
+  const hasAle = !isFamine && (currentInventory.ale || 0) >= 3;
   if (hasAle) {
     currentInventory.ale -= 3;
     report.push("Your people enjoyed 3 ale \u2014 morale is high!");
   }
 
-  // Salt consumed — preserves food
-  if ((currentInventory.salt || 0) > 0) {
+  // Luxury goods consumed (skip during famine to conserve resources)
+  if (!isFamine && (currentInventory.salt || 0) > 0) {
     currentInventory.salt -= 1;
   }
-  // Tools consumed — improves efficiency
-  if ((currentInventory.tools || 0) > 0) {
+  if (!isFamine && (currentInventory.tools || 0) > 0) {
     currentInventory.tools -= 1;
   }
-  // Spices consumed — church ceremonies (income bonus from church favor)
-  if ((currentInventory.spices || 0) > 0) {
+  // Spices consumed — church ceremonies (skip during famine)
+  if (!isFamine && (currentInventory.spices || 0) > 0) {
     currentInventory.spices -= 1;
     currentDenarii += 10; // Church reciprocates generosity
   }

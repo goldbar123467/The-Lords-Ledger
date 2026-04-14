@@ -1257,8 +1257,9 @@ export function gameReducer(state, action) {
         }
       }
 
-      // Knights abandon if population too low
-      if (milGarrison.knights > 0 && econResult.population < (SOLDIER_TYPES.knights.minPopulation || 10)) {
+      // Knights abandon if population too low (scaled by difficulty)
+      const knightPopThreshold = { easy: 10, normal: 8, hard: 5 }[state.difficulty || "normal"] || 8;
+      if (milGarrison.knights > 0 && econResult.population < knightPopThreshold) {
         const knightName = KNIGHT_NAMES[Math.floor(Math.random() * KNIGHT_NAMES.length)];
         milGarrison = { ...milGarrison, knights: milGarrison.knights - 1 };
         milDesertions += 1;
@@ -1298,7 +1299,7 @@ export function gameReducer(state, action) {
         if (typeof b === "string") return b; // Legacy string format — skip
         const def = BUILDINGS[getBuildingType(b)];
         const rate = def?.degradeRate ?? 5;
-        const loss = Math.round(rate * degradeMult);
+        const loss = Math.round(rate * 0.7 * degradeMult);
         const newCondition = Math.max(0, (b.condition ?? 100) - loss);
         return { ...b, condition: newCondition };
       });
