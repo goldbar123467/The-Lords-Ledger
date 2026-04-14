@@ -1538,7 +1538,7 @@ export function gameReducer(state, action) {
           garrison: econResult.garrison,
         }),
         bankruptcyTurns,
-        phase: "seasonal_action",
+        phase: seasonalEvent ? "seasonal_action" : "seasonal_resolve",
         currentEvent: seasonalEvent,
         usedSeasonalIds: nextUsedSeasonalIds,
         activeTab: "chronicle",
@@ -1738,7 +1738,7 @@ export function gameReducer(state, action) {
         };
       }
 
-      // Resume normal season flow — go to seasonal_action
+      // Resume normal season flow — go to seasonal_action (or skip to resolve if no event)
       return {
         ...state,
         denarii: newDenarii,
@@ -1749,7 +1749,7 @@ export function gameReducer(state, action) {
         chronicle: nextChronicle,
         raids: updatedRaids,
         military: updatedRaidMil,
-        phase: "seasonal_action",
+        phase: state.currentEvent ? "seasonal_action" : "seasonal_resolve",
         activeTab: "chronicle",
         resourceDeltas: {
           denarii: newDenarii - state.denarii,

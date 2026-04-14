@@ -421,7 +421,7 @@ export function simulateEconomy(state) {
 
   // ----- 2. CONSUMPTION -----
   const difficulty = state.difficulty || "normal";
-  const maxFoodLoss = (difficulty === "easy" || difficulty === "normal") ? 25 : null;
+  const maxFoodLoss = difficulty === "easy" ? 20 : difficulty === "normal" ? 25 : 35;
   const consumption = runConsumption(currentInventory, currentPopulation, maxFoodLoss, season);
   currentInventory = consumption.inventory;
   report.push(...consumption.report);
@@ -431,7 +431,8 @@ export function simulateEconomy(state) {
     // On Hard difficulty, complete food exhaustion can kill the last family (no immortal floor)
     const totalFoodAfter = getTotalFood(currentInventory);
     const floorPop = (difficulty === "hard" && totalFoodAfter === 0) ? 0 : 1;
-    const familiesLeave = Math.min(currentPopulation - floorPop, Math.round(Math.min(5, consumption.shortfall) * penaltyScale));
+    const maxAttrition = Math.max(1, Math.ceil(currentPopulation * 0.2));
+    const familiesLeave = Math.min(currentPopulation - floorPop, maxAttrition, Math.round(Math.min(5, consumption.shortfall) * penaltyScale));
     if (familiesLeave > 0) {
       currentPopulation -= familiesLeave;
       report.push(`${familiesLeave} ${familiesLeave === 1 ? "family" : "families"} left due to hunger.`);
@@ -439,6 +440,10 @@ export function simulateEconomy(state) {
   }
 
   // ----- 2.5. GARRISON FOOD — soldiers eat too -----
+  const garrisonAtStart = currentGarrison;
+  const maxDesertionThisSeason = Math.max(1, Math.ceil(garrisonAtStart * 0.5));
+  let totalDesertions = 0;
+
   const garrisonFoodNeeded = Math.ceil(currentGarrison / 3);
   if (garrisonFoodNeeded > 0) {
     let garrisonRemaining = garrisonFoodNeeded;
@@ -451,10 +456,12 @@ export function simulateEconomy(state) {
     }
     if (garrisonRemaining > 0) {
       report.push(`Your ${currentGarrison} soldiers needed ${garrisonFoodNeeded} food but supplies ran short.`);
-      // Hungry soldiers desert
-      const deserters = Math.min(currentGarrison, Math.ceil(garrisonRemaining * penaltyScale));
+      // Hungry soldiers desert (capped by season max)
+      const rawDeserters = Math.min(currentGarrison, Math.ceil(garrisonRemaining * penaltyScale));
+      const deserters = Math.min(rawDeserters, maxDesertionThisSeason - totalDesertions);
       if (deserters > 0) {
         currentGarrison -= deserters;
+        totalDesertions += deserters;
         report.push(`${deserters} hungry ${deserters === 1 ? "soldier" : "soldiers"} deserted.`);
       }
     } else {
@@ -467,11 +474,13 @@ export function simulateEconomy(state) {
   currentDenarii = upkeep.denarii;
   report.push(...upkeep.report);
 
-  // Unpaid upkeep: soldiers desert, buildings decay
+  // Unpaid upkeep: soldiers desert (capped by season max)
   if (upkeep.unpaidUpkeep > 0) {
-    const deserters = Math.min(currentGarrison, Math.ceil(2 * penaltyScale));
+    const rawDeserters = Math.min(currentGarrison, Math.ceil(2 * penaltyScale));
+    const deserters = Math.min(rawDeserters, maxDesertionThisSeason - totalDesertions);
     if (deserters > 0) {
       currentGarrison -= deserters;
+      totalDesertions += deserters;
       report.push(`${deserters} unpaid ${deserters === 1 ? "soldier" : "soldiers"} deserted.`);
     }
   }
