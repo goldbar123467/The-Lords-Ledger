@@ -82,8 +82,7 @@ export function getTotalBuildingUpkeep(buildings) {
 export function getGarrisonUpkeep(garrison, military) {
   if (military?.garrison) {
     const g = military.garrison;
-    // BUG-25 FIX: Increase levy upkeep from 1 to 2 to make garrison maintenance meaningful
-    return (g.levy || 0) * 2 + (g.menAtArms || 0) * 5 + (g.knights || 0) * 10;
+    return (g.levy || 0) * 1 + (g.menAtArms || 0) * 4 + (g.knights || 0) * 8;
   }
   return garrison * GARRISON_UPKEEP_PER_SOLDIER;
 }
@@ -538,12 +537,12 @@ export function simulateEconomy(state) {
   }
 
   // ----- 5.25. ESTATE MAINTENANCE — scales with size to prevent denarii snowball -----
-  // BUG-18 FIX: Add maintenance cost based on building count + population scale
   const buildingCount = buildings.filter(b => {
     if (typeof b === "string") return true;
+    if (b.freeUpkeep) return false;
     return (b.condition ?? 100) > 0;
   }).length;
-  const estateMaintenance = Math.floor(buildingCount * 2 + Math.max(0, currentPopulation - 15) * 0.5);
+  const estateMaintenance = Math.floor(buildingCount * 1 + Math.max(0, currentPopulation - 20) * 0.3);
   if (estateMaintenance > 0) {
     currentDenarii = Math.max(0, currentDenarii - estateMaintenance);
     report.push(`Estate maintenance: ${estateMaintenance}d for ${buildingCount} buildings and road upkeep.`);

@@ -86,6 +86,8 @@ export const initialState = {
   inventory: { ...EMPTY_INVENTORY, grain: 150, livestock: 30, fish: 20, iron: 20, steel: 5, coal: 50, leather: 10, wood: 15 },
   inventoryCapacity: 300,
   buildings: [
+    { instanceId: "strip_farm-0-pre", type: "strip_farm", condition: 100, builtOnTurn: 0, freeUpkeep: true },
+    { instanceId: "pasture-0-pre", type: "pasture", condition: 100, builtOnTurn: 0, freeUpkeep: true },
     { instanceId: "coal_pit-0-pre", type: "coal_pit", condition: 100, builtOnTurn: 0, freeUpkeep: true },
     { instanceId: "tannery-0-pre", type: "tannery", condition: 100, builtOnTurn: 0, freeUpkeep: true },
     { instanceId: "sawmill-0-pre", type: "sawmill", condition: 100, builtOnTurn: 0, freeUpkeep: true },
