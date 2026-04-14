@@ -333,7 +333,8 @@ function runConsumption(inventory, population, maxFoodLoss, season) {
   const shortfall = remaining;
 
   if (shortfall > 0) {
-    report.push(`Your ${population} families needed ${needed} food but only had ${foodEaten}. ${shortfall} families went hungry!`);
+    const rationingNote = (maxFoodLoss && seasonalNeeded > needed) ? ` (rationing reduced from ${seasonalNeeded})` : "";
+    report.push(`Your ${population} families needed ${needed} food${rationingNote} but only had ${foodEaten}. ${shortfall} families went hungry!`);
   } else {
     const seasonNote = consumptionMult > 1.0 ? ` (winter rations: \u00D7${consumptionMult})` : "";
     const capNote = (maxFoodLoss && seasonalNeeded > maxFoodLoss) ? ` (rationing saved ${seasonalNeeded - maxFoodLoss})` : "";

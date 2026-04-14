@@ -104,7 +104,19 @@ export default function FlipScreen({
   currentCyoaNodeId,
   isCyoa,
 }) {
-  if (!flipData) return null;
+  if (!flipData) {
+    return (
+      <div className="mx-auto w-full max-w-xl rounded-lg border-2 p-5 shadow-lg"
+        style={{ backgroundColor: "#231e16", borderColor: "#8a7a3a" }}>
+        <p style={{ color: "#a89070" }}>This perspective shift is unavailable.</p>
+        <button
+          onClick={onDismissSummary}
+          className="mt-4 px-6 py-2 rounded-md border cursor-pointer"
+          style={{ backgroundColor: "#2a2318", borderColor: "#6a5a42", color: "#c8b090" }}
+        >Return to Your Reign</button>
+      </div>
+    );
+  }
 
   const { colorScheme } = flipData;
 
