@@ -82,7 +82,8 @@ export function getTotalBuildingUpkeep(buildings) {
 export function getGarrisonUpkeep(garrison, military) {
   if (military?.garrison) {
     const g = military.garrison;
-    return (g.levy || 0) * 1 + (g.menAtArms || 0) * 3 + (g.knights || 0) * 8;
+    // BUG-25 FIX: Increase levy upkeep from 1 to 2 to make garrison maintenance meaningful
+    return (g.levy || 0) * 2 + (g.menAtArms || 0) * 5 + (g.knights || 0) * 10;
   }
   return garrison * GARRISON_UPKEEP_PER_SOLDIER;
 }

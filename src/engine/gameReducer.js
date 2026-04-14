@@ -131,6 +131,7 @@ export const initialState = {
   },
   tradeCount: 0,
   militaryEventEverFired: false,
+  lastFlipTurn: 0,
   currentFlipId: null,
   currentFlipStats: null,
   currentDecisionIndex: 0,
@@ -2041,6 +2042,7 @@ export function gameReducer(state, action) {
           market: advanceMarket,
           greatHall: advanceHall,
           // Flip state
+          lastFlipTurn: nextTurn,
           currentFlipId: triggeredFlipId,
           currentFlipStats: getInitialFlipStats(triggeredFlipId),
           currentDecisionIndex: 0,
