@@ -410,17 +410,6 @@ export function simulateEconomy(state) {
     report.push(`Your buildings produced: ${prodStr}.`);
   }
 
-  // ----- 1.25. SUBSISTENCE FARMING — families grow small garden plots -----
-  const subsistenceGrain = Math.floor(currentPopulation / 10);
-  if (subsistenceGrain > 0) {
-    const space = inventoryCapacity - getInventoryUsed(currentInventory);
-    const actualSubsistence = Math.min(subsistenceGrain, space);
-    if (actualSubsistence > 0) {
-      currentInventory = { ...currentInventory, grain: (currentInventory.grain || 0) + actualSubsistence };
-      report.push(`Your families' garden plots yielded ${actualSubsistence} grain.`);
-    }
-  }
-
   // ----- 1.5. LEVY LABOR PENALTY -----
   const levyCount = state.military?.garrison?.levy || 0;
   const levyThreshold = Math.floor(currentPopulation * 0.25);
