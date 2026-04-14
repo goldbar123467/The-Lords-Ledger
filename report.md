@@ -1,243 +1,295 @@
-# Automated Playthrough Report -- The Lord's Ledger
+# The Lord's Ledger - Playtest Report
 
-**Date:** 2026-04-14
-**Method:** 6 automated Playwright playthroughs across 3 difficulties and 4 strategies
-**Script:** `tests/e2e/gameplay/auto-playthrough.spec.js`
-**Round:** 6 (regression check)
+## Test Configuration
 
----
+- **Date**: 2026-04-14
+- **Playwright version**: 1.59.1
+- **Browser**: Chromium (headless)
+- **Scenarios run**: 6 full playthroughs
+- **Test file**: `tests/e2e/gameplay/auto-playthrough.spec.js`
 
-## Summary
+## Playthrough Results Summary
 
-| Run | Difficulty | Strategy | Turns Survived | Outcome | Time |
-|-----|-----------|----------|---------------|---------|------|
-| Hard/Passive | Hard | No actions | 12 | game_over:depopulation | 56.8s |
-| Normal/Military | Normal | Recruit every turn | 11 | sim_button_missing (softlock) | 57.1s |
-| Easy/Passive | Easy | No actions | 13 | possible_softlock | 77.2s |
-| Hard/Builder | Hard | Build each turn | 9 | possible_softlock | 77.5s |
-| Normal/Balanced | Normal | Alternate build/recruit | 11 | possible_softlock | 77.9s |
-| Easy/Builder | Easy | Build each turn | 8 | crash (page navigated to title) | 299.8s |
+| Run | Difficulty | Strategy | Turns Played | Outcome | Errors |
+|-----|-----------|----------|--------------|---------|--------|
+| 1 | Hard | Passive | 34 | victory | 0 |
+| 2 | Hard | Builder | 27 | crash (context destroyed) | 1 |
+| 3 | Normal | Military | 28 | sim_button_missing | 0 |
+| 4 | Normal | Balanced | 27 | possible_softlock | 0 |
+| 5 | Easy | Passive | 34 | possible_softlock | 0 |
+| 6 | Easy | Builder | 27 | possible_softlock | 0 |
 
-**No run reached turn 40 or achieved victory.** All games either crashed, softlocked, or ended in game over well before the midpoint. This is a significant regression from Round 5.
+**Pass rate**: 1/6 clean victory, 4/6 softlocked, 1/6 crashed
 
----
+## Resource Trends
 
-## Resource Trajectories
-
-### Hard/Passive (12 turns, game_over:depopulation)
-```
-T1  Spring Y1: D=400  F=130  Fam=18  G=3
-T2  Summer Y1: D=339  F=105  Fam=19  G=3
-T3  Autumn Y1: D=363  F=61   Fam=19  G=5
-T4  Winter Y1: D=578  F=49   Fam=20  G=5
-T6  Summer Y2: D=435  F=17   Fam=19  G=5
-T7  Autumn Y2: D=333  F=27   Fam=16  G=2
-T8  Winter Y2: D=385  F=0    Fam=16  G=3
-T10 Summer Y3: D=275  F=57   Fam=6   G=0
-T12 Winter Y3: D=293  F=69   Fam=6   G=1
-T14 Summer Y4: D=286  F=57   Fam=4   G=2
-T17 Spring Y5: D=423  F=1    Fam=4   G=3
-```
-Food hits 0 by turn 8. Population drops from 20 to 6 between turns 8-10 (2 seasons). Garrison hits 0 by turn 10.
-
-### Easy/Passive (13 turns, softlock)
-```
-T1  Spring Y1: D=700  F=280  Fam=22  G=5
-T9  Spring Y3: D=1404 F=92   Fam=30  G=8
-T17 Spring Y5: D=1425 F=29   Fam=29  G=10
-```
-Even on Easy with 700d start, food drops from 280 to 29 by turn 17. Game softlocked before reaching turn 20.
+| Run | Denarii Range | Food Range | Families Range | Garrison Range | Zero Food Turns | Zero Denarii Turns |
+|-----|--------------|------------|----------------|----------------|-----------------|-------------------|
+| Hard/Passive | 370-1314 | 0-144 | 5-18 | 1-7 | 3 | 0 |
+| Hard/Builder | 0-400 | 90-176 | 16-24 | 0-5 | 0 | 11 |
+| Normal/Military | 421-999 | 0-200 | 4-24 | 1-12 | 4 | 0 |
+| Normal/Balanced | 0-500 | 3-200 | 20-25 | 0-17 | 0 | 4 |
+| Easy/Passive | 594-2154 | 0-291 | 22-41 | 5-22 | 4 | 0 |
+| Easy/Builder | 0-700 | 124-283 | 22-28 | 0-9 | 0 | 7 |
 
 ---
 
-## Bugs Found (20 total)
+## Bugs Found
 
-### CRITICAL (game-breaking)
+### BUG-01: CRITICAL - Double turn advancement on perspective flips
+**File**: `src/engine/gameReducer.js`
+**Lines**: 1883, 2020, 2233, 2269
 
-**BUG 1 -- Softlock when seasonal event is null**
-- **Files:** `src/engine/gameReducer.js:1541-1542`, `src/App.jsx:596-602`
-- **Description:** `pickSeasonalEvent()` returns `{ event: null }` when no valid event is available. The SIMULATE_SEASON case sets `phase: "seasonal_action"` with `currentEvent: null`. App.jsx guards EventCard rendering with `currentEvent &&`, so nothing renders. The game is stuck in `seasonal_action` phase with no UI to advance. This caused softlocks in 4 out of 6 runs.
-- **Fix:** When `seasonalEvent` is null, skip to `seasonal_resolve` phase.
+ADVANCE_TURN increments `turn + 1` at line 1883 and enters `flip_intro` with `turn: nextTurn` at line 2020. When the flip completes, DISMISS_FLIP_SUMMARY again increments `turn + 1` at line 2233 and returns with `turn: advanceTurn` at line 2269. This means every flip consumes 2 turns instead of 1. With 9 possible flips, the game can end 9 turns early, explaining why Hard/Passive achieved "victory" at only 34 test-visible turns.
 
-**BUG 2 -- EventCard crashes on undefined event.options**
-- **Files:** `src/components/EventCard.jsx:67`
-- **Description:** `event.options.map(...)` has no null guard. If an event lacks an `options` field, this throws a TypeError that crashes React, navigating back to the title screen. This caused the Easy/Builder crash.
-- **Fix:** Guard with `event.options?.map(...)` or return early.
-
-### HIGH (severe balance issues)
-
-**BUG 3 -- Hard mode has no food rationing cap**
-- **File:** `src/engine/economyEngine.js:424`
-- **Description:** Easy/Normal cap food consumption at 25/season. Hard has `maxFoodLoss = null` (uncapped). With 18 families + winter 1.5x, consumption reaches 27/season -- exceeding all production. Food depletes by turn 8 every time. Hard mode is unwinnable.
-- **Fix:** Give Hard mode a higher cap (e.g., 35) instead of no cap.
-
-**BUG 4 -- Starvation penalty too harsh on Hard**
-- **File:** `src/engine/economyEngine.js:434`
-- **Description:** `familiesLeave = min(pop-floor, round(min(5, shortfall) * penaltyScale))`. Hard penaltyScale 1.5 means up to 7-8 families leave per season. Pop 20 to 6 in 2 famine seasons. No recovery path exists.
-- **Fix:** Cap per-season attrition to `ceil(pop * 0.2)` (max 20% loss).
-
-**BUG 5 -- Triple garrison desertion cascade**
-- **Files:** `src/engine/economyEngine.js:455,472`, `src/engine/gameReducer.js:1242-1254`
-- **Description:** Three desertion sources fire in the same turn: (1) hungry garrison, (2) unpaid upkeep, (3) morale-based. On Hard, a bad turn goes from 5 to 0 garrison. All three compound when food/denarii are low.
-- **Fix:** Cap total per-season desertion to 50% of current garrison.
-
-**BUG 6 -- Morale recovery thresholds unreachable**
-- **File:** `src/engine/gameReducer.js:1228-1232`
-- **Description:** Morale gains +5 only if `food > 200` (very hard). Morale loses -10 if `food < 50` (very easy to hit). Net morale is always negative once food drops, creating an unrecoverable spiral. At morale 0-20, levy desertion triggers (10%/levy/season).
-- **Fix:** Add intermediate thresholds: food 50-100 = no change, 100-200 = +2, >200 = +5.
-
-**BUG 7 -- Garrison food double-drain**
-- **File:** `src/engine/economyEngine.js:422-463`
-- **Description:** Population food consumption (line 425) and garrison food (line 442) are independent. A 20-pop estate with 5 garrison consumes 20 + 2 = 22 food/season. The garrison drain is not shown in the food forecast, creating a hidden drain.
-- **Fix:** Reduce garrison food rate from `ceil(garrison/3)` to `ceil(garrison/5)`.
-
-### MEDIUM (gameplay/balance issues)
-
-**BUG 8 -- Winter production/consumption 6:1 deficit**
-- **File:** `src/data/economy.js:211,219`
-- **Description:** Winter production is x0.25, consumption is x1.5. Combined: 6:1 deficit ratio. For 20 families with 2 farms: produce ~4 food, consume ~30 food. Each winter burns ~26 food from storage. This makes winter a game-ending season.
-- **Fix:** Raise winter production to 0.4 OR reduce winter consumption to 1.25.
-
-**BUG 9 -- Population income too low to sustain buildings**
-- **File:** `src/engine/economyEngine.js:505`
-- **Description:** Passive income is `floor(pop * 0.5)`. For 18 families = 9d/season. Building upkeep for 4 starting buildings is 15-25d. Passive income never covers upkeep, creating automatic denarii drain every single season.
-- **Fix:** Increase multiplier from 0.5 to 0.75.
-
-**BUG 10 -- Food surplus growth threshold too high**
-- **File:** `src/engine/economyEngine.js:526`
-- **Description:** Population growth requires `food > pop * 2`. For 20 families = 40 food surplus needed. With consumption 20+/season, maintaining 40+ food is near-impossible. Population rarely grows organically.
-- **Fix:** Lower to `pop * 1.5` or `pop + 15`.
-
-**BUG 11 -- Building degradation creates resource death spiral**
-- **File:** `src/engine/gameReducer.js:1292-1313`
-- **Description:** Buildings degrade 5-10%/season (x1.5 winter). After 8 seasons a building drops to ~30% (Poor condition, 50% output). Repairing costs denarii the player doesn't have. Ruined buildings produce nothing, cutting food/income further.
-- **Fix:** Reduce base degradation from 5-10% to 3-7%.
-
-**BUG 12 -- Tax only in Autumn -- 3 seasons without income**
-- **File:** `src/engine/economyEngine.js:480`
-- **Description:** Tax collection is Autumn-only. Combined with low passive income, the player loses denarii for 3 consecutive seasons before any tax. On Hard (400d start), 3 seasons of upkeep = ~105d drained before first tax.
-- **Fix:** Add small quarterly levy in non-Autumn seasons.
-
-### LOW (minor issues)
-
-**BUG 13 -- Knights abandon at pop < 10 regardless of difficulty**
-- **File:** `src/engine/gameReducer.js:1257-1262`
-- **Description:** Knight departure threshold is not difficulty-scaled. On Hard, pop drops below 10 by turn 7, causing expensive knights to desert.
-- **Fix:** Scale threshold by difficulty (hard: 5, normal: 8, easy: 10).
-
-**BUG 14 -- Ale/salt consumed during famine**
-- **File:** `src/engine/economyEngine.js:529-542`
-- **Description:** Luxury goods (3 ale, 1 salt, 1 tools, 1 spices) consumed every season regardless of starvation. Wastes tradeable resources during crisis.
-- **Fix:** Skip luxury consumption when `shortfall > 0`.
-
-**BUG 15 -- Building upkeep uses pre-desertion garrison count**
-- **File:** `src/engine/economyEngine.js:466`
-- **Description:** Upkeep calculated on garrison before food-related desertion. Player pays for soldiers that already deserted.
-- **Fix:** Use post-desertion garrison count for upkeep.
-
-**BUG 16 -- Flip phases can softlock if flip data missing**
-- **File:** `src/App.jsx:244`, `src/components/FlipScreen.jsx`
-- **Description:** During flip phases, tabs and simulate button are hidden. If FlipScreen can't render its buttons, there's no escape.
-- **Fix:** Add fallback "Skip" button for missing flip data.
-
-**BUG 17 -- Food state.food can drift from inventory total**
-- **File:** `src/engine/economyEngine.js:603`
-- **Description:** Both `state.food` and `state.inventory` are set independently. They can desync if any code modifies one without the other.
-- **Fix:** Always derive `state.food` from `getTotalFood(state.inventory)`.
-
-**BUG 18 -- Military-to-garrison conversion loses small values**
-- **File:** `src/engine/meterUtils.js:32`
-- **Description:** `Math.round(effects.military / 5)` means military effect +2 gives 0 garrison. Small military bonuses are completely lost.
-- **Fix:** Use `Math.ceil` for positive values.
-
-**BUG 19 -- Food shortfall message misleading with rationing**
-- **File:** `src/engine/economyEngine.js:336`
-- **Description:** With `maxFoodLoss = 25`, message says "needed 25 food" for 30 families, hiding the cap.
-- **Fix:** Show actual vs capped consumption.
-
-**BUG 20 -- Garrison food display mismatch in UI**
-- **Files:** `src/components/PeopleTab.jsx`, `src/components/EstateTab.jsx`
-- **Description:** UI shows garrison food as `ceil(garrison/2)` but engine uses `ceil(garrison/3)`. Display is higher than actual.
-- **Fix:** Match UI to engine formula.
+**Fix**: DISMISS_FLIP_SUMMARY should NOT increment the turn. It should return to management with the current `turn` value since ADVANCE_TURN already incremented it.
 
 ---
 
-## Priority Order for Fixes
+### BUG-02: CRITICAL - DISMISS_FLIP_SUMMARY skips seasonal state resets
+**File**: `src/engine/gameReducer.js`
+**Lines**: 2265-2287
 
-1. **BUG 1 + BUG 2** (softlock + crash) -- Most impactful, blocks all playthroughs
-2. **BUG 3 + BUG 4 + BUG 5** (death spirals) -- Hard mode is unplayable
-3. **BUG 6 + BUG 7 + BUG 8** (morale/food balance) -- All difficulties suffer
-4. **BUG 9 + BUG 10 + BUG 11 + BUG 12** (economy balance) -- Quality of play
-5. **BUG 13-20** (minor issues) -- Polish
+When DISMISS_FLIP_SUMMARY advances to management, it does not reset seasonal subsystem state. Compare with ADVANCE_TURN (lines 2043-2061) which resets: `market` (advanceMarket), `greatHall` (advanceHall), `resourceDeltas` (zeroDeltas), `synergies`, `pendingSynergyNotifications`. The flip dismissal path misses all of these, causing:
+- Market trades/haggles from the previous season carry over
+- Great Hall feast/decree slots are not refreshed
+- Resource deltas show stale values on the dashboard
+- Synergy checks are skipped for the flip turn
+- Foreign trader rotation is skipped
 
----
-
-## All 20 Bugs Fixed
-
-### Batch 1 (Critical)
-| Bug | Fix |
-|-----|-----|
-| BUG 1 | Skip to seasonal_resolve when no seasonal event available |
-| BUG 2 | Guard EventCard against undefined event.options |
-| BUG 3 | Add food rationing cap for hard mode (35) |
-| BUG 4 | Cap per-season starvation attrition to 20% of population |
-| BUG 5 | Cap total garrison desertion to 50% per season |
-
-### Batch 2 (Balance)
-| Bug | Fix |
-|-----|-----|
-| BUG 6 | Add intermediate morale tiers (food 50-100 neutral, 100-200 gives +2) |
-| BUG 7 | Reduce garrison food rate from garrison/3 to garrison/5 |
-| BUG 8 | Winter production 0.25->0.5, consumption 1.5->1.25 |
-| BUG 9 | Increase population passive income from 0.5 to 0.75 per family |
-| BUG 10 | Lower food surplus growth threshold from pop*2 to pop*1.5 |
-
-### Batch 3 (Tuning)
-| Bug | Fix |
-|-----|-----|
-| BUG 11 | Apply 0.7x dampener to building degradation |
-| BUG 12 | Add quarterly market levy (pop*0.15d) in non-Autumn seasons |
-| BUG 13 | Scale knight departure threshold by difficulty (easy:10, normal:8, hard:5) |
-| BUG 14 | Skip luxury consumption (ale, salt, tools, spices) during famine |
-| BUG 15 | Confirmed not a real bug - upkeep already uses post-desertion count |
-
-### Batch 4 (Polish)
-| Bug | Fix |
-|-----|-----|
-| BUG 16 | Add fallback "Return to Your Reign" button in FlipScreen |
-| BUG 17 | Confirmed not a real bug - food always synced from economy engine |
-| BUG 18 | Confirmed already fixed - Math.ceil used for positive conversions |
-| BUG 19 | Show rationing savings in shortfall message |
-| BUG 20 | Update garrison food display to match engine formula (garrison/5) |
+**Fix**: Add the same seasonal reset logic to DISMISS_FLIP_SUMMARY that exists in ADVANCE_TURN.
 
 ---
 
-## Validation Results (Post-Fix)
+### BUG-03: HIGH - Bankruptcy game-over never triggers (threshold too high)
+**File**: `src/engine/meterUtils.js`
+**Lines**: 98-103
 
-| Run | Difficulty | Strategy | Turns | Outcome | Pop Range | 0d Turns | 0 Food |
-|-----|-----------|----------|-------|---------|-----------|----------|--------|
-| Easy/Passive | Easy | No actions | **35** | **VICTORY** | 17-29 | 0 | 1 |
-| Easy/Builder | Easy | Build | **26** | survived | 18-25 | 7 | 0 |
-| Normal/Balanced | Normal | Build+recruit | **26** | survived | 15-28 | 3 | 1 |
-| Normal/Military | Normal | Recruit only | **28** | survived | 20-35 | 0 | 1 |
-| Hard/Passive | Hard | No actions | **33** | survived | 5-21 | 4 | 0 |
-| Hard/Builder | Hard | Build | **26** | survived | 14-24 | 3 | 0 |
+`checkGameOver` requires `bankruptcyTurns >= 4` (4 consecutive turns at 0 denarii) to trigger bankruptcy. Hard/Builder ran with denarii=0 for 11 consecutive turns without game over. The bankruptcy counter is only incremented in SIMULATE_SEASON, not during RAID_CONTINUE where raids can push denarii to 0. Additionally, RAID_CONTINUE at line 1726 passes `state.bankruptcyTurns` unchanged to checkGameOver, so the counter isn't updated after a raid.
 
-### Comparison: Before vs After
+**Fix**: Ensure the bankruptcy counter is properly incremented in all paths where denarii can reach 0 (RAID_CONTINUE, event choices).
 
-| Run | Before (turns) | After (turns) | Improvement |
-|-----|---------------|--------------|-------------|
-| Easy/Passive | 13 (softlock) | **35 (VICTORY)** | +22 turns, game completable |
-| Easy/Builder | 8 (crash) | **26 (survived)** | +18 turns, no crash |
-| Normal/Balanced | 11 (softlock) | **26 (survived)** | +15 turns |
-| Normal/Military | 11 (softlock) | **28 (survived)** | +17 turns |
-| Hard/Passive | 12 (game over) | **33 (survived)** | +21 turns, no death spiral |
-| Hard/Builder | 9 (softlock) | **26 (survived)** | +17 turns |
+---
 
-### Key Improvements
-- **Zero crashes** across all 6 runs (was 1 crash + 4 softlocks)
-- **Easy/Passive achieves VICTORY** -- game is completable end-to-end
-- **Hard mode playable** -- Hard/Passive survives 33 turns (was 12)
-- **No food death spirals** -- max 1 turn at 0 food (was multiple turns)
-- **Population stable** -- all runs maintain 5+ population (was dropping to 0)
-- **Garrison sustainable** -- no instant cascade from 5 to 0
+### BUG-04: HIGH - Softlock when flip phases can't be dismissed by automation
+**File**: `src/engine/gameReducer.js`, `tests/e2e/helpers.js`
+**Lines**: 2082-2110 (reducer), 158-170 (helpers)
+
+4 out of 6 runs ended in softlock or "sim_button_missing". The flip phases use buttons that don't always match the test automation's expected selectors. Also, DISMISS_FLIP_INTRO at line 2082 returns `state` unchanged if the flip doesn't exist, trapping the player in flip_intro forever with no escape.
+
+**Fix**: Add guard clauses in flip phase handlers that fall back to management phase if flip data is missing/invalid. Also update the test to handle flip-specific button patterns.
+
+---
+
+### BUG-05: HIGH - Victory check uses wrong comparison in DISMISS_FLIP_SUMMARY
+**File**: `src/engine/gameReducer.js`
+**Line**: 2236
+
+`if (turn >= MAX_TURNS)` uses the pre-increment `turn` value (before `advanceTurn = turn + 1` on line 2233). This means victory triggers at turn 40 (correct), but combined with BUG-01 where flips double-increment, the effective check happens 1 turn too early after each flip.
+
+**Fix**: After fixing BUG-01 (removing the double increment), the victory check should use the current turn value, consistent with ADVANCE_TURN's check.
+
+---
+
+### BUG-06: MEDIUM - Starvation attrition too slow (capped at 5 families)
+**File**: `src/engine/economyEngine.js`
+**Line**: 436
+
+`familiesLeave = Math.min(currentPopulation - floorPop, maxAttrition, Math.round(Math.min(5, consumption.shortfall) * penaltyScale))`
+
+The `Math.min(5, consumption.shortfall)` cap means at most 5 families leave per turn from starvation on Normal, regardless of how severe the shortage is. With 30+ families and 0 food, it takes 6+ turns to depopulate. Easy/Passive hit food=0 for 4 turns and only dropped from 41 to 28 families.
+
+**Fix**: Remove the `Math.min(5, ...)` cap. Let `maxAttrition` (20% of population) serve as the sole cap on attrition rate.
+
+---
+
+### BUG-07: MEDIUM - FOOD_PER_FAMILY = 1 makes food trivially easy to maintain
+**File**: `src/data/economy.js`
+**Line**: 180
+
+Each family consumes only 1 food per season. With 20 families, only 20 food is needed (30 in winter). Starting with 200 food on Normal means 10 seasons of food without production. Food management is nearly irrelevant for the first 2.5 years.
+
+**Fix**: Increase FOOD_PER_FAMILY to 3. Adjust starting food inventories accordingly (multiply by ~2).
+
+---
+
+### BUG-08: MEDIUM - Garrison deserts from unpaid upkeep use hardcoded value
+**File**: `src/engine/economyEngine.js`
+**Lines**: 478-483
+
+When soldiers can't be paid, desertion is `Math.ceil(2 * penaltyScale)` - a flat 2 (Normal) or 3 (Hard). Even with 50 unpaid soldiers, only 2-3 desert. The unpaid upkeep amount is ignored.
+
+**Fix**: Scale desertion by unpaid ratio: `Math.ceil((unpaidUpkeep / totalUpkeep) * currentGarrison * 0.15 * penaltyScale)`.
+
+---
+
+### BUG-09: MEDIUM - Market state not reset on DISMISS_FLIP_SUMMARY
+**File**: `src/engine/gameReducer.js`
+**Lines**: 2265-2287
+
+`tradesThisSeason`, `quickTradesUsed`, `haggleTradesUsed`, and `activeHaggle` are NOT reset when a flip dismissal advances the turn. Trades carry into the next season and the foreign trader doesn't rotate.
+
+**Fix**: Part of BUG-02 fix. Include market seasonal reset in DISMISS_FLIP_SUMMARY.
+
+---
+
+### BUG-10: MEDIUM - Tavern seasonal limits not reset on flip turn advance
+**File**: `src/engine/gameReducer.js`
+**Lines**: 2265-2287
+
+`gambitRoundsThisSeason`, `ratsPlayedThisSeason`, and `strangerAppearedThisSeason` are not reset in DISMISS_FLIP_SUMMARY. Players can double-dip on tavern activities after a flip.
+
+**Fix**: Part of BUG-02 fix. Include tavern seasonal reset in DISMISS_FLIP_SUMMARY.
+
+---
+
+### BUG-11: MEDIUM - Watchtower scan not reset on flip turn advance
+**File**: `src/engine/gameReducer.js`
+**Lines**: 2265-2287
+
+`scannedThisSeason` and `lastScanResult` are not reset, so the watchtower appears already used after a flip.
+
+**Fix**: Part of BUG-02 fix. Include watchtower seasonal reset in DISMISS_FLIP_SUMMARY.
+
+---
+
+### BUG-12: MEDIUM - Blacksmith seasonal state not reset on flip turn advance
+**File**: `src/engine/gameReducer.js`
+**Lines**: 2265-2287
+
+`salesThisSeason`, supply event countdown, and forge market prices are not updated in DISMISS_FLIP_SUMMARY.
+
+**Fix**: Part of BUG-02 fix. Include blacksmith seasonal reset in DISMISS_FLIP_SUMMARY.
+
+---
+
+### BUG-13: MEDIUM - Building degradation skipped during flip turns
+**File**: `src/engine/gameReducer.js`
+
+Building condition degrades in SIMULATE_SEASON (lines 1296-1305). When a flip consumes an extra turn (BUG-01), the building degradation for that phantom turn is skipped. Players with more flips get an advantage in building maintenance.
+
+**Fix**: Resolves once BUG-01 is fixed (flips no longer consume an extra turn).
+
+---
+
+### BUG-14: MEDIUM - Economy simulation skipped during flip turns
+**File**: `src/engine/gameReducer.js`
+
+When a flip fires via ADVANCE_TURN, the next SIMULATE_SEASON is never called for the consumed turn. Production, consumption, upkeep, tax collection, and population growth are all skipped for one entire season. Players get a "free" season with no costs.
+
+**Fix**: Resolves once BUG-01 is fixed. The flip happens on the current turn and the next SIMULATE_SEASON runs normally.
+
+---
+
+### BUG-15: LOW - Cause chain not updated during flip consequences
+**File**: `src/engine/gameReducer.js`
+**Lines**: 2195-2287
+
+DISMISS_FLIP_SUMMARY applies resource effects but doesn't add an entry to `causeChain`. If the game ends after a flip, the Game Over screen's "Chronicle of Ruin" won't show what the flip did.
+
+**Fix**: Add a causeChain entry in DISMISS_FLIP_SUMMARY summarizing the flip's resource effects.
+
+---
+
+### BUG-16: LOW - RAID_CONTINUE does not increment bankruptcyTurns
+**File**: `src/engine/gameReducer.js`
+**Line**: 1726
+
+`postRaidState` passes `bankruptcyTurns: state.bankruptcyTurns` unchanged. If a raid causes denarii to drop to 0, the bankruptcy counter is not incremented.
+
+**Fix**: Increment bankruptcyTurns in RAID_CONTINUE if post-raid denarii <= 0.
+
+---
+
+### BUG-17: LOW - Ale consumed even during famine (wasted)
+**File**: `src/engine/economyEngine.js`
+**Lines**: 544-597
+
+Ale consumption and settler attraction compute at lines 544-591, but famine check at line 594-597 cancels any population growth. The ale is still consumed even though growth is impossible during starvation.
+
+**Fix**: Move the famine check before ale consumption. Skip ale when `consumption.shortfall > 0`.
+
+---
+
+### BUG-18: LOW - Denarii accumulation unchecked on Easy difficulty
+**File**: `src/engine/economyEngine.js`, `src/data/economy.js`
+
+Easy/Passive accumulated 2154 denarii by turn 39 with zero strategy. `penaltyScale: 0.5` halves negatives while passive income scales with population. No inflation or spending pressure exists.
+
+**Fix**: Consider adding estate maintenance costs that scale with building count or wealth.
+
+---
+
+### BUG-19: LOW - Population death spiral with no recovery mechanism
+**File**: `src/engine/economyEngine.js`
+
+Normal/Military saw families drop to 4 with no recovery. Once population drops below ~10, passive income drops, making recovery nearly impossible. No mechanic exists for wandering settlers or population recovery.
+
+**Fix**: Add a small baseline population recovery chance (e.g., +1 family if population < 10 and food > 0) to prevent unrecoverable states.
+
+---
+
+### BUG-20: LOW - Flip consequences can push garrison above MAX_GARRISON
+**File**: `src/engine/gameReducer.js`
+**Lines**: 2180-2193
+
+`applyResourceEffects` clamps garrison to MAX_GARRISON, but typed garrison reconciliation at lines 2186-2192 adds levy soldiers without checking the cap.
+
+**Fix**: Clamp total typed garrison count after reconciliation.
+
+---
+
+### BUG-21: LOW - removeFromGarrison edge case with negative typed counts
+**File**: `src/engine/gameReducer.js`
+
+`removeFromGarrison` is called in DISMISS_FLIP_SUMMARY and RAID_CONTINUE. If loss exceeds total garrison, individual type counts could underflow to negative.
+
+**Fix**: Ensure removeFromGarrison clamps each type to Math.max(0, ...).
+
+---
+
+### BUG-22: LOW - Synergy checks skipped during flip turns
+**File**: `src/engine/gameReducer.js`
+**Lines**: 2265-2287
+
+DISMISS_FLIP_SUMMARY doesn't run `checkSynergies()` or update synergy consecutive counters. Players can miss synergy activations during flip turns.
+
+**Fix**: Add synergy check logic to DISMISS_FLIP_SUMMARY, matching the ADVANCE_TURN pattern.
+
+---
+
+### BUG-23: LOW - Crash on Hard/Builder at turn 28
+**File**: Test infrastructure / reducer
+
+Hard/Builder crashed with "Execution context was destroyed". This suggests an unhandled error causing React to throw, or a hot-reload trigger during gameplay.
+
+**Fix**: Investigate reducer edge cases (undefined building type, NaN values). May be a test-environment artifact.
+
+---
+
+### BUG-24: LOW - Perspective flip triggers too aggressively
+**File**: `src/engine/flipEngine.js`
+**Lines**: 81-91
+
+`cyoa_lord` (minTurn 5) and `cyoa_monk` (minTurn 12) trigger unconditionally. Combined with 7 other easily-met flips, most games see 6-8 flips in 40 turns.
+
+**Fix**: Add meaningful trigger conditions to cyoa_lord and cyoa_monk. Consider adding a cooldown between consecutive flips.
+
+---
+
+### BUG-25: LOW - Garrison upkeep too cheap (1d per levy)
+**File**: `src/data/economy.js`
+
+At 1 denarii per levy per season, maintaining 10 soldiers costs only 10d. Even men-at-arms at 5d each are cheap. Military upkeep is negligible compared to income, making garrison maintenance trivial.
+
+**Fix**: Increase GARRISON_UPKEEP_PER_SOLDIER or add food costs for garrison.
+
+---
+
+## Balance Observations (Not Bugs)
+
+1. **Food is too abundant**: FOOD_PER_FAMILY=1 means 20 families only need 20 food/season. Starting inventory has 200+ food. Food rarely becomes a constraint.
+2. **Denarii snowball on Easy**: With no spending pressure, Easy mode accumulates 2000+ denarii by mid-game.
+3. **Military strategy is punishing**: Recruiting soldiers costs denarii but provides no income.
+4. **Population recovery is too slow**: Once below 10, the estate enters a death spiral.
+5. **Building strategy drains denarii fast**: Easy/Builder hit 0 denarii by turn 30 despite 700d start.

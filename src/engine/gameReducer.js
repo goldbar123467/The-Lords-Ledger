@@ -2078,7 +2078,21 @@ export function gameReducer(state, action) {
     case "DISMISS_FLIP_INTRO": {
       if (state.phase !== "flip_intro") return state;
       const flipForIntro = ALL_FLIPS[state.currentFlipId];
-      if (flipForIntro?.type === "cyoa") {
+      // BUG-04 guard: if flip data is missing, recover to management
+      if (!flipForIntro) {
+        return {
+          ...state,
+          phase: "management",
+          currentFlipId: null,
+          currentFlipStats: null,
+          currentDecisionIndex: 0,
+          flipConsequenceFlags: [],
+          currentFlipOutcome: null,
+          currentCyoaNodeId: null,
+          cyoaEndingType: null,
+        };
+      }
+      if (flipForIntro.type === "cyoa") {
         return { ...state, phase: "flip_decision", currentCyoaNodeId: flipForIntro.startNode };
       }
       return { ...state, phase: "flip_decision" };
@@ -2167,7 +2181,20 @@ export function gameReducer(state, action) {
 
       const { currentFlipId, flipConsequenceFlags, turn, chronicle } = state;
       const flip = ALL_FLIPS[currentFlipId];
-      if (!flip) return state;
+      // BUG-04 guard: if flip data is missing, recover to management
+      if (!flip) {
+        return {
+          ...state,
+          phase: "management",
+          currentFlipId: null,
+          currentFlipStats: null,
+          currentDecisionIndex: 0,
+          flipConsequenceFlags: [],
+          currentFlipOutcome: null,
+          currentCyoaNodeId: null,
+          cyoaEndingType: null,
+        };
+      }
 
       // Compute consequences: CYOA uses endingType, linear uses consequence flags
       let consequences;
@@ -2185,11 +2212,19 @@ export function gameReducer(state, action) {
       if (flipGarrisonDelta !== 0 && flipMilitary) {
         const mg = { ...flipMilitary.garrison };
         if (flipGarrisonDelta > 0) {
-          mg.levy = (mg.levy || 0) + flipGarrisonDelta;
+          mg.levy = Math.min((mg.levy || 0) + flipGarrisonDelta, MAX_GARRISON);
           flipMilitary = { ...flipMilitary, garrison: mg };
         } else {
           flipMilitary = { ...flipMilitary, garrison: removeFromGarrison(mg, Math.abs(flipGarrisonDelta)) };
         }
+      }
+
+      // BUG-03: Track bankruptcy after flip consequences
+      let flipBankruptcyTurns = state.bankruptcyTurns || 0;
+      if (applied.denarii <= 0) {
+        flipBankruptcyTurns += 1;
+      } else {
+        flipBankruptcyTurns = 0;
       }
 
       const newState = {
@@ -2200,6 +2235,7 @@ export function gameReducer(state, action) {
         inventory: applied.inventory,
         food: applied.food,
         military: flipMilitary,
+        bankruptcyTurns: flipBankruptcyTurns,
       };
       const gameOverReason = checkGameOver(newState);
 
@@ -2207,6 +2243,14 @@ export function gameReducer(state, action) {
       const { season: flipSeason, year: flipYear } = turnToSeasonYear(turn);
       const chronicleText = `You experienced life as ${flip.character} and saw your manor through their eyes.`;
       let nextChronicle = addChronicle(chronicle, chronicleText, flipSeason, flipYear, turn, "event");
+
+      // BUG-15: Add cause chain entry for flip consequences
+      const flipCauseEntry = {
+        turn, season: flipSeason, year: flipYear,
+        summary: `Perspective flip: ${flip.character}`,
+        effects: resourceEffects,
+      };
+      const nextCauseChain = [...(state.causeChain || []), flipCauseEntry].slice(-MAX_CAUSE_CHAIN);
 
       // Mark flip as fired
       const nextPerspectiveFlips = { ...state.perspectiveFlips, [currentFlipId]: true };
@@ -2217,6 +2261,7 @@ export function gameReducer(state, action) {
           ...newState,
           phase: "game_over",
           chronicle: nextChronicle,
+          causeChain: nextCauseChain,
           gameOverReason,
           perspectiveFlips: nextPerspectiveFlips,
           currentFlipId: null,
@@ -2229,10 +2274,10 @@ export function gameReducer(state, action) {
         };
       }
 
-      // Advance to next turn's management phase
-      const advanceTurn = turn + 1;
+      // BUG-01 FIX: Do NOT increment turn — ADVANCE_TURN already did it.
+      // The flip happens on the current turn, not a new one.
 
-      // Victory check
+      // BUG-05 FIX: Victory check uses current turn (already incremented by ADVANCE_TURN)
       if (turn >= MAX_TURNS) {
         const isPyrrhic = (newState.population ?? state.population) < 3;
         const victoryText = isPyrrhic
@@ -2246,6 +2291,7 @@ export function gameReducer(state, action) {
           phase: "victory",
           pyrrhicVictory: isPyrrhic,
           chronicle: addChronicle(nextChronicle, victoryText, flipSeason, flipYear, turn, "system"),
+          causeChain: nextCauseChain,
           perspectiveFlips: nextPerspectiveFlips,
           currentFlipId: null,
           currentFlipStats: null,
@@ -2260,20 +2306,147 @@ export function gameReducer(state, action) {
         };
       }
 
-      const { season: nextSeason, year: nextYear } = turnToSeasonYear(advanceTurn);
+      // BUG-02 FIX: Apply seasonal state resets (matching ADVANCE_TURN logic)
+      const flipMkt = state.market ?? {};
+      const flipForeignTrader = FOREIGN_TRADERS[state.season];
+      const flipMarketReset = {
+        ...flipMkt,
+        currentForeignTrader: state.season,
+        activeHaggle: null,
+        activeMarketEvent: null,
+        tradesThisSeason: 0,
+      };
+      if (flipForeignTrader && flipMkt.currentForeignTrader !== state.season) {
+        nextChronicle = addChronicle(nextChronicle, flipForeignTrader.arrivalText, flipSeason, flipYear, turn, "event");
+      }
+
+      const flipPrevHall = state.greatHall ?? {};
+      const flipHallWasActive = flipPrevHall.hasFeastedThisSeason
+        || flipPrevHall.decreeSlotsUsed > 0
+        || (flipPrevHall.disputesResolved || 0) > 0;
+      const flipTrustDecay = flipHallWasActive ? 0 : -2;
+      const flipAdvanceTrust = Math.max(0, Math.min(100, (flipPrevHall.stewardTrust || 50) + flipTrustDecay));
+      const flipAdvanceRep = computeReputation(flipPrevHall.rulingHistory || []);
+      const flipPrevMeterHistory = flipPrevHall.meterHistory || [];
+      const flipMeterSnapshot = {
+        turn: state.turn,
+        season: state.season,
+        year: state.year,
+        meters: { ...(flipPrevHall.meters || { people: 50, treasury: 50, church: 50, military: 50 }) },
+      };
+      const flipAdvanceCompoundFlags = computeCompoundFlags(flipPrevHall.rulingHistory || []);
+      const flipAdvMeters = flipPrevHall.meters || { people: 50, treasury: 50, church: 50, military: 50 };
+      const flipAdvCrisis = { ...(flipPrevHall.crisisTriggered || {}) };
+      const flipAdvPeak = { ...(flipPrevHall.peakTriggered || {}) };
+      let flipSeasonHallEvent = null;
+      for (const [key, val] of Object.entries(flipAdvMeters)) {
+        if (val < 20 && !flipAdvCrisis[key] && CRISIS_EVENTS[key]) {
+          flipSeasonHallEvent = { ...CRISIS_EVENTS[key], meter: key, type: "crisis" };
+          flipAdvCrisis[key] = true;
+        }
+        if (val > 80 && !flipAdvPeak[key] && PEAK_EVENTS[key]) {
+          flipSeasonHallEvent = { ...PEAK_EVENTS[key], meter: key, type: "peak" };
+          flipAdvPeak[key] = true;
+        }
+        if (val >= 20) flipAdvCrisis[key] = false;
+        if (val <= 80) flipAdvPeak[key] = false;
+      }
+      const flipAdvanceHall = {
+        ...flipPrevHall,
+        decreeSlotsUsed: 0,
+        hasFeastedThisSeason: false,
+        stewardTrust: flipAdvanceTrust,
+        reputation: flipAdvanceRep.title,
+        reputationTrack: flipAdvanceRep.track,
+        reputationScores: flipAdvanceRep.scores,
+        meterHistory: [...flipPrevMeterHistory, flipMeterSnapshot],
+        compoundFlags: flipAdvanceCompoundFlags,
+        pendingHallEvent: flipSeasonHallEvent || flipPrevHall.pendingHallEvent || null,
+        crisisTriggered: flipAdvCrisis,
+        peakTriggered: flipAdvPeak,
+      };
+
+      const flipTavernReset = {
+        ...state.tavern,
+        gambitRoundsThisSeason: 0,
+        ratsPlayedThisSeason: false,
+        strangerAppearedThisSeason: false,
+      };
+
+      const flipWtReset = {
+        ...(state.watchtower ?? {}),
+        scannedThisSeason: false,
+        lastScanResult: null,
+        warnings: {
+          criminalRaidBonus: 0,
+          scottishRaidBonus: 0,
+          raidRequirementReduction: 0,
+          merchantPreview: null,
+        },
+      };
+
+      const flipPrevBs = state.blacksmith ?? {};
+      const flipBsReset = {
+        ...flipPrevBs,
+        salesThisSeason: 0,
+        marketPrices: generateForgeMarketPrices(state.season),
+      };
+
+      // Synergy consecutive counters
+      const flipPrevSyn = state.synergies ?? {};
+      const flipTaxIsLow = state.taxRate === "low" || state.taxRate === "medium";
+      const flipNewLowTaxTurns = flipTaxIsLow ? (flipPrevSyn.lowTaxTurns ?? 0) + 1 : 0;
+      const flipNewFoodSurplusTurns = (applied.food ?? 0) > 100
+        ? (flipPrevSyn.foodSurplusTurns ?? 0) + 1 : 0;
+      const flipUpdatedSynergies = {
+        ...flipPrevSyn,
+        lowTaxTurns: flipNewLowTaxTurns,
+        foodSurplusTurns: flipNewFoodSurplusTurns,
+      };
+      const flipStateForSynergyCheck = { ...newState, synergies: flipUpdatedSynergies };
+      const flipNewSynergyIds = checkSynergies(flipStateForSynergyCheck);
+      let flipSynergiesAfterCheck = flipUpdatedSynergies;
+      let flipSynNotifications = [];
+      if (flipNewSynergyIds.length > 0) {
+        flipSynergiesAfterCheck = {
+          ...flipUpdatedSynergies,
+          activated: [...(flipUpdatedSynergies.activated ?? []), ...flipNewSynergyIds],
+        };
+        for (const tierId of flipNewSynergyIds) {
+          const entry = SYNERGY_TIER_MAP[tierId];
+          if (entry?.tier.chronicle) {
+            nextChronicle = addChronicle(nextChronicle, entry.tier.chronicle, flipSeason, flipYear, turn, "event");
+          }
+          flipSynNotifications.push({
+            tierId,
+            tier: entry?.tier.tier ?? 1,
+            title: entry?.tier.title ?? "",
+            description: entry?.tier.description ?? "",
+            pathName: entry?.path.name ?? "",
+            pathIcon: entry?.path.icon ?? "",
+            pathColor: entry?.path.color ?? "#b8860b",
+            scribesNote: entry?.tier.scribesNote ?? null,
+          });
+        }
+      }
+
+      const zeroDeltas = { denarii: 0, food: 0, population: 0, garrison: 0 };
 
       return {
         ...state,
         ...newState,
         phase: "management",
-        turn: advanceTurn,
-        season: nextSeason,
-        year: nextYear,
+        // BUG-01 FIX: use current turn, not turn + 1
+        turn,
+        season: flipSeason,
+        year: flipYear,
         chronicle: nextChronicle,
+        causeChain: nextCauseChain,
         marketPrices: generateMarketPrices(),
         perspectiveFlips: nextPerspectiveFlips,
         activeTab: "estate",
         seasonReport: [],
+        resourceDeltas: zeroDeltas,
         currentEvent: null,
         currentRandomEvent: null,
         scribesNote: null,
@@ -2284,6 +2457,14 @@ export function gameReducer(state, action) {
         currentFlipOutcome: null,
         currentCyoaNodeId: null,
         cyoaEndingType: null,
+        // BUG-02 FIX: seasonal state resets
+        market: flipMarketReset,
+        greatHall: flipAdvanceHall,
+        tavern: flipTavernReset,
+        watchtower: flipWtReset,
+        blacksmith: flipBsReset,
+        synergies: flipSynergiesAfterCheck,
+        pendingSynergyNotifications: flipSynNotifications,
       };
     }
 
