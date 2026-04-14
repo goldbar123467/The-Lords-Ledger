@@ -176,8 +176,8 @@ export const GARRISON_UPKEEP_PER_SOLDIER = 3;
 /** Starting inventory capacity */
 export const STARTING_INVENTORY_CAPACITY = 300;
 
-/** Food consumption: 3 food per family per season */
-export const FOOD_PER_FAMILY = 3;
+/** Food consumption: 2 food per family per season */
+export const FOOD_PER_FAMILY = 2;
 
 /** Cost to recruit one soldier */
 export const RECRUIT_COST = 10;

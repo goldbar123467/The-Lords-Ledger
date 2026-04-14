@@ -95,7 +95,7 @@ export function checkGameOver(state) {
       reason: "All your families have abandoned or perished on your estate.",
     };
   }
-  if ((state.bankruptcyTurns || 0) >= 4) {
+  if ((state.bankruptcyTurns || 0) >= 6) {
     return {
       type: "bankruptcy",
       reason: "Your creditors have seized the estate after seasons of empty coffers.",
