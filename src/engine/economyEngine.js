@@ -402,7 +402,7 @@ export function simulateEconomy(state) {
 
   // Baseline subsistence: peasant families forage and tend small garden plots
   const farmMult = SEASON_FARM_MULTIPLIERS[season] ?? 1.0;
-  const subsistenceGrain = Math.max(1, Math.floor(currentPopulation * 0.2 * farmMult));
+  const subsistenceGrain = Math.max(2, Math.floor(currentPopulation * 0.4 * farmMult));
   currentInventory = { ...currentInventory, grain: (currentInventory.grain || 0) + subsistenceGrain };
 
   // Summarize production
@@ -430,7 +430,8 @@ export function simulateEconomy(state) {
   // ----- 2. CONSUMPTION -----
   const difficulty = state.difficulty || "normal";
   const foodCapBase = difficulty === "easy" ? 20 : difficulty === "normal" ? 30 : 50;
-  const maxFoodLoss = Math.max(foodCapBase, Math.ceil(currentPopulation * FOOD_PER_FAMILY * 0.8));
+  const consumptionScale = difficulty === "easy" ? 0.6 : difficulty === "hard" ? 1.0 : 0.8;
+  const maxFoodLoss = Math.max(foodCapBase, Math.ceil(currentPopulation * FOOD_PER_FAMILY * consumptionScale));
   const consumption = runConsumption(currentInventory, currentPopulation, maxFoodLoss, season);
   currentInventory = consumption.inventory;
   report.push(...consumption.report);
@@ -628,6 +629,13 @@ export function simulateEconomy(state) {
       populationChange = 1;
       report.push("A wandering family, seeking a lord's protection, has settled on your estate.");
     }
+  }
+
+  // Enforce hard population cap — can't grow above cap from any source
+  if (populationChange > 0 && currentPopulation >= popHardCap) {
+    populationChange = 0;
+  } else if (populationChange > 0 && currentPopulation + populationChange > popHardCap) {
+    populationChange = popHardCap - currentPopulation;
   }
 
   currentPopulation = Math.max(0, currentPopulation + populationChange);

@@ -1250,9 +1250,11 @@ export function gameReducer(state, action) {
       }
 
       // Morale: natural drift toward equilibrium (70)
-      // Above 70: slow decay to prevent permanent max. Below 30: slow recovery.
-      if (milMorale > 70) {
-        milMorale -= 1;
+      // Above 70: decay scales with distance. Below 30: slow recovery.
+      if (milMorale > 85) {
+        milMorale -= 3;
+      } else if (milMorale > 70) {
+        milMorale -= 2;
       } else if (milMorale < 30) {
         milMorale = Math.min(30, milMorale + 2);
       }

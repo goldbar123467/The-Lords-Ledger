@@ -60,7 +60,8 @@ export function translateEffects(effects) {
 export function applyResourceEffects(state, resourceEffects, maxGarrison = 25) {
   const newDenarii = Math.max(0, state.denarii + resourceEffects.denarii);
   const newPopulation = Math.max(0, state.population + resourceEffects.population);
-  const newGarrison = Math.max(0, Math.min(maxGarrison, state.garrison + resourceEffects.garrison));
+  const popBasedCap = Math.floor(newPopulation * 0.6);
+  const newGarrison = Math.max(0, Math.min(maxGarrison, popBasedCap, state.garrison + resourceEffects.garrison));
 
   // Food effects go into grain
   let newInventory = state.inventory;
