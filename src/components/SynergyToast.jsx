@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 
 function Tier1Toast({ notification, onDismiss }) {
   const [opacity, setOpacity] = useState(0);
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     // Fade in
@@ -16,6 +17,7 @@ function Tier1Toast({ notification, onDismiss }) {
     // Auto-dismiss after 5s
     const dismissTimer = setTimeout(() => {
       setOpacity(0);
+      setDismissed(true);
       setTimeout(onDismiss, 400);
     }, 5000);
     return () => {
@@ -23,6 +25,8 @@ function Tier1Toast({ notification, onDismiss }) {
       clearTimeout(dismissTimer);
     };
   }, [onDismiss]);
+
+  if (dismissed) return null;
 
   return (
     <div
@@ -33,9 +37,11 @@ function Tier1Toast({ notification, onDismiss }) {
         boxShadow: "0 4px 16px rgba(196, 162, 74, 0.3)",
         opacity,
         transition: "opacity 0.4s ease",
+        pointerEvents: opacity < 0.1 ? "none" : "auto",
       }}
       onClick={() => {
         setOpacity(0);
+        setDismissed(true);
         setTimeout(onDismiss, 400);
       }}
       role="status"
@@ -61,9 +67,17 @@ function Tier2Card({ notification, onDismiss }) {
   const [translateX, setTranslateX] = useState("100%");
 
   useEffect(() => {
-    const timer = setTimeout(() => setTranslateX("0"), 50);
-    return () => clearTimeout(timer);
-  }, []);
+    const slideTimer = setTimeout(() => setTranslateX("0"), 50);
+    // Auto-dismiss after 10s
+    const dismissTimer = setTimeout(() => {
+      setTranslateX("100%");
+      setTimeout(onDismiss, 400);
+    }, 10000);
+    return () => {
+      clearTimeout(slideTimer);
+      clearTimeout(dismissTimer);
+    };
+  }, [onDismiss]);
 
   return (
     <div
