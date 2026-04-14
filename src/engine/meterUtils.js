@@ -97,7 +97,7 @@ export function applyResourceEffects(state, resourceEffects, maxGarrison = 25) {
  *
  * Game over conditions:
  *   - Population reaches 0: everyone left or perished
- *   - Bankrupt for 4+ consecutive turns: creditors seize the estate
+ *   - Bankrupt for 6+ consecutive turns: creditors seize the estate
  *
  * @param {object} state - Game state with population and bankruptcyTurns
  * @returns {{ type: string, reason: string } | null}

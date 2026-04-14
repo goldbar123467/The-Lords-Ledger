@@ -429,7 +429,8 @@ export function simulateEconomy(state) {
 
   // ----- 2. CONSUMPTION -----
   const difficulty = state.difficulty || "normal";
-  const maxFoodLoss = difficulty === "easy" ? 20 : difficulty === "normal" ? 25 : 35;
+  const foodCapBase = difficulty === "easy" ? 20 : difficulty === "normal" ? 30 : 50;
+  const maxFoodLoss = Math.max(foodCapBase, Math.ceil(currentPopulation * FOOD_PER_FAMILY * 0.8));
   const consumption = runConsumption(currentInventory, currentPopulation, maxFoodLoss, season);
   currentInventory = consumption.inventory;
   report.push(...consumption.report);
@@ -479,13 +480,13 @@ export function simulateEconomy(state) {
   }
 
   // ----- 3. UPKEEP -----
-  const upkeep = runUpkeep(currentDenarii, buildings, currentGarrison, state);
+  const upkeep = runUpkeep(currentDenarii, buildings, currentGarrison, state.military);
   currentDenarii = upkeep.denarii;
   report.push(...upkeep.report);
 
   // BUG-08 FIX: Unpaid upkeep — soldiers desert proportional to unpaid ratio
   if (upkeep.unpaidUpkeep > 0) {
-    const garrisonCost = getGarrisonUpkeep(currentGarrison, state);
+    const garrisonCost = getGarrisonUpkeep(currentGarrison, state.military);
     const unpaidRatio = garrisonCost > 0 ? Math.min(1, upkeep.unpaidUpkeep / garrisonCost) : 0;
     const rawDeserters = Math.min(currentGarrison, Math.max(1, Math.ceil(currentGarrison * unpaidRatio * 0.2 * penaltyScale)));
     const deserters = Math.min(rawDeserters, maxDesertionThisSeason - totalDesertions);
@@ -542,7 +543,7 @@ export function simulateEconomy(state) {
     if (b.freeUpkeep) return false;
     return (b.condition ?? 100) > 0;
   }).length;
-  const estateMaintenance = Math.floor(buildingCount * 1 + Math.max(0, currentPopulation - 20) * 0.3);
+  const estateMaintenance = Math.floor(buildingCount * 2 + Math.max(0, currentPopulation - 15) * 0.5);
   if (estateMaintenance > 0) {
     currentDenarii = Math.max(0, currentDenarii - estateMaintenance);
     report.push(`Estate maintenance: ${estateMaintenance}d for ${buildingCount} buildings and road upkeep.`);
@@ -614,27 +615,18 @@ export function simulateEconomy(state) {
     }
   }
 
-  // Wandering settlers can arrive when population is critically low
-  // Prevents unrecoverable death spiral
-  if (currentPopulation < 10 && currentPopulation > 0 && consumption.shortfall === 0) {
-    if (populationChange <= 0 && Math.random() < 0.5) {
-      populationChange += 1;
-      report.push("A wandering family, seeking a lord's protection, has settled on your estate.");
-    }
-  }
-
   // Decline from starvation
   if (consumption.shortfall > 0 && populationChange > 0) {
     populationChange = 0; // Cancel growth during famine
   }
 
   // Population recovery — when critically low, wandering families trickle in
-  // This prevents an unrecoverable death spiral
+  // Prevents unrecoverable death spiral but requires no active famine
   if (currentPopulation > 0 && currentPopulation < 10 && consumption.shortfall === 0 && populationChange <= 0) {
-    // Higher chance of recovery when population is lower
-    const recoveryChance = currentPopulation < 5 ? 0.7 : 0.5;
+    const recoveryChance = currentPopulation < 5 ? 0.5 : 0.3;
     if (Math.random() < recoveryChance) {
       populationChange = 1;
+      report.push("A wandering family, seeking a lord's protection, has settled on your estate.");
     }
   }
 
