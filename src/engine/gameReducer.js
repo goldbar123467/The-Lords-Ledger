@@ -1661,7 +1661,7 @@ export function gameReducer(state, action) {
         },
         raids: {
           ...raids,
-          activeRaid: { ...activeRaid, phase: "result", result, defenseRating, defenseThreshold },
+          activeRaid: { ...activeRaid, phase: "result", result, defenseRating, defenseThreshold, watchtowerBonus },
           [scribesKey]: true,
         },
       };
@@ -1727,7 +1727,8 @@ export function gameReducer(state, action) {
       // Build chronicle entry
       const defRating = activeRaid.defenseRating ?? 0;
       const defThreshold = activeRaid.defenseThreshold ?? 0;
-      const chronicleText = buildRaidChronicleText(raidType, result, season, year, state.garrison, defRating, defThreshold);
+      const wtBonus = activeRaid.watchtowerBonus ?? 0;
+      const chronicleText = buildRaidChronicleText(raidType, result, season, year, state.garrison, defRating, defThreshold, wtBonus);
       let nextChronicle = addChronicle(state.chronicle, chronicleText, season, year, turn, "event");
 
       // Update raid statistics
