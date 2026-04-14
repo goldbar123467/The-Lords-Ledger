@@ -405,6 +405,17 @@ export function simulateEconomy(state) {
     report.push(`Your buildings produced: ${prodStr}.`);
   }
 
+  // ----- 1.25. SUBSISTENCE FARMING — families grow small garden plots -----
+  const subsistenceGrain = Math.floor(currentPopulation / 10);
+  if (subsistenceGrain > 0) {
+    const space = inventoryCapacity - getInventoryUsed(currentInventory);
+    const actualSubsistence = Math.min(subsistenceGrain, space);
+    if (actualSubsistence > 0) {
+      currentInventory = { ...currentInventory, grain: (currentInventory.grain || 0) + actualSubsistence };
+      report.push(`Your families' garden plots yielded ${actualSubsistence} grain.`);
+    }
+  }
+
   // ----- 1.5. LEVY LABOR PENALTY -----
   const levyCount = state.military?.garrison?.levy || 0;
   const levyThreshold = Math.floor(currentPopulation * 0.25);
@@ -519,8 +530,8 @@ export function simulateEconomy(state) {
 
   // ----- 5. PASSIVE INCOME -----
   const passiveIncome = getPassiveIncome(castleLevel, buildings);
-  // Population generates small income from cottage industries and market activity
-  const populationIncome = Math.floor(currentPopulation * 0.75);
+  // Population generates income from cottage industries and market activity
+  const populationIncome = Math.floor(currentPopulation * 1.0);
   const totalPassiveIncome = passiveIncome + populationIncome;
   currentDenarii += totalPassiveIncome;
   if (totalPassiveIncome > 0) {
@@ -553,7 +564,7 @@ export function simulateEconomy(state) {
   // ----- 6. POPULATION GROWTH/DECLINE -----
   let populationChange = 0;
   const totalFoodInInventory = getTotalFood(currentInventory);
-  const foodSurplus = totalFoodInInventory > Math.ceil(currentPopulation * 1.5);
+  const foodSurplus = totalFoodInInventory > Math.ceil(currentPopulation * 1.0);
 
   // Ale consumed for morale — helps attract settlers (skip during famine)
   const isFamine = consumption.shortfall > 0;

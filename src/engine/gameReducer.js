@@ -1725,12 +1725,13 @@ export function gameReducer(state, action) {
         activeRaid: null,
       };
 
-      // BUG-16 FIX: Update bankruptcy counter after raid losses
+      // Bankruptcy counter: preserve SIMULATE_SEASON's count for this turn.
+      // Only update if raid pushed denarii to 0 when it wasn't already 0.
       let raidBankruptcyTurns = state.bankruptcyTurns || 0;
-      if (newDenarii <= 0) {
-        raidBankruptcyTurns += 1;
+      if (newDenarii <= 0 && state.denarii > 0) {
+        // Raid caused bankruptcy this turn — set to 1 (not increment, to avoid double-count)
+        raidBankruptcyTurns = Math.max(raidBankruptcyTurns, 1);
       }
-      // Don't reset to 0 here — the counter was already set by SIMULATE_SEASON this turn
 
       // Check game over after raid losses
       const postRaidState = { population: newPopulation, bankruptcyTurns: raidBankruptcyTurns };
