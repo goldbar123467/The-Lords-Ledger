@@ -12,7 +12,9 @@ import { writeFileSync, existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 
 const FINDINGS_PATH = resolve(import.meta.dirname, "..", "..", "..", "qa-findings.json");
+const SUMMARY_PATH = resolve(import.meta.dirname, "..", "..", "..", "qa-summary.json");
 const SHOT_DIR = resolve(import.meta.dirname, "..", "..", "..", "playtest-screenshots");
+const RUN_START = Date.now();
 
 function record(finding) {
   let out = [];
@@ -34,6 +36,36 @@ async function collectErrors(page) {
 
 test.describe("Persona QA", () => {
   test.describe.configure({ timeout: 120_000 });
+
+  test.afterAll(() => {
+    // Build a run-level summary of qa-findings.json so cycles can be compared.
+    let findings = [];
+    if (existsSync(FINDINGS_PATH)) {
+      try { findings = JSON.parse(readFileSync(FINDINGS_PATH, "utf8")); } catch { /* empty */ }
+    }
+    const byPersona = {};
+    const bySeverity = { pageerror: 0, console: 0 };
+    let totalBugs = 0;
+    for (const f of findings) {
+      const p = f.persona || "Unknown";
+      byPersona[p] = (byPersona[p] || 0) + 1;
+      if (Array.isArray(f.errors)) {
+        for (const e of f.errors) {
+          if (e.type && bySeverity[e.type] !== undefined) bySeverity[e.type] += 1;
+        }
+      }
+      if (Array.isArray(f.bugs)) totalBugs += f.bugs.length;
+    }
+    const summary = {
+      timestamp: new Date().toISOString(),
+      durationMs: Date.now() - RUN_START,
+      totalFindings: findings.length,
+      totalBugs,
+      byPersona,
+      bySeverity,
+    };
+    writeFileSync(SUMMARY_PATH, JSON.stringify(summary, null, 2));
+  });
 
   test("Noob — random clicker on easy", async ({ page }) => {
     test.setTimeout(120_000);

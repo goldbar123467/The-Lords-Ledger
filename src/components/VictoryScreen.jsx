@@ -9,9 +9,34 @@ function computeVictoryTitle(state, activatedSynergies) {
   return getVictoryTitle(state);
 }
 
+// B-15 FIX: Classify a final resource as "low" for nail-biter wins.
+// Thresholds are tuned to the Dashboard scale so a fragile win is noticeable
+// but a strong run never trips them.
+const LOW_THRESHOLDS = {
+  denarii: 100,
+  food: 20,
+  population: 10,
+  garrison: 3,
+};
+
+function isLowResource(key, value) {
+  const t = LOW_THRESHOLDS[key];
+  return t !== undefined && value < t;
+}
+
 export default function VictoryScreen({ state, onPlayAgain, activatedSynergies }) {
   const title = computeVictoryTitle(state, activatedSynergies);
   const summary = victorySummary(state);
+
+  // B-15 FIX: detect "barely survived" wins so the screen doesn't read identical
+  // to a dominant victory when every resource is in the gutter.
+  const finalResources = {
+    denarii: state.denarii || 0,
+    food: state.food || 0,
+    population: state.population || 0,
+    garrison: state.garrison || 0,
+  };
+  const isFragileWin = Object.entries(finalResources).some(([k, v]) => isLowResource(k, v));
 
   return (
     <div
@@ -37,6 +62,18 @@ export default function VictoryScreen({ state, onPlayAgain, activatedSynergies }
           <p className="text-base font-semibold mt-1" style={{ color: "#a89070" }}>
             {title.subtitle}
           </p>
+          {isFragileWin && (
+            <p
+              className="text-sm italic mt-2"
+              style={{
+                color: "#c62828",
+                fontFamily: "Crimson Text, serif",
+                textShadow: "0 0 4px rgba(198, 40, 40, 0.3)",
+              }}
+            >
+              You survived by the skin of your teeth.
+            </p>
+          )}
         </div>
 
         <div className="flex items-center justify-center my-4 gap-2">
@@ -56,31 +93,39 @@ export default function VictoryScreen({ state, onPlayAgain, activatedSynergies }
         {/* Final resource values */}
         <div className="grid grid-cols-4 gap-2 mb-5 text-center text-xs">
           {[
-            { key: "denarii", label: "Denarii", icon: "\u269C", value: `${state.denarii || 0}d` },
-            { key: "food", label: "Food", icon: "\u2727", value: state.food || 0 },
-            { key: "population", label: "Families", icon: "\u2302", value: state.population || 0 },
-            { key: "garrison", label: "Garrison", icon: "\u2694", value: state.garrison || 0 },
-          ].map((r) => (
-            <div
-              key={r.key}
-              className="py-2 rounded-md border"
-              style={{ borderColor: "#6a5a42", backgroundColor: "#231e16" }}
-            >
-              <div className="text-lg mb-0.5" style={{ color: "#c4a24a" }}>{r.icon}</div>
+            { key: "denarii", label: "Denarii", icon: "\u269C", raw: state.denarii || 0, value: `${state.denarii || 0}d` },
+            { key: "food", label: "Food", icon: "\u2727", raw: state.food || 0, value: state.food || 0 },
+            { key: "population", label: "Families", icon: "\u2302", raw: state.population || 0, value: state.population || 0 },
+            { key: "garrison", label: "Garrison", icon: "\u2694", raw: state.garrison || 0, value: state.garrison || 0 },
+          ].map((r) => {
+            // B-15 FIX: low final resources glow red so fragile wins visibly
+            // differ from dominant ones.
+            const low = isLowResource(r.key, r.raw);
+            return (
               <div
-                className="font-heading font-semibold uppercase"
-                style={{ color: "#6a5a42" }}
+                key={r.key}
+                className="py-2 rounded-md border"
+                style={{
+                  borderColor: low ? "#c62828" : "#6a5a42",
+                  backgroundColor: "#231e16",
+                }}
               >
-                {r.label}
+                <div className="text-lg mb-0.5" style={{ color: low ? "#c62828" : "#c4a24a" }}>{r.icon}</div>
+                <div
+                  className="font-heading font-semibold uppercase"
+                  style={{ color: "#6a5a42" }}
+                >
+                  {r.label}
+                </div>
+                <div
+                  className="text-xl font-bold"
+                  style={{ color: low ? "#c62828" : "#e8c44a" }}
+                >
+                  {r.value}
+                </div>
               </div>
-              <div
-                className="text-xl font-bold"
-                style={{ color: "#e8c44a" }}
-              >
-                {r.value}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Strategy Paths */}

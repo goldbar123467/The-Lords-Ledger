@@ -226,6 +226,8 @@ export const initialState = {
     msFact: null,
     msReward: 0,
     gameLog: [],
+    // B-14 FIX: Per-year counter for diminishing returns on spice-driven faith gain.
+    spicePurchasesThisYear: 0,
   },
 
   // Market Square state
@@ -343,6 +345,32 @@ function computeResourceDeltas(before, after) {
     population: after.population - before.population,
     garrison: after.garrison - before.garrison,
   };
+}
+
+/**
+ * B-14 FIX: Diminishing-returns faith gain from spice purchases.
+ *
+ * Spices are marketed as boosting faith each season via church ceremonies.
+ * Without a ceiling, spamming spice purchases drives faith near 100.
+ * Gain scales down across a year (reset each new year):
+ *   1st purchase: +3 faith per unit (full)
+ *   2nd-3rd:      +1 faith per unit (half-ish)
+ *   4th+:         +0 faith per unit (plateau)
+ *
+ * @param {number} prevCount  spicePurchasesThisYear BEFORE this buy
+ * @param {number} unitsBought number of spice units bought in this transaction
+ * @returns {number} total faith delta (integer, >= 0)
+ */
+function computeSpiceFaithGain(prevCount, unitsBought) {
+  if (unitsBought <= 0) return 0;
+  let gain = 0;
+  for (let i = 0; i < unitsBought; i++) {
+    const n = prevCount + i;
+    if (n < 1) gain += 3;
+    else if (n < 3) gain += 1;
+    else gain += 0;
+  }
+  return gain;
 }
 
 function pickSeasonalEvent(season, usedSeasonalIds, turn, allSeasonalEvents) {
@@ -778,6 +806,20 @@ export function gameReducer(state, action) {
         ? prevSynergies.tradeTypes
         : [...prevSynergies.tradeTypes, resource];
 
+      // B-14 FIX: diminishing-returns faith gain on spice buys.
+      const prevChapelBuy = state.chapel ?? {};
+      const prevSpiceYearBuy = prevChapelBuy.spicePurchasesThisYear ?? 0;
+      const faithGainBuy = resource === "spices"
+        ? computeSpiceFaithGain(prevSpiceYearBuy, buyQty)
+        : 0;
+      const nextChapelBuy = resource === "spices"
+        ? {
+            ...prevChapelBuy,
+            faith: Math.min(100, Math.max(0, (prevChapelBuy.faith ?? 50) + faithGainBuy)),
+            spicePurchasesThisYear: prevSpiceYearBuy + buyQty,
+          }
+        : prevChapelBuy;
+
       const buyCfg = { grain: "Grain", livestock: "Livestock", fish: "Fish", timber: "Timber", clay: "Clay", iron: "Iron", stone: "Stone", salt: "Salt", tools: "Tools", spices: "Spices" };
       return {
         ...state,
@@ -786,6 +828,7 @@ export function gameReducer(state, action) {
         food: getTotalFood(newInventory),
         tradeCount: (state.tradeCount || 0) + 1,
         synergies: { ...prevSynergies, spicePurchases: newSpicePurchases, tradeTypes: newTradeTypes },
+        chapel: nextChapelBuy,
         chronicle: addChronicle(state.chronicle, `Bought ${buyQty} ${buyCfg[resource] || resource} for ${totalCost}d.`, state.season, state.year, state.turn, "action"),
       };
     }
@@ -926,10 +969,26 @@ export function gameReducer(state, action) {
         const newTradeTypes = prevSynergies.tradeTypes.includes(resource)
           ? prevSynergies.tradeTypes : [...prevSynergies.tradeTypes, resource];
         const mName = LOCAL_MERCHANTS.find(m => m.id === merchantId)?.name || FOREIGN_TRADERS[state.season]?.name || "a merchant";
+
+        // B-14 FIX: diminishing-returns faith gain on spice buys (same as BUY_RESOURCE).
+        const prevChapelHag = state.chapel ?? {};
+        const prevSpiceYearHag = prevChapelHag.spicePurchasesThisYear ?? 0;
+        const faithGainHag = resource === "spices"
+          ? computeSpiceFaithGain(prevSpiceYearHag, quantity)
+          : 0;
+        const nextChapelHag = resource === "spices"
+          ? {
+              ...prevChapelHag,
+              faith: Math.min(100, Math.max(0, (prevChapelHag.faith ?? 50) + faithGainHag)),
+              spicePurchasesThisYear: prevSpiceYearHag + quantity,
+            }
+          : prevChapelHag;
+
         newState = {
           ...state, denarii: state.denarii - totalCost, inventory: newInventory,
           food: getTotalFood(newInventory), tradeCount: (state.tradeCount || 0) + 1,
           synergies: { ...prevSynergies, spicePurchases: newSpicePurchases, tradeTypes: newTradeTypes },
+          chapel: nextChapelHag,
           chronicle: addChronicle(state.chronicle, `Bought ${quantity} ${LABEL[resource] || resource} from ${mName} for ${totalCost}d (haggled from ${fairPrice}d each).`, state.season, state.year, state.turn, "action"),
         };
       }
@@ -2020,6 +2079,12 @@ export function gameReducer(state, action) {
         foodSurplusTurns: newFoodSurplusTurns,
       };
 
+      // B-14 FIX: reset per-year spice counter when the year rolls over.
+      const prevChapelAdvance = state.chapel ?? {};
+      const advanceChapel = nextYear !== state.year
+        ? { ...prevChapelAdvance, spicePurchasesThisYear: 0 }
+        : prevChapelAdvance;
+
       // Check for newly activated synergies
       const stateForSynergyCheck = { ...state, synergies: updatedSynergies };
       const newSynergyIds = checkSynergies(stateForSynergyCheck);
@@ -2078,6 +2143,7 @@ export function gameReducer(state, action) {
           deferredSynergyNotifications: synNotifications,
           market: advanceMarket,
           greatHall: advanceHall,
+          chapel: advanceChapel,
           // Flip state
           lastFlipTurn: nextTurn,
           currentFlipId: triggeredFlipId,
@@ -2106,6 +2172,7 @@ export function gameReducer(state, action) {
         pendingSynergyNotifications: synNotifications,
         market: advanceMarket,
         greatHall: advanceHall,
+        chapel: advanceChapel,
       };
     }
 

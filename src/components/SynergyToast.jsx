@@ -31,36 +31,43 @@ function Tier1Toast({ notification, onDismiss }) {
 
   if (dismissed) return null;
 
+  const dismiss = () => {
+    setOpacity(0);
+    setDismissed(true);
+    setTimeout(onDismiss, 400);
+  };
+
   return (
     <div
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 px-5 py-3 rounded-lg border-2 shadow-lg flex items-center gap-3 cursor-pointer max-w-sm"
-      style={{
-        backgroundColor: "#1a1610",
-        borderColor: "#c4a24a",
-        boxShadow: "0 4px 16px rgba(196, 162, 74, 0.3)",
-        opacity,
-        transition: "opacity 0.4s ease",
-        pointerEvents: opacity < 0.1 ? "none" : "auto",
-      }}
-      onClick={() => {
-        setOpacity(0);
-        setDismissed(true);
-        setTimeout(onDismiss, 400);
-      }}
-      role="status"
-      aria-live="polite"
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex justify-center max-w-sm w-full"
+      style={{ pointerEvents: "none" }}
     >
-      <span className="text-2xl">{notification.pathIcon}</span>
-      <div>
-        <p
-          className="font-heading font-bold text-sm uppercase tracking-wider"
-          style={{ color: "#c4a24a" }}
-        >
-          Path Unlocked
-        </p>
-        <p className="text-sm font-semibold" style={{ color: "#e8c44a" }}>
-          {notification.title}
-        </p>
+      <div
+        className="px-5 py-3 rounded-lg border-2 shadow-lg flex items-center gap-3 cursor-pointer"
+        style={{
+          backgroundColor: "#1a1610",
+          borderColor: "#c4a24a",
+          boxShadow: "0 4px 16px rgba(196, 162, 74, 0.3)",
+          opacity,
+          transition: "opacity 0.4s ease",
+          pointerEvents: opacity < 0.1 ? "none" : "auto",
+        }}
+        onClick={dismiss}
+        role="status"
+        aria-live="polite"
+      >
+        <span className="text-2xl">{notification.pathIcon}</span>
+        <div>
+          <p
+            className="font-heading font-bold text-sm uppercase tracking-wider"
+            style={{ color: "#c4a24a" }}
+          >
+            Path Unlocked
+          </p>
+          <p className="text-sm font-semibold" style={{ color: "#e8c44a" }}>
+            {notification.title}
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -87,13 +94,18 @@ function Tier2Card({ notification, onDismiss }) {
 
   return (
     <div
-      className="fixed right-4 top-1/2 -translate-y-1/2 z-20 w-72 rounded-lg border-2 shadow-xl overflow-hidden cursor-pointer"
+      className="fixed right-4 top-1/2 -translate-y-1/2 z-20 w-72"
+      style={{ pointerEvents: "none" }}
+    >
+    <div
+      className="rounded-lg border-2 shadow-xl overflow-hidden cursor-pointer"
       style={{
         backgroundColor: "#1a1610",
         borderColor: notification.pathColor || "#c4a24a",
         boxShadow: `0 8px 24px rgba(0,0,0,0.2)`,
-        transform: `translateY(-50%) translateX(${translateX})`,
+        transform: `translateX(${translateX})`,
         transition: "transform 0.4s ease-out",
+        pointerEvents: "auto",
       }}
       onClick={onDismiss}
       role="status"
@@ -126,6 +138,7 @@ function Tier2Card({ notification, onDismiss }) {
           Tap to dismiss
         </p>
       </div>
+    </div>
     </div>
   );
 }
