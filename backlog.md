@@ -358,3 +358,187 @@ Priority legend:
   already makes the spec green without altering worker parallelism.
   Post-fix (main HEAD) auto-playthrough outcomes: 4/6 profiles reach
   turn 40 (victory), 2 end in meaningful famine (no softlocks).
+
+---
+
+> 2026-04-17 cycle 5: fresh persona QA + exploratory + gameplay + visual run
+> on branch `claude/dazzling-curie-s9HRW`. Visual suite 54/54 pass, persona
+> 3/3 pass (0 pageerrors), auto-playthrough (serial) 6/6 pass (4 victory,
+> 2 meaningful famine). Bugs surfaced from fresh screenshots and parallel
+> run. Current fix set: B-51, B-52, B-53, B-54, B-55 (5 items).
+
+### B-51 — Persona QA screenshots `qa-avg.png` + `qa-goat.png` capture TITLE SCREEN again — ✅ FIXED 2026-04-17
+- Persona: Avg Gamer / Goat Gamer (QA harness regression of B-46)
+- Severity: P1 (triage blind for 2/3 personas)
+- Reproduction: `npx playwright test tests/e2e/qa/persona-qa.spec.js` →
+  both `playtest-screenshots/qa-avg.png` (Normal, ended turn 3) and
+  `qa-goat.png` (Hard, ended turn 7) render as the title screen. The Noob
+  run captures real gameplay (644 KB file) but Avg + Goat are identical
+  `148 922`-byte title-screen captures. B-46 narrowed the resolve regex to
+  exact strings, but something in `playOneTurn` still reaches title before
+  the outer loop screenshots.
+- Expected: When a persona run breaks early, the post-run screenshot shows
+  the actual end state (GameOverScreen with "Try Again", VictoryScreen, or
+  the stuck management screen) — never the title screen.
+- Actual: Two of three personas produce screenshots indistinguishable from
+  an untouched title load, so reviewers can't tell why the run ended.
+- Resolution (2026-04-17): Root cause was Vite HMR reconnect under parallel
+  worker load bouncing the SPA back to the initial title state mid-turn
+  (PLAY_AGAIN in the reducer never re-enters title, so no in-app reset was
+  the culprit). `playOneTurn` now accepts an optional `diag` object and
+  records `{ reason, iteration }` for each false return — added an explicit
+  `title_screen` probe on "Choose Your Challenge" that fires BEFORE the
+  overlay-dismissal path so the harness exits with a precise reason instead
+  of a silent `sim_missing` timeout. Persona spec now writes the reason into
+  the `bugs` payload. Screenshot reflects whatever end state is actually on
+  screen (title, game-over, victory, or stuck management).
+
+### B-52 — `playtest-screenshots/autoplay-*.png` accumulate stale diagnostics across runs — ✅ FIXED 2026-04-17
+- Persona: N/A (QA diagnostics)
+- Severity: P3
+- Reproduction: `ls playtest-screenshots/autoplay-*.png` shows
+  `autoplay-Easy-Builder-sim_button_missing.png`,
+  `autoplay-Easy-Passive-possible_softlock.png`,
+  `autoplay-Hard-Passive-possible_softlock.png`,
+  `autoplay-Normal-Balanced-possible_softlock.png`,
+  `autoplay-Normal-Military-possible_softlock.png` — all are title-screen
+  captures from a prior failed cycle. The current serial run is clean
+  (6/6 pass) but those stale PNGs still sit in the directory, so a
+  reviewer scanning the folder assumes there are active softlocks.
+- Expected: `auto-playthrough.spec.js` (or a `beforeAll` in the spec)
+  clears prior `autoplay-*.png` files when a run starts; alternatively
+  write new diagnostics under `playtest-screenshots/autoplay/<runId>/`.
+- Actual: Directory is polluted with false-positive failure artifacts
+  from previous cycles.
+- Resolution (2026-04-17): Added `test.beforeAll` in
+  `auto-playthrough.spec.js` that enumerates the screenshots dir with
+  `readdirSync` and unlinks any entry matching `^autoplay-.*\.png$`,
+  wrapped in try/catch so a missing dir or race is harmless. `qa-*.png`,
+  `qa-cycle/`, and `game-*-final.png` are untouched.
+
+### B-53 — Auto-playthrough flakes with `ERR_CONNECTION_REFUSED` under parallel workers — ✅ FIXED 2026-04-17
+- Persona: N/A (CI)
+- Severity: P1 (CI red — 3/6 profiles fail on full-suite run)
+- Reproduction: `npx playwright test tests/e2e/gameplay --reporter=line` →
+  `Normal/Military`, `Hard/Passive`, `Hard/Builder` fail at `page.goto("/")`
+  with `net::ERR_CONNECTION_REFUSED at http://localhost:5173/`. Re-running
+  the same spec with `--workers=1` passes 6/6 in 17 m. `playwright.config.js`
+  currently lets the gameplay project use all cores; the single shared Vite
+  dev server chokes under the load (B-47 intended to split gameplay to
+  `workers: 2`, but the softlock/auto-playthrough file is still running
+  fully parallel on non-CI).
+- Expected: Pin `auto-playthrough.spec.js` (or the whole gameplay project)
+  to `fullyParallel: false` / `workers: 1..2` locally so Vite can serve
+  every playthrough without dying mid-navigation.
+- Actual: Every local suite run flakes out 3 auto-playthrough tests.
+- Resolution (2026-04-17): Marked the `Automated Playthroughs` describe
+  block with `test.describe.configure({ mode: "serial" })` so the 6
+  playthrough profiles share a single worker and the Vite dev server only
+  serves one game at a time. Visual / persona / exploratory projects
+  unchanged; `playwright.config.js` untouched.
+
+### B-54 — Market tab commodity table obscured by sticky Simulate-Season bar on 1280×720 ✅ FIXED 2026-04-17
+- Persona: Avg Gamer / Goat Gamer
+- Severity: P2 (UX readability)
+- Reproduction: Open Market tab on default 1280×720 viewport. The sticky
+  "SIMULATE SEASON" bar (App.jsx:661, `sticky bottom-0`) sits on top of
+  the middle rows of the commodity table (`tab-market.png`). When the
+  user scrolls to inspect prices for Iron/Stone/Steel/Coal, those rows
+  pass *under* the sticky bar, not above, so the value column is unreadable
+  mid-scroll. B-39 marked this fixed but the overlap persists at 1280×720
+  per fresh screenshot.
+- Expected: Either pad the main content area by the sticky-bar height so
+  the bar is below, not over, the table, or shrink the sticky bar to a
+  minimized pill while on tabs with dense tables.
+- Actual: Middle ~30% of the commodity rows are visually hidden while
+  scrolling on 720p displays.
+- Resolution (2026-04-17): Added an explicit 96px aria-hidden spacer at the
+  end of the tab-content region in `src/App.jsx` (rendered only during
+  management/non-flip phases) so the final rows of Market/Forge/Chronicle
+  can scroll above the sticky Simulate-Season bar on 1280×720.
+
+### B-55 — Forge tab lower half (Weapon Rack, Forge Materials, flavor text) renders at ~40% opacity on load ✅ FIXED 2026-04-17
+- Persona: Noob / Avg Gamer
+- Severity: P2 (UX — looks broken / disabled)
+- Reproduction: Open Forge tab on a fresh game (`tab-forge.png`). The
+  Workshop view shows Godric + Wat + COLD indicator clearly, but
+  everything below the first fold — the WEAPON RACK section, the FORGE
+  MATERIALS legend, and the Scribe's-note flavor italic — is rendered
+  semi-transparent / dimmed. There is no visual cue that those panels
+  are hover-reveal or interactive; they read as "disabled". On
+  `tab-market.png` the bottom half renders at full opacity, so the
+  dimming is Forge-specific.
+- Expected: Either keep the Forge info-only sections at full opacity,
+  or attach a label ("Unlocks after first forging session") so the
+  dimmed state communicates *why* it's dimmed.
+- Actual: First-time players assume the forge is bugged.
+- Resolution (2026-04-17): In `src/components/BlacksmithTab.jsx` the Weapon
+  Rack now has a solid dark panel wrapper matching Resource Shelf; both
+  headings bumped from dim `#a89070` to gold `#c4a24a`, and the ambient
+  footer text lifted to `#c8b090` / `rgba(255,107,26,0.7)` so info-only
+  panels read at full opacity over the forge's darker lower gradient.
+
+### B-56 — Blacksmith anvil SVG still reads as abstract "helmet" shape
+- Persona: Noob
+- Severity: P3 (visibility / onboarding)
+- Reproduction: `tab-forge.png` — the central anvil illustration (Workshop
+  view) is a dark silhouette shaped like a long horizontal bar with a
+  small pedestal. B-42 was marked fixed by brightening the silhouette,
+  but the geometry itself is unrecognizable — users without context read
+  it as a helmet or car bumper, not an anvil.
+- Expected: Either replace with a recognizable anvil sprite (pointed
+  horn, square body, stepped base) or add a small label "Anvil" under
+  it.
+- Actual: Visual reads as an unrelated object; onboarding for 6th
+  graders loses the forge metaphor.
+
+### B-57 — Chronicle tab has ~400 px of empty space between first entry and Simulate bar
+- Persona: Noob / Avg Gamer
+- Severity: P3 (polish)
+- Reproduction: `tab-chronicle.png` on fresh game — Y1 Spring "The old
+  lord has passed…" entry renders at ~350 px, then nothing until the
+  sticky Simulate Season bar at ~650 px. The card looks incomplete and
+  the tab reads as unfinished.
+- Expected: Either collapse the chronicle panel height to hug content,
+  add placeholder guidance ("New entries appear after each simulated
+  season."), or show the tutorial tip inline.
+- Actual: Empty expanse suggests a rendering bug to first-time players.
+
+### B-58 — Avg Gamer persona ends at turn 3 on Normal — no explanation in findings
+- Persona: Avg Gamer
+- Severity: P2 (diagnostics / possible softlock)
+- Reproduction: `qa-findings.json` persona Avg logs
+  `{persona: "Avg", turn: 3, note: "ended early"}`. Normal/Balanced
+  auto-playthrough reaches turn 40 victorious, so Normal is beatable;
+  `Avg` ending at turn 3 is either (a) a real softlock in the harness's
+  build-Strip-Farm-then-simulate loop or (b) `playOneTurn` returning
+  false spuriously. No screenshot helps (see B-51), no diagnostic string.
+- Expected: Avg test captures `document.body.innerText.slice(0, 400)` +
+  visible button labels on early exit so cycle-to-cycle comparison can
+  distinguish softlock from false positive. Ideally Avg reaches ≥ turn 8.
+- Actual: Blind triage — reviewer can't tell if game or harness is at
+  fault.
+
+### B-59 — Goat Gamer persona ends at turn 7 on Hard with same blind diagnostic
+- Persona: Goat Gamer
+- Severity: P2 (diagnostics)
+- Reproduction: Same as B-58 but Hard difficulty: `{persona: "Goat",
+  turn: 7, note: "ended early"}`. Hard/Passive auto-playthrough ends in
+  turn-22 famine, Hard/Builder reaches turn 40; turn 7 is unusually early
+  for Hard. Screenshot shows title screen (B-51), no other diagnostic.
+- Expected: Same as B-58 — innerText snapshot + visible button labels.
+  Distinguish game-over (Try Again visible) from harness timeout.
+- Actual: Both failure modes look identical in current findings payload.
+
+### B-60 — `playOneTurn` has no per-iteration diagnostic on failure
+- Persona: N/A (QA harness)
+- Severity: P2
+- Reproduction: `tests/e2e/helpers.js:150-257` `playOneTurn` returns
+  `true`/`false` but never surfaces *why* it returned false. B-48 added
+  diagnostics in `auto-playthrough.spec.js`; the generic helper didn't
+  receive the same treatment, so persona + multi-turn + save-load specs
+  still get opaque `false` returns.
+- Expected: `playOneTurn` accepts an optional `diag` object and records
+  which branch fired (`game_over`, `victory`, `sim_missing`, `loop_timeout`)
+  plus the iteration index. Callers log this in the bugs array.
+- Actual: Helper failure reason is invisible to every caller.

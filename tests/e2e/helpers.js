@@ -145,12 +145,48 @@ export async function dismissOverlay(page) {
 /**
  * Play through one complete turn, handling all intermediate screens
  * (events, resolves, flips, raids, scribes notes, tutorials).
- * Returns true if back in management, false if game ended.
+ * Returns true if back in management, false if the game ended, stalled,
+ * or the page was navigated off the management screen.
+ *
+ * Optional `diag` object: when provided, `playOneTurn` writes
+ * `{ reason, iteration }` describing WHY the call returned false so
+ * callers (persona QA, save/load, multi-turn) can surface the exit
+ * condition instead of an opaque boolean (B-51 / B-60). Recognized
+ * reasons: "sim_missing", "game_over", "victory", "title_screen",
+ * "page_closed", "loop_timeout".
+ *
+ * The end-state probes for game-over ("Try Again") and victory
+ * ("Reign Again") run BEFORE the overlay-dismissal path each iteration
+ * so a reset button can never be clicked before the caller breaks
+ * (B-51). Note that GameOverScreen / VictoryScreen render with
+ * `min-h-screen`, not `.fixed.inset-0`, so the overlay path would not
+ * match them anyway, and the Chapel in-tab "Try Again" at
+ * ChapelTab.jsx:792 is only reachable via the Chapel manuscript
+ * minigame — personas Avg/Goat never navigate there, so that path is
+ * not a false-positive source.
  */
-export async function playOneTurn(page) {
-  if (page.isClosed && page.isClosed()) return false;
+export async function playOneTurn(page, diag) {
+  const record = (reason, iteration) => {
+    if (diag && typeof diag === "object") {
+      diag.reason = reason;
+      diag.iteration = iteration;
+    }
+  };
+
+  if (page.isClosed && page.isClosed()) {
+    record("page_closed", -1);
+    return false;
+  }
   const simBtn = page.locator('button[aria-label*="Simulate"]');
   if (!(await simBtn.isVisible({ timeout: 2_000 }).catch(() => false))) {
+    // Distinguish "dev server reload dropped us on the title screen" from
+    // a genuinely stuck management phase (B-51). Title captures are noisy
+    // but the reason label keeps triage unambiguous.
+    const onTitle = await page
+      .getByText("Choose Your Challenge", { exact: false })
+      .isVisible({ timeout: 200 })
+      .catch(() => false);
+    record(onTitle ? "title_screen" : "sim_missing", -1);
     return false;
   }
   await simBtn.click().catch(() => {});
@@ -159,17 +195,36 @@ export async function playOneTurn(page) {
     try {
       await page.waitForTimeout(200);
     } catch {
+      record("page_closed", i);
       return false;
     }
-    if (page.isClosed && page.isClosed()) return false;
+    if (page.isClosed && page.isClosed()) {
+      record("page_closed", i);
+      return false;
+    }
+
+    // End-state probes run BEFORE the overlay-dismissal path so a
+    // reset button can never be clicked before we break (B-51).
 
     // Check for game over
     if (await page.getByText("Try Again", { exact: true }).isVisible({ timeout: 200 }).catch(() => false)) {
+      record("game_over", i);
       return false;
     }
 
     // Check for victory
     if (await page.getByText("Reign Again", { exact: true }).isVisible({ timeout: 200 }).catch(() => false)) {
+      record("victory", i);
+      return false;
+    }
+
+    // Title-screen probe: Vite HMR reconnects can bounce the SPA back to
+    // the initial title state mid-turn under parallel worker load
+    // (B-51). Detect that before the overlay-dismissal path so callers
+    // see a precise reason instead of a silent `sim_missing` timeout at
+    // the top of the next turn.
+    if (await page.getByText("Choose Your Challenge", { exact: false }).isVisible({ timeout: 100 }).catch(() => false)) {
+      record("title_screen", i);
       return false;
     }
 
@@ -253,7 +308,15 @@ export async function playOneTurn(page) {
     }
   }
 
-  return simBtn.isVisible({ timeout: 1_000 }).catch(() => false);
+  // Exhausted the 60-iteration budget without reaching management. Probe
+  // the sim button one last time; if it's visible the caller is safe to
+  // keep playing, otherwise record a loop-timeout so the persona bugs
+  // payload can distinguish a genuine softlock from an end-state miss.
+  const stillSim = await simBtn.isVisible({ timeout: 1_000 }).catch(() => false);
+  if (!stillSim) {
+    record("loop_timeout", 60);
+  }
+  return stillSim;
 }
 
 /**

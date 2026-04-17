@@ -391,14 +391,14 @@ function WeaponRack() {
           style={{
             width: weapon.width,
             height: weapon.height,
-            backgroundColor: "#2a2520",
+            backgroundColor: "#4a3f35",
             borderRadius:
               weapon.type === "shield"
                 ? "4px"
                 : weapon.type === "axe"
                 ? "2px 2px 6px 6px"
                 : "2px 2px 1px 1px",
-            filter: "brightness(0.7)",
+            filter: "brightness(1)",
             transition: "filter 300ms ease",
             cursor: "default",
             position: "relative",
@@ -417,7 +417,7 @@ function WeaponRack() {
                 height: 0,
                 borderLeft: `${weapon.width / 2}px solid transparent`,
                 borderRight: `${weapon.width / 2}px solid transparent`,
-                borderBottom: `6px solid #2a2520`,
+                borderBottom: `6px solid #4a3f35`,
                 filter: "inherit",
               }}
             />
@@ -431,7 +431,7 @@ function WeaponRack() {
                 right: -8,
                 width: 12,
                 height: 16,
-                backgroundColor: "#2a2520",
+                backgroundColor: "#4a3f35",
                 borderRadius: "0 8px 8px 0",
                 filter: "inherit",
               }}
@@ -447,7 +447,7 @@ function WeaponRack() {
                 transform: "translateX(-50%)",
                 width: 16,
                 height: 16,
-                backgroundColor: "#2a2520",
+                backgroundColor: "#4a3f35",
                 borderRadius: "50%",
                 filter: "inherit",
               }}
@@ -2172,13 +2172,23 @@ function Workshop({
         onPumpBellows={onPumpBellows}
       />
 
-      {/* Weapon Rack */}
-      <div style={{ marginTop: 16 }}>
+      {/* Weapon Rack — info-only panel. Solid semi-opaque background so it
+          reads as a fully-rendered panel at full opacity over the forge's
+          darker lower gradient instead of looking disabled/dimmed (B-55). */}
+      <div
+        style={{
+          marginTop: 16,
+          padding: "10px 12px",
+          border: "1px solid rgba(58,54,50,0.4)",
+          borderRadius: 6,
+          backgroundColor: "rgba(26,21,16,0.75)",
+        }}
+      >
         <div
           style={{
             fontFamily: "Cinzel, serif",
             fontSize: "0.55rem",
-            color: "#5a5550",
+            color: "#c4a24a",
             letterSpacing: "2px",
             textTransform: "uppercase",
             textAlign: "center",
@@ -2190,21 +2200,22 @@ function Workshop({
         <WeaponRack />
       </div>
 
-      {/* Resource Shelf */}
+      {/* Resource Shelf — info-only panel, matches Weapon Rack contrast so
+          both lower info panels read as fully visible (B-55). */}
       <div
         style={{
           marginTop: 16,
           padding: "10px 12px",
-          border: "1px solid rgba(58,54,50,0.2)",
+          border: "1px solid rgba(58,54,50,0.4)",
           borderRadius: 6,
-          backgroundColor: "rgba(26,21,16,0.4)",
+          backgroundColor: "rgba(26,21,16,0.75)",
         }}
       >
         <div
           style={{
             fontFamily: "Cinzel, serif",
             fontSize: "0.55rem",
-            color: "#5a5550",
+            color: "#c4a24a",
             letterSpacing: "2px",
             textTransform: "uppercase",
             textAlign: "center",
@@ -2690,7 +2701,9 @@ export default function BlacksmithTab({ state, dispatch }) {
         </div>
       )}
 
-      {/* ═══ Ambient Footer ═══ */}
+      {/* ═══ Ambient Footer ═══
+          Scribe's-note flavor italic. Bumped from #a89070 to #c8b090 so the
+          text reads as fully visible against the dark lower gradient (B-55). */}
       <div
         style={{
           padding: "10px 16px 6px",
@@ -2703,7 +2716,7 @@ export default function BlacksmithTab({ state, dispatch }) {
             fontFamily: "Almendra, Crimson Text, serif",
             fontStyle: "italic",
             fontSize: "0.8rem",
-            color: isLit ? "rgba(255,107,26,0.5)" : "#4a4030",
+            color: isLit ? "rgba(255,107,26,0.7)" : "#c8b090",
             textAlign: "center",
             margin: 0,
             minHeight: "1.2em",

@@ -1,31 +1,35 @@
 [
   {
-    "ts": "2026-04-17T15:12:47.704Z",
+    "ts": "2026-04-17T16:37:10.862Z",
     "persona": "Noob",
     "errors": [],
     "bugs": []
   },
   {
-    "ts": "2026-04-17T15:12:59.768Z",
+    "ts": "2026-04-17T16:37:13.125Z",
     "persona": "Goat",
     "errors": [],
     "bugs": [
       {
         "persona": "Goat",
         "turn": 7,
-        "note": "ended early"
+        "note": "ended early",
+        "reason": "title_screen",
+        "iteration": 3
       }
     ]
   },
   {
-    "ts": "2026-04-17T15:13:11.971Z",
+    "ts": "2026-04-17T16:37:13.535Z",
     "persona": "Avg",
     "errors": [],
     "bugs": [
       {
         "persona": "Avg",
-        "turn": 3,
-        "note": "ended early"
+        "turn": 0,
+        "note": "ended early",
+        "reason": "sim_missing",
+        "iteration": -1
       }
     ]
   }

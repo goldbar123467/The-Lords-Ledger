@@ -10,13 +10,27 @@
 
 import { test } from "@playwright/test";
 import { startGame, dismissTutorial, dismissOverlay } from "../helpers.js";
-import { writeFileSync, existsSync, readFileSync } from "fs";
+import { writeFileSync, existsSync, readFileSync, readdirSync, unlinkSync } from "fs";
 import { resolve } from "path";
 
 const RESULTS_PATH = resolve(
   import.meta.dirname,
   "..",
   "playthrough-results.json"
+);
+
+// Diagnostics screenshots land here (autoplay-<runId>-<outcome>.png).
+// B-52: stale PNGs from prior failed cycles accumulate and look like active
+// softlocks to a reviewer scanning the folder, so the spec clears its own
+// artifacts at the start of each run. Only `autoplay-*.png` files in this
+// exact directory are touched — `qa-*.png`, `qa-cycle/`, and
+// `game-*-final.png` are preserved.
+const SCREENSHOT_DIR = resolve(
+  import.meta.dirname,
+  "..",
+  "..",
+  "..",
+  "playtest-screenshots"
 );
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -170,14 +184,7 @@ async function captureDiagnostics(page, runId, outcome) {
   const safeRunId = String(runId ?? "unknown").replace(/\//g, "-");
   try {
     await page.screenshot({
-      path: resolve(
-        import.meta.dirname,
-        "..",
-        "..",
-        "..",
-        "playtest-screenshots",
-        `autoplay-${safeRunId}-${outcome}.png`
-      ),
+      path: resolve(SCREENSHOT_DIR, `autoplay-${safeRunId}-${outcome}.png`),
       fullPage: true,
     });
   } catch {
@@ -489,12 +496,42 @@ const PLAYTHROUGHS = [
 ];
 
 test.describe("Automated Playthroughs", () => {
+  // B-53: the six auto-playthrough profiles all hit the same Vite dev server,
+  // and running them in parallel saturates it — `page.goto("/")` flakes with
+  // `net::ERR_CONNECTION_REFUSED` on 3/6 profiles under default parallelism.
+  // Serial mode funnels every playthrough through one worker so the dev
+  // server only serves one game at a time. Visual / persona / exploratory
+  // specs are unaffected (they live in other projects / directories).
+  test.describe.configure({ mode: "serial" });
+
   test.beforeAll(() => {
     // Truncate playthrough-results.json at the start of each run so a fresh
     // invocation starts with an empty array (mirrors persona-qa.spec.js). The
     // end-of-test writes then append to this clean file, keeping cycle-over-
     // cycle analysis free of stale runs. (B-45)
     writeFileSync(RESULTS_PATH, JSON.stringify([], null, 2));
+
+    // B-52: clear stale `autoplay-*.png` diagnostics so the screenshots dir
+    // reflects only the current run's outcomes. We match defensively — only
+    // files whose basename matches `^autoplay-.*\.png$` are unlinked, and
+    // the try/catch means a missing dir, permission issue, or race does not
+    // fail the spec. `qa-*.png`, `qa-cycle/`, `game-*-final.png`, and any
+    // other artifacts in the folder are left alone.
+    try {
+      const entries = readdirSync(SCREENSHOT_DIR);
+      for (const name of entries) {
+        if (/^autoplay-.*\.png$/.test(name)) {
+          try {
+            unlinkSync(resolve(SCREENSHOT_DIR, name));
+          } catch {
+            // File may have been removed between readdir and unlink — ok.
+          }
+        }
+      }
+    } catch {
+      // Screenshot dir doesn't exist yet (fresh clone) — harmless; the first
+      // `captureDiagnostics` call will create it.
+    }
   });
 
   for (const run of PLAYTHROUGHS) {
