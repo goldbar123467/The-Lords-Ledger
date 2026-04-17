@@ -252,5 +252,90 @@
       }
     ],
     "bugs": []
+  },
+  {
+    "ts": "2026-04-17T07:31:17.500Z",
+    "persona": "Noob",
+    "errors": [
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      }
+    ],
+    "bugs": []
+  },
+  {
+    "ts": "2026-04-17T07:31:30.206Z",
+    "persona": "Goat",
+    "errors": [
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      }
+    ],
+    "bugs": [
+      {
+        "persona": "Goat",
+        "turn": 8,
+        "note": "ended early"
+      }
+    ]
+  },
+  {
+    "ts": "2026-04-17T07:31:31.606Z",
+    "persona": "Avg",
+    "errors": [
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      }
+    ],
+    "bugs": [
+      {
+        "persona": "Avg",
+        "turn": 7,
+        "note": "ended early"
+      }
+    ]
   }
 ]

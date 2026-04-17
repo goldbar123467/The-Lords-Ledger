@@ -292,7 +292,9 @@ export default function App() {
   }, [currentFlipId, flipConsequenceFlags, phase, cyoaEndingType]);
 
   const displayTab = isEventPhase ? "chronicle" : activeTab;
-  const showTutorial = isManagement && !isFlipPhase && !tutorialsSeen?.includes(displayTab);
+  // B-09 FIX: queue tutorials behind the scribe's note so overlays never stack.
+  // If a scribe's note is visible, defer the tutorial until it is dismissed.
+  const showTutorial = isManagement && !isFlipPhase && !scribesNote && !tutorialsSeen?.includes(displayTab);
 
   // --- Title Screen ---
   if (phase === "title") {

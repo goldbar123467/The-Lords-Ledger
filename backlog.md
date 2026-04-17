@@ -83,7 +83,7 @@ Priority legend:
   so first paint ships the title + dashboard only.
 - Actual: Whole bundle loaded up front; slow on 3G school devices.
 
-### B-09 — Tutorial overlays can stack (scribe's note + tutorial)
+### B-09 — Tutorial overlays can stack (scribe's note + tutorial) ✅ FIXED 2026-04-17
 - Persona: Noob
 - Severity: P2
 - Reproduction: Persona QA occasionally has two fixed.inset-0 overlays
@@ -122,14 +122,14 @@ Priority legend:
 - Expected: remove redundant backslashes in double-quoted string.
 - Actual: 2 lint errors.
 
-### B-14 — Trader Kid persona's spice buys push Faith to 91-92
+### B-14 — Trader Kid persona's spice buys push Faith to 91-92 ✅ FIXED 2026-04-17
 - Persona: Avg, Goat (market focus)
 - Severity: P2 balance
 - Reproduction: Buy spices repeatedly from foreign merchants; faith climbs.
 - Expected: Faith should plateau with diminishing returns on spice purchases.
 - Actual: Near-loss on faith meter documented in `playtest-report.md`.
 
-### B-15 — Random Clicker wins with every meter < 20 ("nail-biter win")
+### B-15 — Random Clicker wins with every meter < 20 ("nail-biter win") ✅ FIXED 2026-04-17
 - Persona: Noob
 - Severity: P2 UX
 - Reproduction: Win with T:12 P:56 M:13 F:14 (see report).
@@ -153,7 +153,7 @@ Priority legend:
 - Expected: Add stable `data-testid` attributes to Dashboard resource values.
 - Actual: Index-based test is fragile to layout changes.
 
-### B-18 — Synergy toast auto-dismiss timing swallows War Kid persona
+### B-18 — Synergy toast auto-dismiss timing swallows War Kid persona ✅ FIXED 2026-04-17
 - Persona: Avg
 - Severity: P2
 - Reproduction: War Kid persona STUCK at turn 6 (see report).
@@ -207,7 +207,7 @@ Priority legend:
 - Expected: `title` attribute mirroring `aria-label`.
 - Actual: Screen readers OK, but mouse hover has nothing.
 
-### B-25 — Persona QA spec lacks per-test error reporter merge
+### B-25 — Persona QA spec lacks per-test error reporter merge ✅ FIXED 2026-04-17
 - Persona: N/A (process)
 - Severity: P3
 - Reproduction: `qa-findings.json` appended per-test with no run-level
