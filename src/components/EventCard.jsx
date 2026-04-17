@@ -35,7 +35,7 @@ function IndicatorPills({ indicators }) {
 }
 
 export default function EventCard({ event, onChoose, phaseLabel }) {
-  if (!event) return null;
+  if (!event || !event.options) return null;
 
   return (
     <div

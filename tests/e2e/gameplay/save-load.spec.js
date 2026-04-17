@@ -42,9 +42,6 @@ test.describe("Save & Load", () => {
     await page.goto("/");
     await startGame(page);
 
-    // Record initial state
-    const beforeSave = await getDashboardValues(page);
-
     // Build a Strip Farm to change state
     const buildBtn = page
       .locator("button")

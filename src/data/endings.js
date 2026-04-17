@@ -148,6 +148,28 @@ export const failureNarratives = {
       "With no coin, no soldiers, and no goods, there was nothing left to rule.",
     ],
   },
+
+  famine: {
+    title: "The Great Famine",
+    headline: "Your granaries stood empty — and your people fled.",
+    narrative:
+      "The last grain of wheat was ground to flour three seasons ago. " +
+      "Your people ate roots, then bark, then nothing at all. " +
+      "The strongest families packed their carts and left for greener pastures. " +
+      "The weakest had no carts to pack. By the time rain finally fell on your " +
+      "empty fields, there was no one left to harvest what it grew.",
+    historianLesson:
+      "The Great Famine of 1315\u20131317 killed millions across Europe. " +
+      "Crops failed for three consecutive years due to heavy rains and cold. " +
+      "Chroniclers recorded that parents abandoned children, and the price " +
+      "of wheat rose eightfold. Some English manors lost half their population.",
+    chain: [
+      "Your food stores dwindled season after season.",
+      "Families began leaving to seek sustenance elsewhere.",
+      "With no food to offer, even your most loyal subjects departed.",
+      "Three seasons of empty granaries sealed your estate's fate.",
+    ],
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -71,6 +71,11 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+.tab-button:focus-visible {
+  outline: 2px solid #c4a24a;
+  outline-offset: -2px;
+}
+
 /* Critical resource pulse */
 @keyframes critical-pulse {
   0%, 100% { box-shadow: 0 0 8px rgba(198, 40, 40, 0.15); }
