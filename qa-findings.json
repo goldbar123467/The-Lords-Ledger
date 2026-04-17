@@ -1,0 +1,47 @@
+[
+  {
+    "ts": "2026-04-17T03:21:18.691Z",
+    "persona": "Noob",
+    "errors": [
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      }
+    ],
+    "bugs": []
+  },
+  {
+    "ts": "2026-04-17T03:21:23.504Z",
+    "persona": "Avg",
+    "errors": [
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      }
+    ],
+    "bugs": []
+  },
+  {
+    "ts": "2026-04-17T03:21:38.502Z",
+    "persona": "Goat",
+    "errors": [
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      }
+    ],
+    "bugs": []
+  }
+]
