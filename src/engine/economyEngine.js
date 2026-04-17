@@ -82,8 +82,10 @@ export function getTotalBuildingUpkeep(buildings) {
 export function getGarrisonUpkeep(garrison, military) {
   if (military?.garrison) {
     const g = military.garrison;
-    return (g.levy || 0) * 1 + (g.menAtArms || 0) * 3 + (g.knights || 0) * 8;
+    // Must match SOLDIER_TYPES upkeep values in data/military.js
+    return (g.levy || 0) * 1 + (g.menAtArms || 0) * 4 + (g.knights || 0) * 8;
   }
+  // Legacy fallback for when typed garrison isn't available
   return garrison * GARRISON_UPKEEP_PER_SOLDIER;
 }
 
@@ -333,10 +335,12 @@ function runConsumption(inventory, population, maxFoodLoss, season) {
   const shortfall = remaining;
 
   if (shortfall > 0) {
-    report.push(`Your ${population} families needed ${needed} food but only had ${foodEaten}. ${shortfall} families went hungry!`);
+    const rationingNote = (maxFoodLoss && seasonalNeeded > needed) ? ` (rationing reduced from ${seasonalNeeded})` : "";
+    report.push(`Your ${population} families needed ${needed} food${rationingNote} but only had ${foodEaten}. ${shortfall} families went hungry!`);
   } else {
     const seasonNote = consumptionMult > 1.0 ? ` (winter rations: \u00D7${consumptionMult})` : "";
-    report.push(`Your ${population} families consumed ${foodEaten} food${seasonNote}.`);
+    const capNote = (maxFoodLoss && seasonalNeeded > maxFoodLoss) ? ` (rationing saved ${seasonalNeeded - maxFoodLoss})` : "";
+    report.push(`Your ${population} families consumed ${foodEaten} food${seasonNote}${capNote}.`);
   }
 
   return { inventory: nextInventory, foodEaten, shortfall, report };
@@ -396,6 +400,11 @@ export function simulateEconomy(state) {
   let currentInventory = production.inventory;
   report.push(...production.report);
 
+  // Baseline subsistence: peasant families forage and tend small garden plots
+  const farmMult = SEASON_FARM_MULTIPLIERS[season] ?? 1.0;
+  const subsistenceGrain = Math.max(2, Math.floor(currentPopulation * 0.4 * farmMult));
+  currentInventory = { ...currentInventory, grain: (currentInventory.grain || 0) + subsistenceGrain };
+
   // Summarize production
   const prodEntries = Object.entries(production.produced);
   if (prodEntries.length > 0) {
@@ -420,14 +429,21 @@ export function simulateEconomy(state) {
 
   // ----- 2. CONSUMPTION -----
   const difficulty = state.difficulty || "normal";
-  const maxFoodLoss = (difficulty === "easy" || difficulty === "normal") ? 25 : null;
+  const foodCapBase = difficulty === "easy" ? 20 : difficulty === "normal" ? 30 : 50;
+  const consumptionScale = difficulty === "easy" ? 0.6 : difficulty === "hard" ? 1.0 : 0.8;
+  const maxFoodLoss = Math.max(foodCapBase, Math.ceil(currentPopulation * FOOD_PER_FAMILY * consumptionScale));
   const consumption = runConsumption(currentInventory, currentPopulation, maxFoodLoss, season);
   currentInventory = consumption.inventory;
   report.push(...consumption.report);
 
   // Food shortfall causes families to leave
   if (consumption.shortfall > 0) {
-    const familiesLeave = Math.min(currentPopulation - 1, Math.round(Math.min(5, consumption.shortfall) * penaltyScale));
+    // On Hard difficulty, complete food exhaustion can kill the last family (no immortal floor)
+    const totalFoodAfter = getTotalFood(currentInventory);
+    const floorPop = (difficulty === "hard" && totalFoodAfter === 0) ? 0 : 1;
+    const maxAttrition = Math.max(1, Math.ceil(currentPopulation * 0.25));
+    const baseAttrition = Math.max(1, Math.ceil(consumption.shortfall * penaltyScale));
+    const familiesLeave = Math.min(currentPopulation - floorPop, maxAttrition, baseAttrition);
     if (familiesLeave > 0) {
       currentPopulation -= familiesLeave;
       report.push(`${familiesLeave} ${familiesLeave === 1 ? "family" : "families"} left due to hunger.`);
@@ -435,7 +451,11 @@ export function simulateEconomy(state) {
   }
 
   // ----- 2.5. GARRISON FOOD — soldiers eat too -----
-  const garrisonFoodNeeded = Math.ceil(currentGarrison / 2);
+  const garrisonAtStart = currentGarrison;
+  const maxDesertionThisSeason = Math.max(1, Math.ceil(garrisonAtStart * 0.5));
+  let totalDesertions = 0;
+
+  const garrisonFoodNeeded = Math.ceil(currentGarrison / 5);
   if (garrisonFoodNeeded > 0) {
     let garrisonRemaining = garrisonFoodNeeded;
     for (const resource of FOOD_RESOURCES) {
@@ -447,10 +467,12 @@ export function simulateEconomy(state) {
     }
     if (garrisonRemaining > 0) {
       report.push(`Your ${currentGarrison} soldiers needed ${garrisonFoodNeeded} food but supplies ran short.`);
-      // Hungry soldiers desert
-      const deserters = Math.min(currentGarrison, Math.ceil(garrisonRemaining * penaltyScale));
+      // Hungry soldiers desert (capped by season max)
+      const rawDeserters = Math.min(currentGarrison, Math.ceil(garrisonRemaining * penaltyScale));
+      const deserters = Math.min(rawDeserters, maxDesertionThisSeason - totalDesertions);
       if (deserters > 0) {
         currentGarrison -= deserters;
+        totalDesertions += deserters;
         report.push(`${deserters} hungry ${deserters === 1 ? "soldier" : "soldiers"} deserted.`);
       }
     } else {
@@ -459,26 +481,30 @@ export function simulateEconomy(state) {
   }
 
   // ----- 3. UPKEEP -----
-  const upkeep = runUpkeep(currentDenarii, buildings, currentGarrison, state);
+  const upkeep = runUpkeep(currentDenarii, buildings, currentGarrison, state.military);
   currentDenarii = upkeep.denarii;
   report.push(...upkeep.report);
 
-  // Unpaid upkeep: soldiers desert, buildings decay
+  // BUG-08 FIX: Unpaid upkeep — soldiers desert proportional to unpaid ratio
   if (upkeep.unpaidUpkeep > 0) {
-    const deserters = Math.min(currentGarrison, Math.ceil(2 * penaltyScale));
+    const garrisonCost = getGarrisonUpkeep(currentGarrison, state.military);
+    const unpaidRatio = garrisonCost > 0 ? Math.min(1, upkeep.unpaidUpkeep / garrisonCost) : 0;
+    const rawDeserters = Math.min(currentGarrison, Math.max(1, Math.ceil(currentGarrison * unpaidRatio * 0.2 * penaltyScale)));
+    const deserters = Math.min(rawDeserters, maxDesertionThisSeason - totalDesertions);
     if (deserters > 0) {
       currentGarrison -= deserters;
+      totalDesertions += deserters;
       report.push(`${deserters} unpaid ${deserters === 1 ? "soldier" : "soldiers"} deserted.`);
     }
   }
 
-  // ----- 4. TAX COLLECTION (Autumn only) -----
+  // ----- 4. TAX COLLECTION (Autumn full + quarterly levy) -----
   const taxIncome = getTaxIncome(currentPopulation, taxRate, season);
   if (taxIncome > 0) {
     currentDenarii += taxIncome;
     report.push(`Autumn tax collection: ${taxIncome}d from ${currentPopulation} families at ${TAX_RATES[taxRate]?.label || "medium"} rate.`);
 
-    // Tax rate affects population
+    // Tax rate affects population (Autumn only)
     const taxConfig = TAX_RATES[taxRate];
     if (taxConfig && taxConfig.populationMod) {
       const popChange = taxConfig.populationMod;
@@ -493,13 +519,35 @@ export function simulateEconomy(state) {
         report.push(`${popChange} new ${popChange === 1 ? "family" : "families"} settled thanks to low taxes.`);
       }
     }
+  } else if (season !== "autumn" && currentPopulation > 0) {
+    const quarterlyLevy = Math.max(3, Math.floor(currentPopulation * 0.15));
+    currentDenarii += quarterlyLevy;
+    report.push(`Quarterly market levy: ${quarterlyLevy}d from ${currentPopulation} families.`);
   }
 
   // ----- 5. PASSIVE INCOME -----
   const passiveIncome = getPassiveIncome(castleLevel, buildings);
-  currentDenarii += passiveIncome;
-  if (passiveIncome > 0) {
-    report.push(`Passive income: ${passiveIncome}d from market tolls and mill fees.`);
+  // Population generates income from cottage industries and market activity
+  const populationIncome = Math.floor(currentPopulation * 0.5);
+  const totalPassiveIncome = passiveIncome + populationIncome;
+  currentDenarii += totalPassiveIncome;
+  if (totalPassiveIncome > 0) {
+    const parts = [];
+    if (passiveIncome > 0) parts.push(`${passiveIncome}d from market tolls`);
+    if (populationIncome > 0) parts.push(`${populationIncome}d from cottage industries`);
+    report.push(`Passive income: ${parts.join(", ")}.`);
+  }
+
+  // ----- 5.25. ESTATE MAINTENANCE — scales with size to prevent denarii snowball -----
+  const buildingCount = buildings.filter(b => {
+    if (typeof b === "string") return true;
+    if (b.freeUpkeep) return false;
+    return (b.condition ?? 100) > 0;
+  }).length;
+  const estateMaintenance = Math.floor(buildingCount * 2 + Math.max(0, currentPopulation - 15) * 0.5);
+  if (estateMaintenance > 0) {
+    currentDenarii = Math.max(0, currentDenarii - estateMaintenance);
+    report.push(`Estate maintenance: ${estateMaintenance}d for ${buildingCount} buildings and road upkeep.`);
   }
 
   // ----- 5.5. SYNERGY BONUSES -----
@@ -513,25 +561,25 @@ export function simulateEconomy(state) {
   // ----- 6. POPULATION GROWTH/DECLINE -----
   let populationChange = 0;
   const totalFoodInInventory = getTotalFood(currentInventory);
-  const foodSurplus = totalFoodInInventory > currentPopulation;
+  const foodSurplus = totalFoodInInventory > Math.ceil(currentPopulation * 1.0);
 
   // Ale consumed for morale — helps attract settlers
-  const hasAle = (currentInventory.ale || 0) >= 3;
+  const isFamine = consumption.shortfall > 0;
+  const hasAle = !isFamine && (currentInventory.ale || 0) >= 3;
   if (hasAle) {
-    currentInventory.ale -= 3;
+    currentInventory = { ...currentInventory, ale: currentInventory.ale - 3 };
     report.push("Your people enjoyed 3 ale \u2014 morale is high!");
   }
 
-  // Salt consumed — preserves food
-  if ((currentInventory.salt || 0) > 0) {
+  // Luxury goods consumed (skip during famine to conserve resources)
+  if (!isFamine && (currentInventory.salt || 0) > 0) {
     currentInventory.salt -= 1;
   }
-  // Tools consumed — improves efficiency
-  if ((currentInventory.tools || 0) > 0) {
+  if (!isFamine && (currentInventory.tools || 0) > 0) {
     currentInventory.tools -= 1;
   }
-  // Spices consumed — church ceremonies (income bonus from church favor)
-  if ((currentInventory.spices || 0) > 0) {
+  // Spices consumed — church ceremonies (skip during famine)
+  if (!isFamine && (currentInventory.spices || 0) > 0) {
     currentInventory.spices -= 1;
     currentDenarii += 10; // Church reciprocates generosity
   }
@@ -551,10 +599,13 @@ export function simulateEconomy(state) {
     }
   }
 
-  // Growth from food surplus + ale
-  if (foodSurplus && hasAle) {
-    populationChange += Math.random() < 0.6 ? 2 : 1;
-  } else if (foodSurplus && Math.random() < 0.4) {
+  // Growth from food surplus + ale (soft cap at 35, hard cap at 50)
+  const popSoftCap = 35;
+  const popHardCap = 50;
+  const growthChanceMod = currentPopulation >= popHardCap ? 0 : currentPopulation >= popSoftCap ? 0.3 : 1.0;
+  if (foodSurplus && hasAle && growthChanceMod > 0) {
+    populationChange += Math.random() < (0.4 * growthChanceMod) ? 2 : (Math.random() < (0.5 * growthChanceMod) ? 1 : 0);
+  } else if (foodSurplus && Math.random() < (0.25 * growthChanceMod)) {
     populationChange += 1;
   }
 
@@ -570,7 +621,24 @@ export function simulateEconomy(state) {
     populationChange = 0; // Cancel growth during famine
   }
 
-  currentPopulation = Math.max(1, currentPopulation + populationChange);
+  // Population recovery — when critically low, wandering families trickle in
+  // Prevents unrecoverable death spiral but requires no active famine
+  if (currentPopulation > 0 && currentPopulation < 10 && consumption.shortfall === 0 && populationChange <= 0) {
+    const recoveryChance = currentPopulation < 5 ? 0.5 : 0.3;
+    if (Math.random() < recoveryChance) {
+      populationChange = 1;
+      report.push("A wandering family, seeking a lord's protection, has settled on your estate.");
+    }
+  }
+
+  // Enforce hard population cap — can't grow above cap from any source
+  if (populationChange > 0 && currentPopulation >= popHardCap) {
+    populationChange = 0;
+  } else if (populationChange > 0 && currentPopulation + populationChange > popHardCap) {
+    populationChange = popHardCap - currentPopulation;
+  }
+
+  currentPopulation = Math.max(0, currentPopulation + populationChange);
   if (populationChange > 0) {
     report.push(`${populationChange} new ${populationChange === 1 ? "family has" : "families have"} settled on your land.`);
   } else if (populationChange < 0) {

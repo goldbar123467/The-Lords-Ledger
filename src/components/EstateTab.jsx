@@ -160,7 +160,7 @@ function EconomyOverview({ state }) {
     buildings, garrison, castleLevel, season,
   } = state;
 
-  const garrisonFood = Math.ceil(garrison / 2);
+  const garrisonFood = Math.ceil(garrison / 5);
   const consumption = getFoodConsumption(population) + garrisonFood;
   const buildingUpkeep = getTotalBuildingUpkeep(buildings);
   const garrisonUpkeep = getGarrisonUpkeep(garrison);
@@ -635,6 +635,7 @@ function BuiltBuildingCard({ building, buildingIndex, state, onRepair, onUpgrade
               border: `1px solid ${canRepair ? "#8dba6e" : "#4a4030"}`,
               color: canRepair ? "#8dba6e" : "#4a4030",
             }}
+            title={!canRepair ? `Not enough denarii (need ${repairCost}d, have ${state.denarii}d)` : `Repair this building for ${repairCost}d`}
           >
             Repair {repairCost}d
           </button>
@@ -651,7 +652,7 @@ function BuiltBuildingCard({ building, buildingIndex, state, onRepair, onUpgrade
               border: `1px solid ${canUpgrade ? "#c4a24a" : "#4a4030"}`,
               color: canUpgrade ? "#c4a24a" : "#4a4030",
             }}
-            title={`Upgrade to ${upgradeDef.name}`}
+            title={!canUpgrade ? `Not enough denarii (need ${def.upgradeCost ?? upgradeDef.cost}d, have ${state.denarii}d)` : `Upgrade to ${upgradeDef.name}`}
           >
             {"\u25B2"} {upgradeDef.name} ({def.upgradeCost ?? upgradeDef.cost}d)
           </button>
@@ -897,7 +898,7 @@ function BuildCard({ building, state, onBuild, isSynergyBuilding, index }) {
               e.currentTarget.style.boxShadow = "0 2px 8px rgba(198, 40, 40, 0.2)";
             }
           }}
-          title={check.reason || "Build this structure"}
+          title={locked ? (check.reason || "Cannot build") : `Build ${building.name} for ${building.cost}d`}
         >
           {!locked ? `Build (${building.cost}d)` : (check.reason || "Cannot Build")}
         </button>

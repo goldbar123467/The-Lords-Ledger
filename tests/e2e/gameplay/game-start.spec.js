@@ -6,7 +6,7 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { waitForTitleScreen, waitForFonts, dismissTutorial } from "../helpers.js";
+import { waitForTitleScreen, dismissTutorial } from "../helpers.js";
 
 /**
  * Get all visible resource values from the Dashboard.

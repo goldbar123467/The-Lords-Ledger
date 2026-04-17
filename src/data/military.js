@@ -6,9 +6,9 @@
  * notes. Pure data and functions only — no side effects, no I/O, no DOM.
  *
  * Defense balance targets:
- *   Starting (5 levy, palisade, morale 50):   ~15  (below criminal threshold)
- *   By turn 4 (~75-155d invested):             >=25 (criminal threshold)
- *   By turn 8 (~230d+ invested):               >=50 (Scottish threshold)
+ *   Starting (5 levy, palisade, morale 50):   ~15  (meets criminal threshold)
+ *   By turn 4 (~75-155d invested):             >=18 (criminal threshold)
+ *   By turn 8 (~230d+ invested):               >=38 (Scottish threshold)
  */
 
 // ─── Soldier Types ────────────────────────────────────────────────
@@ -34,7 +34,7 @@ export const SOLDIER_TYPES = {
     subtitle: "Professional Soldiers",
     icon: "\u2694",  // crossed swords
     recruitCost: 15,
-    upkeep: 3,
+    upkeep: 4,
     defenseValue: 3,
     max: 10,
     borderColor: "#8b1a1a",
@@ -97,8 +97,8 @@ export const MORALE_LEVELS = [
 // ─── Constants ────────────────────────────────────────────────────
 
 export const BASE_CASTLE_DEFENSE = 5;  // Motte mound provides base defense
-export const CRIMINAL_DEFENSE_THRESHOLD = 25;
-export const SCOTTISH_DEFENSE_THRESHOLD = 50;
+export const CRIMINAL_DEFENSE_THRESHOLD = 18;
+export const SCOTTISH_DEFENSE_THRESHOLD = 38;
 export const LEVY_FOOD_PENALTY_THRESHOLD = 0.25;  // 25% of population
 export const LEVY_FOOD_PENALTY_PER_EXCESS = 0.10;  // 10% per excess levy
 
@@ -245,6 +245,11 @@ export function removeFromGarrison(garrison, count) {
     const knightRemove = Math.min(newGarrison.knights || 0, remaining);
     newGarrison.knights = (newGarrison.knights || 0) - knightRemove;
   }
+
+  // BUG-21 FIX: Ensure no typed garrison count goes negative
+  newGarrison.levy = Math.max(0, newGarrison.levy || 0);
+  newGarrison.menAtArms = Math.max(0, newGarrison.menAtArms || 0);
+  newGarrison.knights = Math.max(0, newGarrison.knights || 0);
 
   return newGarrison;
 }

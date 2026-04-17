@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { BARD_TALES, BARD_STATE_COMMENTS, BARD_RIDDLES } from "../data/tavern";
 
 // ---------------------------------------------------------------------------
@@ -139,9 +139,16 @@ export default function BardsCorner({ state, onRiddleSolved, onBack }) {
     [state, getNextTale]
   );
 
-  const [content, setContent] = useState(() => generateContent());
+  const [content, setContent] = useState(null);
   const [riddleResult, setRiddleResult] = useState(null);
   const [selectedOption, setSelectedOption] = useState(null);
+
+  useEffect(() => {
+    setContent((prev) => (prev === null ? generateContent() : prev));
+    // Only run once on mount to seed initial content; generateContent is
+    // intentionally omitted so state changes don't re-seed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const reroll = useCallback(() => {
     setContent(generateContent());
@@ -168,7 +175,9 @@ export default function BardsCorner({ state, onRiddleSolved, onBack }) {
 
   let body = null;
 
-  if (content.type === "tale") {
+  if (content === null) {
+    body = null;
+  } else if (content.type === "tale") {
     body = (
       <SpeechBubble animKey={animKey}>
         {content.isRepeat && (

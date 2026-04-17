@@ -1,4 +1,4 @@
-import { useReducer, useMemo, useState, useCallback, useEffect } from "react";
+import { useReducer, useMemo, useState, useEffect } from "react";
 import { gameReducer, initialState } from "./engine/gameReducer";
 import seasonalEventsData from "./data/seasonalEvents";
 import randomEventsData from "./data/randomEvents";
@@ -33,6 +33,8 @@ import TutorialPopup from "./components/TutorialPopup";
 
 const seasonalEvents = Object.values(seasonalEventsData).flat();
 const randomEvents = randomEventsData;
+
+const SAVE_KEY = "lords-ledger-save";
 
 export default function App() {
   const [state, dispatch] = useReducer(gameReducer, initialState);
@@ -139,10 +141,6 @@ export default function App() {
     dispatch({ type: "BUY_RESOURCE", payload: { resource, quantity } });
   }
 
-  function handleSetTaxRate(rate) {
-    dispatch({ type: "SET_TAX_RATE", payload: { rate } });
-  }
-
   function handleRecruit(soldierType, count) {
     dispatch({ type: "RECRUIT_SOLDIERS", payload: { soldierType, count } });
   }
@@ -197,12 +195,14 @@ export default function App() {
   const [watchtowerOpen, setWatchtowerOpen] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
   const [saveFlash, setSaveFlash] = useState(null); // "saved" | "loaded" | "error"
-
-  const SAVE_KEY = "lords-ledger-save";
+  const [hasSavedGame, setHasSavedGame] = useState(() => {
+    try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; }
+  });
 
   function handleSaveGame() {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+      setHasSavedGame(true);
       setSaveFlash("saved");
       setTimeout(() => setSaveFlash(null), 1500);
     } catch {
@@ -217,6 +217,7 @@ export default function App() {
       if (!raw) { setSaveFlash("error"); setTimeout(() => setSaveFlash(null), 2000); return; }
       const savedState = JSON.parse(raw);
       dispatch({ type: "LOAD_SAVE", payload: { savedState } });
+      setHasSavedGame(true);
       setSaveFlash("loaded");
       setTimeout(() => setSaveFlash(null), 1500);
     } catch {
@@ -225,9 +226,7 @@ export default function App() {
     }
   }
 
-  const hasSavedGame = (() => { try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; } })();
-
-  const handleSimulateSeason = useCallback(() => {
+  function handleSimulateSeason() {
     if (isResolving) return;
     setTavernOpen(false);
     setWatchtowerOpen(false);
@@ -236,7 +235,7 @@ export default function App() {
       dispatch({ type: "SIMULATE_SEASON", payload });
       setIsResolving(false);
     });
-  }, [isResolving, payload, setTavernOpen]);
+  }
 
   // --- Computed values ---
   const isManagement = phase === "management";
@@ -628,11 +627,13 @@ export default function App() {
         )}
       </div>
 
-      {/* Synergy notification toast */}
-      <SynergyToast
-        notification={pendingSynergyNotifications?.[0] ?? null}
-        onDismiss={handleDismissSynergyNotification}
-      />
+      {/* Synergy notification toast — hidden during flip phases to avoid input deadlock */}
+      {!isFlipPhase && (
+        <SynergyToast
+          notification={pendingSynergyNotifications?.[0] ?? null}
+          onDismiss={handleDismissSynergyNotification}
+        />
+      )}
 
       {/* Simulate Season button */}
       {isManagement && !isFlipPhase && (
