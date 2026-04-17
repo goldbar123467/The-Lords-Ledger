@@ -1,15 +1,15 @@
 {
-  "timestamp": "2026-04-17T08:37:22.732Z",
-  "durationMs": 37970,
+  "timestamp": "2026-04-17T09:49:44.634Z",
+  "durationMs": 39712,
   "totalFindings": 3,
-  "totalBugs": 0,
+  "totalBugs": 2,
   "byPersona": {
-    "Avg": 1,
     "Noob": 1,
+    "Avg": 1,
     "Goat": 1
   },
   "bySeverity": {
     "pageerror": 0,
-    "console": 6
+    "console": 0
   }
 }

@@ -25,11 +25,29 @@ function record(finding) {
   writeFileSync(FINDINGS_PATH, JSON.stringify(out, null, 2));
 }
 
+// Network/transport noise from the sandboxed CDN (TLS, DNS, connection refused,
+// etc.) is not an app-level error and should not count toward the pageerror
+// budget or pollute qa-findings.json.
+function isNetworkNoise(text) {
+  if (!text) return false;
+  return (
+    text.includes("ERR_CERT_AUTHORITY_INVALID") ||
+    text.includes("net::ERR_") ||
+    /Failed to load resource:.*net::/.test(text)
+  );
+}
+
 async function collectErrors(page) {
   const errors = [];
-  page.on("pageerror", (e) => errors.push({ type: "pageerror", msg: e.message }));
+  page.on("pageerror", (e) => {
+    if (isNetworkNoise(e.message)) return;
+    errors.push({ type: "pageerror", msg: e.message });
+  });
   page.on("console", (msg) => {
-    if (msg.type() === "error") errors.push({ type: "console", msg: msg.text() });
+    if (msg.type() !== "error") return;
+    const text = msg.text();
+    if (isNetworkNoise(text)) return;
+    errors.push({ type: "console", msg: text });
   });
   return errors;
 }

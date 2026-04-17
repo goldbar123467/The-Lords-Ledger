@@ -9,11 +9,16 @@ import { startGame } from "../helpers.js";
 
 /**
  * Get the current denarii value from the Dashboard.
+ *
+ * Reads via the `data-testid="resource-denarii"` attribute instead of
+ * positional `.text-2xl` indexing (B-29 / B-37).
  */
 async function getDenarii(page) {
   return page.evaluate(() => {
-    const values = document.querySelectorAll(".text-2xl");
-    return parseInt(values[0]?.textContent, 10);
+    const el = document.querySelector('[data-testid="resource-denarii"]');
+    if (!el) return undefined;
+    const parsed = parseInt(el.textContent, 10);
+    return Number.isNaN(parsed) ? undefined : parsed;
   });
 }
 

@@ -21,16 +21,26 @@ const RESULTS_PATH = resolve(
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-/** Extract dashboard resource values via DOM */
+/**
+ * Extract dashboard resource values via DOM.
+ *
+ * Reads each value via its `data-testid="resource-<key>"` attribute instead
+ * of positional `.text-2xl` indexing (B-29 / B-37). Missing testids resolve
+ * to `null` so existing callers stay backward compatible.
+ */
 async function getResources(page) {
   return page.evaluate(() => {
-    const vals = document.querySelectorAll(".text-2xl");
-    const nums = Array.from(vals).map((el) => parseInt(el.textContent, 10));
+    const readResource = (key) => {
+      const el = document.querySelector(`[data-testid="resource-${key}"]`);
+      if (!el) return null;
+      const parsed = parseInt(el.textContent, 10);
+      return Number.isNaN(parsed) ? null : parsed;
+    };
     return {
-      denarii: nums[0] ?? null,
-      food: nums[1] ?? null,
-      families: nums[2] ?? null,
-      garrison: nums[3] ?? null,
+      denarii: readResource("denarii"),
+      food: readResource("food"),
+      families: readResource("families"),
+      garrison: readResource("garrison"),
     };
   });
 }
