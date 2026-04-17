@@ -1057,8 +1057,8 @@ input[type="range"].labor-slider::-moz-range-thumb {
   }
 
   /* --- BUILDING GRID: 2-col on phone instead of 3 --- */
-  .grid.grid-cols-1.sm\\:grid-cols-2.lg\\:grid-cols-3,
-  .grid.sm\\:grid-cols-2.lg\\:grid-cols-3 {
+  .grid.grid-cols-1.sm\:grid-cols-2.lg\:grid-cols-3,
+  .grid.sm\:grid-cols-2.lg\:grid-cols-3 {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 6px !important;
   }
@@ -1090,7 +1090,7 @@ input[type="range"].labor-slider::-moz-range-thumb {
   }
 
   /* --- TRADE TAB: stack buy/sell panels vertically --- */
-  .grid.grid-cols-1.lg\\:grid-cols-2 {
+  .grid.grid-cols-1.lg\:grid-cols-2 {
     grid-template-columns: 1fr !important;
   }
 
@@ -1107,7 +1107,7 @@ input[type="range"].labor-slider::-moz-range-thumb {
   }
 
   /* --- TAVERN: station cards stack on phone --- */
-  .grid.grid-cols-1.sm\\:grid-cols-3 {
+  .grid.grid-cols-1.sm\:grid-cols-3 {
     grid-template-columns: 1fr !important;
   }
 

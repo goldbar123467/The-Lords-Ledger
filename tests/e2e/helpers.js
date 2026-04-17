@@ -67,20 +67,53 @@ export async function waitForFonts(page) {
  * Dismiss the tutorial popup if one is visible.
  * The tutorial has a fixed overlay with an "I Understand" button,
  * or can be dismissed by clicking the backdrop.
+ *
+ * Returns promptly (≤2s) when no overlay is visible.
+ * Handles overlay race conditions by retrying once if the element
+ * detaches mid-click (e.g. fade-in transition not yet settled).
  */
 export async function dismissTutorial(page) {
-  // Try clicking "I Understand" button first
   const dismissButton = page.getByText("I Understand", { exact: true }).first();
-  if (await dismissButton.isVisible({ timeout: 1_000 }).catch(() => false)) {
-    await dismissButton.click();
-    await page.waitForTimeout(300);
-    return;
+  // Fast no-op path: short visibility probe so callers stay snappy.
+  const visible = await dismissButton
+    .isVisible({ timeout: 500 })
+    .catch(() => false);
+  if (visible) {
+    // Wait for the overlay to fully attach + render before clicking, then
+    // click with a short timeout. Swallow detached/unstable errors as
+    // benign — the overlay may have unmounted between probe and click.
+    try {
+      await dismissButton.waitFor({ state: "visible", timeout: 1_500 });
+      await dismissButton.click({ timeout: 2_000 });
+      await page.waitForTimeout(200);
+      return;
+    } catch (err) {
+      const msg = String(err && err.message ? err.message : err);
+      if (
+        msg.includes("element is detached") ||
+        msg.includes("not stable") ||
+        msg.includes("Target closed")
+      ) {
+        // Retry once: the overlay may have re-rendered or unmounted.
+        try {
+          if (await dismissButton.isVisible({ timeout: 300 }).catch(() => false)) {
+            await dismissButton.click({ timeout: 1_500 });
+            await page.waitForTimeout(200);
+          }
+          return;
+        } catch {
+          // Treat as already dismissed.
+          return;
+        }
+      }
+      // Unknown error — fall through to backdrop fallback.
+    }
   }
-  // Also try clicking the backdrop overlay
+  // Backdrop fallback (kept short so the no-overlay path stays ≤2s total).
   const overlay = page.locator(".fixed.inset-0.z-50").first();
-  if (await overlay.isVisible({ timeout: 500 }).catch(() => false)) {
-    await overlay.click({ position: { x: 10, y: 10 } });
-    await page.waitForTimeout(300);
+  if (await overlay.isVisible({ timeout: 300 }).catch(() => false)) {
+    await overlay.click({ position: { x: 10, y: 10 } }).catch(() => {});
+    await page.waitForTimeout(200);
   }
 }
 

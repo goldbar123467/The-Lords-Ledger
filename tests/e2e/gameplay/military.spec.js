@@ -9,22 +9,30 @@ import { startGame, navigateToTab, dismissOverlay } from "../helpers.js";
 
 /**
  * Get the current garrison count from the Dashboard.
+ *
+ * Reads via the `data-testid="resource-garrison"` attribute instead of
+ * positional `.text-2xl` indexing (B-29 / B-37).
  */
 async function getGarrison(page) {
   return page.evaluate(() => {
-    const values = document.querySelectorAll(".text-2xl");
-    // Garrison is the 4th resource stat (index 3)
-    return parseInt(values[3]?.textContent, 10);
+    const el = document.querySelector('[data-testid="resource-garrison"]');
+    if (!el) return undefined;
+    const parsed = parseInt(el.textContent, 10);
+    return Number.isNaN(parsed) ? undefined : parsed;
   });
 }
 
 /**
  * Get the current denarii from the Dashboard.
+ *
+ * Reads via the `data-testid="resource-denarii"` attribute (B-29 / B-37).
  */
 async function getDenarii(page) {
   return page.evaluate(() => {
-    const values = document.querySelectorAll(".text-2xl");
-    return parseInt(values[0]?.textContent, 10);
+    const el = document.querySelector('[data-testid="resource-denarii"]');
+    if (!el) return undefined;
+    const parsed = parseInt(el.textContent, 10);
+    return Number.isNaN(parsed) ? undefined : parsed;
   });
 }
 
@@ -108,9 +116,12 @@ test.describe("Military Tab", () => {
   });
 
   test("morale is displayed in the dashboard", async ({ page }) => {
+    // Read via the `data-testid="resource-morale"` attribute (B-29 / B-37).
     const morale = await page.evaluate(() => {
-      const values = document.querySelectorAll(".text-2xl");
-      return parseInt(values[4]?.textContent, 10);
+      const el = document.querySelector('[data-testid="resource-morale"]');
+      if (!el) return undefined;
+      const parsed = parseInt(el.textContent, 10);
+      return Number.isNaN(parsed) ? undefined : parsed;
     });
 
     // Starting morale should be 50
