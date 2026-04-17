@@ -417,7 +417,7 @@ Priority legend:
   every playthrough without dying mid-navigation.
 - Actual: Every local suite run flakes out 3 auto-playthrough tests.
 
-### B-54 — Market tab commodity table obscured by sticky Simulate-Season bar on 1280×720
+### B-54 — Market tab commodity table obscured by sticky Simulate-Season bar on 1280×720 ✅ FIXED 2026-04-17
 - Persona: Avg Gamer / Goat Gamer
 - Severity: P2 (UX readability)
 - Reproduction: Open Market tab on default 1280×720 viewport. The sticky
@@ -432,8 +432,12 @@ Priority legend:
   minimized pill while on tabs with dense tables.
 - Actual: Middle ~30% of the commodity rows are visually hidden while
   scrolling on 720p displays.
+- Resolution (2026-04-17): Added an explicit 96px aria-hidden spacer at the
+  end of the tab-content region in `src/App.jsx` (rendered only during
+  management/non-flip phases) so the final rows of Market/Forge/Chronicle
+  can scroll above the sticky Simulate-Season bar on 1280×720.
 
-### B-55 — Forge tab lower half (Weapon Rack, Forge Materials, flavor text) renders at ~40% opacity on load
+### B-55 — Forge tab lower half (Weapon Rack, Forge Materials, flavor text) renders at ~40% opacity on load ✅ FIXED 2026-04-17
 - Persona: Noob / Avg Gamer
 - Severity: P2 (UX — looks broken / disabled)
 - Reproduction: Open Forge tab on a fresh game (`tab-forge.png`). The
@@ -448,6 +452,11 @@ Priority legend:
   or attach a label ("Unlocks after first forging session") so the
   dimmed state communicates *why* it's dimmed.
 - Actual: First-time players assume the forge is bugged.
+- Resolution (2026-04-17): In `src/components/BlacksmithTab.jsx` the Weapon
+  Rack now has a solid dark panel wrapper matching Resource Shelf; both
+  headings bumped from dim `#a89070` to gold `#c4a24a`, and the ambient
+  footer text lifted to `#c8b090` / `rgba(255,107,26,0.7)` so info-only
+  panels read at full opacity over the forge's darker lower gradient.
 
 ### B-56 — Blacksmith anvil SVG still reads as abstract "helmet" shape
 - Persona: Noob

@@ -494,8 +494,9 @@ export default function App() {
         )}
       </div>
 
-      {/* Tab content */}
-      <div key={displayTab} className="flex-1 px-4 py-4 pb-8 tab-fade-in">
+      {/* Tab content — pb-24 (96px) leaves space for the sticky Simulate-Season bar (~88px) so scrolled content isn't hidden beneath it (B-54).
+          An explicit 96px spacer is appended at the end of the tab content below so the final rows of tall tables (Market commodity list, Forge info panels, Chronicle entries) can always scroll above the sticky bar. */}
+      <div key={displayTab} className="flex-1 px-4 py-4 pb-24 tab-fade-in">
 
         {/* --- FLIP PHASES --- */}
         {isFlipPhase && flipData && (
@@ -646,6 +647,11 @@ export default function App() {
 
             <Chronicle entries={chronicle} />
           </>
+        )}
+
+        {/* Spacer so the final rows of dense tab content (Market commodities, Forge info panels, Chronicle) can scroll above the sticky Simulate-Season bar on 1280x720 viewports (B-54). */}
+        {isManagement && !isFlipPhase && (
+          <div aria-hidden="true" style={{ height: 96 }} />
         )}
       </div>
 
