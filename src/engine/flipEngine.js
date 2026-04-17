@@ -36,7 +36,13 @@ export function checkFlipTriggers(state) {
     castleLevel = 1,
     militaryEventEverFired = false,
     garrison = 0,
+    lastFlipTurn = 0,
+    denarii = 0,
+    chapel,
   } = state;
+
+  // BUG-24 FIX: Enforce minimum 3-turn cooldown between flips
+  if (turn - lastFlipTurn < 3) return null;
 
   for (const flipId of FLIP_PRIORITY) {
     // Already fired this playthrough
@@ -79,7 +85,11 @@ export function checkFlipTriggers(state) {
         break;
 
       case "cyoa_lord":
-        return flipId; // Always triggers when minTurn met
+        // BUG-24 FIX: Require at least 3 buildings or 300+ denarii
+        if (buildings.length >= 3 || denarii >= 300) {
+          return flipId;
+        }
+        break;
 
       case "cyoa_merchant":
         if (tradeCount >= 3 || buildings.some((b) => getBuildingType(b) === "brewery") || buildings.some((b) => getBuildingType(b) === "fulling_mill")) {
@@ -88,7 +98,11 @@ export function checkFlipTriggers(state) {
         break;
 
       case "cyoa_monk":
-        return flipId; // Always triggers when minTurn met
+        // BUG-24 FIX: Require chapel interaction (faith > 0 or piety > 0)
+        if ((chapel?.faith ?? 0) > 0 || (chapel?.piety ?? 0) > 0) {
+          return flipId;
+        }
+        break;
 
       case "cyoa_knight":
         if (garrison > 5 || militaryEventEverFired) {

@@ -14,7 +14,6 @@
  */
 
 import { gameReducer, initialState } from "./src/engine/gameReducer.js";
-import { getTotalFood } from "./src/engine/economyEngine.js";
 import seasonalEventsData from "./src/data/seasonalEvents.js";
 import randomEventsData from "./src/data/randomEvents.js";
 import { PERSPECTIVE_FLIPS } from "./src/data/perspectiveFlips.js";

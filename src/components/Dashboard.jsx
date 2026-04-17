@@ -55,6 +55,7 @@ function ResourceStat({ resourceKey, label, value, warning, delta }) {
       </div>
       <div className="flex items-center gap-1.5">
         <span
+          data-testid={`resource-${resourceKey}`}
           className="text-2xl"
           style={{
             color: "#e8c44a",
@@ -107,6 +108,7 @@ function MoraleStat({ morale }) {
       </div>
       <div className="flex flex-col items-center">
         <span
+          data-testid="resource-morale"
           className="text-2xl"
           style={{
             color: level.color,

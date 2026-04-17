@@ -1,4 +1,4 @@
-import { useReducer, useMemo, useState, useCallback, useEffect } from "react";
+import { useReducer, useMemo, useState, useEffect, lazy, Suspense } from "react";
 import { gameReducer, initialState } from "./engine/gameReducer";
 import seasonalEventsData from "./data/seasonalEvents";
 import randomEventsData from "./data/randomEvents";
@@ -22,17 +22,33 @@ import VictoryScreen from "./components/VictoryScreen";
 import FlipScreen from "./components/FlipScreen";
 import SynergyToast from "./components/SynergyToast";
 import TutorialHint from "./components/TutorialHint";
-import Tavern from "./components/Tavern";
 import Watchtower from "./components/Watchtower";
 import RaidScreen from "./components/RaidScreen";
-import GreatHall from "./components/GreatHall";
 import ChapelTab from "./components/ChapelTab";
-import BlacksmithTab from "./components/BlacksmithTab";
 import TutorialPopup from "./components/TutorialPopup";
+
+// Lazy-loaded heavy tabs (split into separate chunks, fetched on first open)
+const Tavern = lazy(() => import("./components/Tavern"));
+const GreatHall = lazy(() => import("./components/GreatHall"));
+const BlacksmithTab = lazy(() => import("./components/BlacksmithTab"));
+
+// Minimal fallback while a lazy tab chunk downloads
+function TabLoadingFallback() {
+  return (
+    <div
+      className="flex items-center justify-center py-12 italic"
+      style={{ color: "#a89070", fontFamily: "Cinzel, serif" }}
+    >
+      Loading...
+    </div>
+  );
+}
 
 
 const seasonalEvents = Object.values(seasonalEventsData).flat();
 const randomEvents = randomEventsData;
+
+const SAVE_KEY = "lords-ledger-save";
 
 export default function App() {
   const [state, dispatch] = useReducer(gameReducer, initialState);
@@ -139,10 +155,6 @@ export default function App() {
     dispatch({ type: "BUY_RESOURCE", payload: { resource, quantity } });
   }
 
-  function handleSetTaxRate(rate) {
-    dispatch({ type: "SET_TAX_RATE", payload: { rate } });
-  }
-
   function handleRecruit(soldierType, count) {
     dispatch({ type: "RECRUIT_SOLDIERS", payload: { soldierType, count } });
   }
@@ -197,12 +209,14 @@ export default function App() {
   const [watchtowerOpen, setWatchtowerOpen] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
   const [saveFlash, setSaveFlash] = useState(null); // "saved" | "loaded" | "error"
-
-  const SAVE_KEY = "lords-ledger-save";
+  const [hasSavedGame, setHasSavedGame] = useState(() => {
+    try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; }
+  });
 
   function handleSaveGame() {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+      setHasSavedGame(true);
       setSaveFlash("saved");
       setTimeout(() => setSaveFlash(null), 1500);
     } catch {
@@ -217,6 +231,7 @@ export default function App() {
       if (!raw) { setSaveFlash("error"); setTimeout(() => setSaveFlash(null), 2000); return; }
       const savedState = JSON.parse(raw);
       dispatch({ type: "LOAD_SAVE", payload: { savedState } });
+      setHasSavedGame(true);
       setSaveFlash("loaded");
       setTimeout(() => setSaveFlash(null), 1500);
     } catch {
@@ -225,9 +240,7 @@ export default function App() {
     }
   }
 
-  const hasSavedGame = (() => { try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; } })();
-
-  const handleSimulateSeason = useCallback(() => {
+  function handleSimulateSeason() {
     if (isResolving) return;
     setTavernOpen(false);
     setWatchtowerOpen(false);
@@ -236,7 +249,7 @@ export default function App() {
       dispatch({ type: "SIMULATE_SEASON", payload });
       setIsResolving(false);
     });
-  }, [isResolving, payload, setTavernOpen]);
+  }
 
   // --- Computed values ---
   const isManagement = phase === "management";
@@ -279,7 +292,9 @@ export default function App() {
   }, [currentFlipId, flipConsequenceFlags, phase, cyoaEndingType]);
 
   const displayTab = isEventPhase ? "chronicle" : activeTab;
-  const showTutorial = isManagement && !isFlipPhase && !tutorialsSeen?.includes(displayTab);
+  // B-09 FIX: queue tutorials behind the scribe's note so overlays never stack.
+  // If a scribe's note is visible, defer the tutorial until it is dismissed.
+  const showTutorial = isManagement && !isFlipPhase && !scribesNote && !tutorialsSeen?.includes(displayTab);
 
   // --- Title Screen ---
   if (phase === "title") {
@@ -522,11 +537,13 @@ export default function App() {
         {/* --- MAP TAB --- */}
         {!isFlipPhase && displayTab === "map" && isManagement && (
           tavernOpen ? (
-            <Tavern
-              state={state}
-              dispatch={dispatch}
-              onClose={() => setTavernOpen(false)}
-            />
+            <Suspense fallback={<TabLoadingFallback />}>
+              <Tavern
+                state={state}
+                dispatch={dispatch}
+                onClose={() => setTavernOpen(false)}
+              />
+            </Suspense>
           ) : watchtowerOpen ? (
             <Watchtower
               state={state}
@@ -577,7 +594,9 @@ export default function App() {
 
         {/* --- GREAT HALL TAB --- */}
         {!isFlipPhase && displayTab === "hall" && isManagement && (
-          <GreatHall state={state} dispatch={dispatch} />
+          <Suspense fallback={<TabLoadingFallback />}>
+            <GreatHall state={state} dispatch={dispatch} />
+          </Suspense>
         )}
 
         {/* --- CHAPEL TAB --- */}
@@ -587,7 +606,9 @@ export default function App() {
 
         {/* --- BLACKSMITH FORGE TAB --- */}
         {!isFlipPhase && displayTab === "forge" && isManagement && (
-          <BlacksmithTab state={state} dispatch={dispatch} />
+          <Suspense fallback={<TabLoadingFallback />}>
+            <BlacksmithTab state={state} dispatch={dispatch} />
+          </Suspense>
         )}
 
         {/* --- CHRONICLE TAB --- */}
@@ -628,11 +649,13 @@ export default function App() {
         )}
       </div>
 
-      {/* Synergy notification toast */}
-      <SynergyToast
-        notification={pendingSynergyNotifications?.[0] ?? null}
-        onDismiss={handleDismissSynergyNotification}
-      />
+      {/* Synergy notification toast — hidden during flip phases to avoid input deadlock */}
+      {!isFlipPhase && (
+        <SynergyToast
+          notification={pendingSynergyNotifications?.[0] ?? null}
+          onDismiss={handleDismissSynergyNotification}
+        />
+      )}
 
       {/* Simulate Season button */}
       {isManagement && !isFlipPhase && (

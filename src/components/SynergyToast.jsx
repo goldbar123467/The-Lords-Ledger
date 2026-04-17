@@ -5,10 +5,14 @@
  * Tier 1: small toast at bottom. Tier 2: slide-in card from right. Tier 3: full overlay.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 function Tier1Toast({ notification, onDismiss }) {
   const [opacity, setOpacity] = useState(0);
+  const [dismissed, setDismissed] = useState(false);
+  const onDismissRef = useRef(onDismiss);
+
+  useEffect(() => { onDismissRef.current = onDismiss; }, [onDismiss]);
 
   useEffect(() => {
     // Fade in
@@ -16,42 +20,54 @@ function Tier1Toast({ notification, onDismiss }) {
     // Auto-dismiss after 5s
     const dismissTimer = setTimeout(() => {
       setOpacity(0);
-      setTimeout(onDismiss, 400);
+      setDismissed(true);
+      setTimeout(() => onDismissRef.current(), 400);
     }, 5000);
     return () => {
       clearTimeout(fadeInTimer);
       clearTimeout(dismissTimer);
     };
-  }, [onDismiss]);
+  }, []);
+
+  if (dismissed) return null;
+
+  const dismiss = () => {
+    setOpacity(0);
+    setDismissed(true);
+    setTimeout(onDismiss, 400);
+  };
 
   return (
     <div
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-lg border-2 shadow-lg flex items-center gap-3 cursor-pointer max-w-sm"
-      style={{
-        backgroundColor: "#1a1610",
-        borderColor: "#c4a24a",
-        boxShadow: "0 4px 16px rgba(196, 162, 74, 0.3)",
-        opacity,
-        transition: "opacity 0.4s ease",
-      }}
-      onClick={() => {
-        setOpacity(0);
-        setTimeout(onDismiss, 400);
-      }}
-      role="status"
-      aria-live="polite"
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex justify-center max-w-sm w-full"
+      style={{ pointerEvents: "none" }}
     >
-      <span className="text-2xl">{notification.pathIcon}</span>
-      <div>
-        <p
-          className="font-heading font-bold text-sm uppercase tracking-wider"
-          style={{ color: "#c4a24a" }}
-        >
-          Path Unlocked
-        </p>
-        <p className="text-sm font-semibold" style={{ color: "#e8c44a" }}>
-          {notification.title}
-        </p>
+      <div
+        className="px-5 py-3 rounded-lg border-2 shadow-lg flex items-center gap-3 cursor-pointer"
+        style={{
+          backgroundColor: "#1a1610",
+          borderColor: "#c4a24a",
+          boxShadow: "0 4px 16px rgba(196, 162, 74, 0.3)",
+          opacity,
+          transition: "opacity 0.4s ease",
+          pointerEvents: opacity < 0.1 ? "none" : "auto",
+        }}
+        onClick={dismiss}
+        role="status"
+        aria-live="polite"
+      >
+        <span className="text-2xl">{notification.pathIcon}</span>
+        <div>
+          <p
+            className="font-heading font-bold text-sm uppercase tracking-wider"
+            style={{ color: "#c4a24a" }}
+          >
+            Path Unlocked
+          </p>
+          <p className="text-sm font-semibold" style={{ color: "#e8c44a" }}>
+            {notification.title}
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -59,21 +75,37 @@ function Tier1Toast({ notification, onDismiss }) {
 
 function Tier2Card({ notification, onDismiss }) {
   const [translateX, setTranslateX] = useState("100%");
+  const onDismissRef = useRef(onDismiss);
+
+  useEffect(() => { onDismissRef.current = onDismiss; }, [onDismiss]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setTranslateX("0"), 50);
-    return () => clearTimeout(timer);
+    const slideTimer = setTimeout(() => setTranslateX("0"), 50);
+    // Auto-dismiss after 10s
+    const dismissTimer = setTimeout(() => {
+      setTranslateX("100%");
+      setTimeout(() => onDismissRef.current(), 400);
+    }, 10000);
+    return () => {
+      clearTimeout(slideTimer);
+      clearTimeout(dismissTimer);
+    };
   }, []);
 
   return (
     <div
-      className="fixed right-4 top-1/2 -translate-y-1/2 z-50 w-72 rounded-lg border-2 shadow-xl overflow-hidden cursor-pointer"
+      className="fixed right-4 top-1/2 -translate-y-1/2 z-20 w-72"
+      style={{ pointerEvents: "none" }}
+    >
+    <div
+      className="rounded-lg border-2 shadow-xl overflow-hidden cursor-pointer"
       style={{
         backgroundColor: "#1a1610",
         borderColor: notification.pathColor || "#c4a24a",
         boxShadow: `0 8px 24px rgba(0,0,0,0.2)`,
-        transform: `translateY(-50%) translateX(${translateX})`,
+        transform: `translateX(${translateX})`,
         transition: "transform 0.4s ease-out",
+        pointerEvents: "auto",
       }}
       onClick={onDismiss}
       role="status"
@@ -106,6 +138,7 @@ function Tier2Card({ notification, onDismiss }) {
           Tap to dismiss
         </p>
       </div>
+    </div>
     </div>
   );
 }

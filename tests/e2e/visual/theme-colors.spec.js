@@ -99,10 +99,12 @@ test.describe("Management Phase Theme", () => {
   });
 
   test("dashboard resource values use bright gold", async ({ page }) => {
+    // Read via the `data-testid="resource-denarii"` attribute instead of
+    // positional `.text-2xl` indexing (B-29 / B-37).
     const valueColor = await page.evaluate(() => {
-      const values = document.querySelectorAll(".text-2xl");
-      if (values.length === 0) return null;
-      return window.getComputedStyle(values[0]).color;
+      const el = document.querySelector('[data-testid="resource-denarii"]');
+      if (!el) return null;
+      return window.getComputedStyle(el).color;
     });
 
     expect(valueColor).toBe(THEME.goldBright);

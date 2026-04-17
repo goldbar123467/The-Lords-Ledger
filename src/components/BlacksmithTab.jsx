@@ -398,7 +398,7 @@ function WeaponRack() {
                 : weapon.type === "axe"
                 ? "2px 2px 6px 6px"
                 : "2px 2px 1px 1px",
-            filter: "brightness(0.3)",
+            filter: "brightness(0.7)",
             transition: "filter 300ms ease",
             cursor: "default",
             position: "relative",
@@ -2489,6 +2489,7 @@ export default function BlacksmithTab({ state, dispatch }) {
         `,
         border: `1px solid ${isLit ? "rgba(255,107,26,0.15)" : FORGE_COLORS.iron + "30"}`,
         padding: "0 0 8px",
+        paddingBottom: "180px",
         transition: "background 800ms ease",
       }}
     >

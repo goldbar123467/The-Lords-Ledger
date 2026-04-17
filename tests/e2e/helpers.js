@@ -67,20 +67,53 @@ export async function waitForFonts(page) {
  * Dismiss the tutorial popup if one is visible.
  * The tutorial has a fixed overlay with an "I Understand" button,
  * or can be dismissed by clicking the backdrop.
+ *
+ * Returns promptly (≤2s) when no overlay is visible.
+ * Handles overlay race conditions by retrying once if the element
+ * detaches mid-click (e.g. fade-in transition not yet settled).
  */
 export async function dismissTutorial(page) {
-  // Try clicking "I Understand" button first
   const dismissButton = page.getByText("I Understand", { exact: true }).first();
-  if (await dismissButton.isVisible({ timeout: 1_000 }).catch(() => false)) {
-    await dismissButton.click();
-    await page.waitForTimeout(300);
-    return;
+  // Fast no-op path: short visibility probe so callers stay snappy.
+  const visible = await dismissButton
+    .isVisible({ timeout: 500 })
+    .catch(() => false);
+  if (visible) {
+    // Wait for the overlay to fully attach + render before clicking, then
+    // click with a short timeout. Swallow detached/unstable errors as
+    // benign — the overlay may have unmounted between probe and click.
+    try {
+      await dismissButton.waitFor({ state: "visible", timeout: 1_500 });
+      await dismissButton.click({ timeout: 2_000 });
+      await page.waitForTimeout(200);
+      return;
+    } catch (err) {
+      const msg = String(err && err.message ? err.message : err);
+      if (
+        msg.includes("element is detached") ||
+        msg.includes("not stable") ||
+        msg.includes("Target closed")
+      ) {
+        // Retry once: the overlay may have re-rendered or unmounted.
+        try {
+          if (await dismissButton.isVisible({ timeout: 300 }).catch(() => false)) {
+            await dismissButton.click({ timeout: 1_500 });
+            await page.waitForTimeout(200);
+          }
+          return;
+        } catch {
+          // Treat as already dismissed.
+          return;
+        }
+      }
+      // Unknown error — fall through to backdrop fallback.
+    }
   }
-  // Also try clicking the backdrop overlay
+  // Backdrop fallback (kept short so the no-overlay path stays ≤2s total).
   const overlay = page.locator(".fixed.inset-0.z-50").first();
-  if (await overlay.isVisible({ timeout: 500 }).catch(() => false)) {
-    await overlay.click({ position: { x: 10, y: 10 } });
-    await page.waitForTimeout(300);
+  if (await overlay.isVisible({ timeout: 300 }).catch(() => false)) {
+    await overlay.click({ position: { x: 10, y: 10 } }).catch(() => {});
+    await page.waitForTimeout(200);
   }
 }
 
@@ -115,14 +148,20 @@ export async function dismissOverlay(page) {
  * Returns true if back in management, false if game ended.
  */
 export async function playOneTurn(page) {
+  if (page.isClosed && page.isClosed()) return false;
   const simBtn = page.locator('button[aria-label*="Simulate"]');
   if (!(await simBtn.isVisible({ timeout: 2_000 }).catch(() => false))) {
     return false;
   }
-  await simBtn.click();
+  await simBtn.click().catch(() => {});
 
   for (let i = 0; i < 60; i++) {
-    await page.waitForTimeout(200);
+    try {
+      await page.waitForTimeout(200);
+    } catch {
+      return false;
+    }
+    if (page.isClosed && page.isClosed()) return false;
 
     // Check for game over
     if (await page.getByText("Try Again", { exact: true }).isVisible({ timeout: 200 }).catch(() => false)) {
@@ -160,10 +199,36 @@ export async function playOneTurn(page) {
       continue;
     }
 
-    // Priority 3: Continue/resolve/progression buttons
-    const continueBtn = page.locator("button").filter({
-      hasText: /See What Happens Next|^Continue$|See Your Legacy|See the Consequences|Return to Your Reign|Defend|^Begin$|Proceed|Accept|^Done$|Return/,
-    });
+    // Priority 3: Continue/resolve/progression buttons.
+    //
+    // Regex is intentionally narrow (B-46): only match exact resolve-step
+    // labels shipped by the app. An earlier catch-all `|Return` alternation
+    // was broad enough to click navigation affordances like a "Return to
+    // Title" on the game-over screen, which masked the actual end state.
+    // Each alternative is anchored (optionally preceded by a decorative
+    // arrow + whitespace) so substrings of unrelated buttons cannot match.
+    const RESOLVE_PREFIX = "^\\s*(?:\\u2190\\s*)?";
+    const RESOLVE_LABELS = [
+      "See What Happens Next",
+      "Continue",
+      "See Your Legacy",
+      "See the Consequences",
+      "Return to Your Reign",
+      "Return to Throne",
+      "Return to Queue",
+      "Return to Market Square",
+      "Return to Tavern",
+      "Return to Chapel",
+      "Defend",
+      "Begin",
+      "Proceed",
+      "Accept",
+      "Done",
+    ];
+    const resolvePattern = new RegExp(
+      RESOLVE_LABELS.map((l) => `${RESOLVE_PREFIX}${l}\\s*$`).join("|")
+    );
+    const continueBtn = page.locator("button").filter({ hasText: resolvePattern });
     if (await continueBtn.first().isVisible({ timeout: 200 }).catch(() => false)) {
       await continueBtn.last().click();
       continue;

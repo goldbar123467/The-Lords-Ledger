@@ -5,15 +5,20 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { startGame, dismissTutorial } from "../helpers.js";
+import { startGame } from "../helpers.js";
 
 /**
  * Get the current denarii value from the Dashboard.
+ *
+ * Reads via the `data-testid="resource-denarii"` attribute instead of
+ * positional `.text-2xl` indexing (B-29 / B-37).
  */
 async function getDenarii(page) {
   return page.evaluate(() => {
-    const values = document.querySelectorAll(".text-2xl");
-    return parseInt(values[0]?.textContent, 10);
+    const el = document.querySelector('[data-testid="resource-denarii"]');
+    if (!el) return undefined;
+    const parsed = parseInt(el.textContent, 10);
+    return Number.isNaN(parsed) ? undefined : parsed;
   });
 }
 
@@ -69,9 +74,7 @@ test.describe("Estate Building", () => {
     // The "Your Buildings" section should contain Strip Farm
     // Look for the Strip Farm appearing as a built building (not in Build New)
     const builtCount = await page.evaluate(() => {
-      // Count buildings with condition display (built buildings show condition)
-      const conditionElements = document.querySelectorAll('[class*="condition"], [style*="condition"]');
-      // Alternative: count all "Repair" buttons as an indicator of built buildings
+      // Count all "Repair" buttons as an indicator of built buildings
       const repairButtons = document.querySelectorAll('button');
       return Array.from(repairButtons).filter(b => b.textContent.includes("Repair") || b.textContent.includes("Info")).length;
     });

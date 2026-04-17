@@ -10,16 +10,23 @@ import { startGame, dismissTutorial } from "../helpers.js";
 
 /**
  * Get Dashboard resource values.
+ *
+ * Reads each resource via its `data-testid="resource-<key>"` attribute instead
+ * of relying on positional order of `.text-2xl` elements (B-29 / B-37).
  */
 async function getDashboardValues(page) {
   return page.evaluate(() => {
-    const values = document.querySelectorAll(".text-2xl");
-    const nums = Array.from(values).map((el) => parseInt(el.textContent, 10));
+    const readResource = (key) => {
+      const el = document.querySelector(`[data-testid="resource-${key}"]`);
+      if (!el) return undefined;
+      const parsed = parseInt(el.textContent, 10);
+      return Number.isNaN(parsed) ? undefined : parsed;
+    };
     return {
-      denarii: nums[0],
-      food: nums[1],
-      families: nums[2],
-      garrison: nums[3],
+      denarii: readResource("denarii"),
+      food: readResource("food"),
+      families: readResource("families"),
+      garrison: readResource("garrison"),
     };
   });
 }
@@ -41,9 +48,6 @@ test.describe("Save & Load", () => {
   }) => {
     await page.goto("/");
     await startGame(page);
-
-    // Record initial state
-    const beforeSave = await getDashboardValues(page);
 
     // Build a Strip Farm to change state
     const buildBtn = page
