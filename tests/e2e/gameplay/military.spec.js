@@ -5,7 +5,7 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { startGame, navigateToTab, dismissTutorial, dismissOverlay } from "../helpers.js";
+import { startGame, navigateToTab, dismissOverlay } from "../helpers.js";
 
 /**
  * Get the current garrison count from the Dashboard.

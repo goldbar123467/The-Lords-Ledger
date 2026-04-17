@@ -34,6 +34,8 @@ import TutorialPopup from "./components/TutorialPopup";
 const seasonalEvents = Object.values(seasonalEventsData).flat();
 const randomEvents = randomEventsData;
 
+const SAVE_KEY = "lords-ledger-save";
+
 export default function App() {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const { muted, toggleMute, ensurePlaying } = useMusic();
@@ -193,12 +195,14 @@ export default function App() {
   const [watchtowerOpen, setWatchtowerOpen] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
   const [saveFlash, setSaveFlash] = useState(null); // "saved" | "loaded" | "error"
-
-  const SAVE_KEY = "lords-ledger-save";
+  const [hasSavedGame, setHasSavedGame] = useState(() => {
+    try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; }
+  });
 
   function handleSaveGame() {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+      setHasSavedGame(true);
       setSaveFlash("saved");
       setTimeout(() => setSaveFlash(null), 1500);
     } catch {
@@ -213,6 +217,7 @@ export default function App() {
       if (!raw) { setSaveFlash("error"); setTimeout(() => setSaveFlash(null), 2000); return; }
       const savedState = JSON.parse(raw);
       dispatch({ type: "LOAD_SAVE", payload: { savedState } });
+      setHasSavedGame(true);
       setSaveFlash("loaded");
       setTimeout(() => setSaveFlash(null), 1500);
     } catch {
@@ -220,8 +225,6 @@ export default function App() {
       setTimeout(() => setSaveFlash(null), 2000);
     }
   }
-
-  const hasSavedGame = (() => { try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; } })();
 
   function handleSimulateSeason() {
     if (isResolving) return;

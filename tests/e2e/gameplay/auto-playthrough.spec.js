@@ -35,21 +35,6 @@ async function getResources(page) {
   });
 }
 
-/** Extract secondary stats (morale, faith, piety) if visible */
-async function getSecondaryStats(page) {
-  return page.evaluate(() => {
-    const text = document.body.innerText;
-    const moraleMatch = text.match(/Morale[\s\S]*?(\d+)/);
-    const faithMatch = text.match(/Faith[\s\S]*?(\d+)/);
-    const pietyMatch = text.match(/Piety[\s\S]*?(\d+)/);
-    return {
-      morale: moraleMatch ? parseInt(moraleMatch[1], 10) : null,
-      faith: faithMatch ? parseInt(faithMatch[1], 10) : null,
-      piety: pietyMatch ? parseInt(pietyMatch[1], 10) : null,
-    };
-  });
-}
-
 /** Get current turn and season info from the dashboard */
 async function getTurnInfo(page) {
   return page.evaluate(() => {
@@ -159,7 +144,6 @@ async function tryRecruitSoldiers(page, log) {
 async function playOneTurnLogged(page) {
   const events = [];
   const choices = [];
-  let outcome = null;
 
   // Dismiss any tutorial or overlay before looking for sim button
   await dismissOverlay(page);

@@ -99,7 +99,7 @@ Priority legend:
 - Expected: Visible `:focus-visible` outline meeting WCAG contrast.
 - Actual: `src/components/TabBar.jsx` sets colors inline but no focus style.
 
-### B-11 — Unused imports/vars across test suite (7 files)
+### B-11 — Unused imports/vars across test suite (7 files) ✅ FIXED 2026-04-17
 - Persona: N/A (CI)
 - Severity: P3
 - Reproduction: `npm run lint` → 7 unused-vars errors in
@@ -107,7 +107,7 @@ Priority legend:
 - Expected: Clean lint, remove unused imports.
 - Actual: Lint fails in CI.
 
-### B-12 — `process` not defined in playwright.config.js, playtest.js
+### B-12 — `process` not defined in playwright.config.js, playtest.js ✅ FIXED 2026-04-17
 - Persona: N/A (CI)
 - Severity: P2
 - Reproduction: `npm run lint` → `'process' is not defined  no-undef` in
@@ -115,7 +115,7 @@ Priority legend:
 - Expected: ESLint flat config should add `globals.node` for these files.
 - Actual: 8+ lint errors block CI.
 
-### B-13 — `playwright-playtest.js` has "Unnecessary escape character: \""
+### B-13 — `playwright-playtest.js` has "Unnecessary escape character: \"" ✅ FIXED 2026-04-17
 - Persona: N/A
 - Severity: P3
 - Reproduction: `npm run lint` → line 999.
@@ -177,14 +177,14 @@ Priority legend:
   lucide-react and data files.
 - Actual: Warning every build.
 
-### B-21 — `SAVE_KEY` declared inside component body (every render allocates string)
+### B-21 — `SAVE_KEY` declared inside component body (every render allocates string) ✅ FIXED 2026-04-17
 - Persona: N/A perf
 - Severity: P3
 - Reproduction: `src/App.jsx:201`.
 - Expected: Hoist to module scope constant.
 - Actual: Trivial re-allocation but also unused by any hook dep array.
 
-### B-22 — `hasSavedGame` recomputed every render via IIFE
+### B-22 — `hasSavedGame` recomputed every render via IIFE ✅ FIXED 2026-04-17
 - Persona: N/A
 - Severity: P3
 - Reproduction: `src/App.jsx:228` — reads localStorage on every render.

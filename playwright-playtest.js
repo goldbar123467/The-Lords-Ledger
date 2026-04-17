@@ -996,7 +996,7 @@ function generateReport(allLogs) {
       detail: "No persona achieved victory. Consider: (1) reduce event penalties on Easy, (2) increase starting resources, (3) add safety nets like emergency loans, (4) slower meter decay in early turns." });
   } else if (wins / allLogs.length < 0.3) {
     recs.push({ p: "MEDIUM", cat: "Balance", title: "Low win rate for target audience",
-      detail: `Only ${Math.round(wins / allLogs.length * 100)}% won. Consider gentler penalties or a \"story mode\".` });
+      detail: `Only ${Math.round(wins / allLogs.length * 100)}% won. Consider gentler penalties or a "story mode".` });
   }
 
   if (avgTurns < 10) {
