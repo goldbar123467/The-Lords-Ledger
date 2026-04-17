@@ -161,13 +161,17 @@ async function playOneTurnLogged(page) {
   const choices = [];
   let outcome = null;
 
+  // Dismiss any tutorial or overlay before looking for sim button
+  await dismissOverlay(page);
+  await dismissTutorial(page);
+
   const simBtn = page.locator('button[aria-label*="Simulate"]');
-  if (!(await simBtn.isVisible({ timeout: 2_000 }).catch(() => false))) {
+  if (!(await simBtn.isVisible({ timeout: 3_000 }).catch(() => false))) {
     return { continued: false, events, choices, outcome: "sim_button_missing" };
   }
   await simBtn.click();
 
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < 120; i++) {
     await page.waitForTimeout(250);
 
     // Check game end states
@@ -177,8 +181,10 @@ async function playOneTurnLogged(page) {
         .isVisible({ timeout: 200 })
         .catch(() => false)
     ) {
-      // Capture game-over reason
+      // Capture game-over reason from data attribute (BUG 1 fix)
       const reasonText = await page.evaluate(() => {
+        const el = document.querySelector('[data-gameover-reason]');
+        if (el) return el.getAttribute('data-gameover-reason');
         const body = document.body.innerText;
         const match = body.match(
           /(depopulat|bankrupt|population.*reached.*0|denarii.*0|no.*families)/i
@@ -227,7 +233,10 @@ async function playOneTurnLogged(page) {
     if (choiceCount > 0 && await choiceBtns.first().isVisible({ timeout: 200 }).catch(() => false)) {
       const idx = Math.floor(Math.random() * choiceCount);
       const choiceText = await choiceBtns.nth(idx).textContent().catch(() => "");
-      await choiceBtns.nth(idx).click();
+      // Scroll the page down to ensure event options clear the sticky dashboard
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await page.waitForTimeout(100);
+      await choiceBtns.nth(idx).click({ timeout: 5_000 }).catch(() => {});
       choices.push(`Choice[${idx + 1}/${choiceCount}]: ${choiceText.trim().substring(0, 80)}`);
       continue;
     }
@@ -244,7 +253,9 @@ async function playOneTurnLogged(page) {
         .catch(() => false)
     ) {
       const txt = await continueBtn.last().textContent().catch(() => "");
-      await continueBtn.last().click();
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await page.waitForTimeout(100);
+      await continueBtn.last().click({ timeout: 5_000 }).catch(() => {});
       if (txt) choices.push(txt.trim().substring(0, 60));
       continue;
     }

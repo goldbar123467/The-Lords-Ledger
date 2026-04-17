@@ -37,14 +37,22 @@ export default function useMusic() {
     audio.loop = false;
     audioRef.current = audio;
 
-    // Cycle to next track when one ends
-    audio.addEventListener("ended", () => {
+    const handlePlay = () => setPlaying(true);
+    const handlePause = () => setPlaying(false);
+    const handleEnded = () => {
       trackIndexRef.current = (trackIndexRef.current + 1) % TRACKS.length;
       audio.src = TRACKS[trackIndexRef.current];
       audio.play().catch(() => {});
-    });
+    };
+
+    audio.addEventListener("play", handlePlay);
+    audio.addEventListener("pause", handlePause);
+    audio.addEventListener("ended", handleEnded);
 
     return () => {
+      audio.removeEventListener("play", handlePlay);
+      audio.removeEventListener("pause", handlePause);
+      audio.removeEventListener("ended", handleEnded);
       audio.pause();
       audio.src = "";
     };
@@ -57,9 +65,8 @@ export default function useMusic() {
 
     if (muted) {
       audio.pause();
-      setPlaying(false);
     } else if (hasInteractedRef.current) {
-      audio.play().then(() => setPlaying(true)).catch(() => {});
+      audio.play().catch(() => {});
     }
 
     try {
@@ -73,7 +80,7 @@ export default function useMusic() {
     hasInteractedRef.current = true;
     const audio = audioRef.current;
     if (!audio || muted) return;
-    audio.play().then(() => setPlaying(true)).catch(() => {});
+    audio.play().catch(() => {});
   }, [muted]);
 
   const toggleMute = useCallback(() => {

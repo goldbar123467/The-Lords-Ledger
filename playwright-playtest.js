@@ -15,7 +15,7 @@ import { writeFileSync, mkdirSync } from "fs";
 
 const NUM_GAMES = parseInt(process.argv[2], 10) || 6;
 const BASE_URL = "http://localhost:5173";
-const REPORT_PATH = "playtest-report.md";
+const REPORT_PATH = "report.md";
 const DEBUG = process.argv.includes("--debug");
 
 // ---------------------------------------------------------------------------
@@ -60,35 +60,54 @@ async function detectPhase(page) {
     } catch { return false; }
   };
 
+  // Quick check: get all visible button texts for faster matching
+  let buttonTexts = [];
+  try {
+    buttonTexts = await page.evaluate(() =>
+      [...document.querySelectorAll("button")]
+        .filter((b) => b.offsetParent !== null)
+        .map((b) => b.textContent.trim())
+    );
+  } catch { /* skip */ }
+
+  const hasButton = (text) => buttonTexts.some((t) => t.includes(text));
+
   // Scribe's Note overlay (blocks everything else)
   if (await visible("h4:has-text('Scribe\\'s Note')")) return "scribes_note";
 
   // Synergy overlays (z-50, blocks game)
-  if (await visible("text='Strategy Path Mastered'")) return "synergy_overlay";
+  if (hasButton("Continue Your Reign")) return "synergy_overlay";
   if (await visible("text='Tap to dismiss'")) return "synergy_card";
   if (await visible("[role='status']:has-text('Path Unlocked')")) return "synergy_toast";
 
   // Terminal states
-  if (await visible("text='Chronicle of Ruin'")) return "game_over";
-  if (await visible("button:has-text('Reign Again')")) return "victory";
+  if (hasButton("Try Again") || hasButton("Reign Again")) {
+    if (await visible("text='Chronicle of Ruin'")) return "game_over";
+    if (hasButton("Reign Again")) return "victory";
+    return "game_over";
+  }
+
+  // Raid phases
+  if (hasButton("Defend the Estate")) return "raid_warning";
+  if (await visible("text='Raid Outcome'")) return "raid_result";
 
   // Flip phases
-  if (await visible("text='Returning to Your Reign'")) return "flip_summary";
-  if (await visible("text='Perspective Shift'")) return "flip_intro";
-  if (await visible("text=/Decision \\d+ of \\d+/")) return "flip_decision";
-  if (await visible("button:has-text('See the Consequences')")) return "flip_outcome_last";
+  if (hasButton("Return to Your Reign")) return "flip_summary";
+  if (hasButton("See the Consequences")) return "flip_outcome_last";
+  if (await visible("text=/Decision \\d+ of \\d+/") || await visible("[aria-label='Choose your path']") || await visible("[aria-label='Choose your response']")) return "flip_decision";
+  if (hasButton("Begin")) return "flip_intro";
 
   // Events
   if (await visible("text='Seasonal Decision'")) return "seasonal_action";
   if (await visible("text='An Event Unfolds'")) return "random_event";
-  if (await visible("button:has-text('See What Happens Next')")) return "seasonal_resolve";
-  if (await visible("button:has-text('See Your Legacy')")) return "random_resolve_final";
+  if (hasButton("See What Happens Next")) return "seasonal_resolve";
+  if (hasButton("See Your Legacy")) return "random_resolve_final";
 
   // Management (Simulate Season button is the definitive marker)
-  if (await visible("button:has-text('Simulate Season')")) return "management";
+  if (hasButton("Simulate Season")) return "management";
 
-  // Resolve with generic Continue (after random event)
-  if (await visible("button:has-text('Continue')")) return "resolve_generic";
+  // Resolve with generic Continue (after random event, flip outcome)
+  if (hasButton("Continue")) return "resolve_generic";
 
   // Title screen
   if (await visible("text='Choose Your Challenge'")) return "title";
@@ -98,13 +117,24 @@ async function detectPhase(page) {
 
 async function scrapeMeters(page) {
   const meters = {};
-  for (const name of ["Treasury", "People", "Military", "Faith"]) {
+  // The game uses concrete resources displayed in the Dashboard header.
+  // Each resource has a label ("Denarii", "Food", "Families", "Garrison", "Morale")
+  // and a numeric value rendered in a span.text-2xl sibling.
+  for (const [label, key] of [["Denarii", "denarii"], ["Food", "food"], ["Families", "population"], ["Garrison", "garrison"], ["Morale", "morale"]]) {
     try {
-      const el = page.locator(`[role='meter'][aria-label*='${name}']`).first();
-      if (await el.isVisible({ timeout: 200 }).catch(() => false)) {
-        const val = await el.getAttribute("aria-valuenow");
-        meters[name.toLowerCase()] = val ? parseInt(val, 10) : null;
-      }
+      const val = await page.evaluate((lbl) => {
+        const spans = [...document.querySelectorAll("span")];
+        const labelSpan = spans.find((s) => s.textContent.trim() === lbl);
+        if (!labelSpan) return null;
+        // Walk up to the stat container and find the text-2xl value span
+        const container = labelSpan.closest("div.flex.flex-col") || labelSpan.parentElement?.parentElement;
+        if (!container) return null;
+        const valueSpan = container.querySelector(".text-2xl");
+        if (!valueSpan) return null;
+        const text = valueSpan.textContent.replace(/[^0-9.-]/g, "");
+        return text ? parseInt(text, 10) : null;
+      }, label);
+      meters[key] = val;
     } catch { /* skip */ }
   }
   return meters;
@@ -112,9 +142,9 @@ async function scrapeMeters(page) {
 
 async function scrapeTurn(page) {
   try {
-    const el = page.locator("text=/Turn \\d+\\/28/").first();
+    const el = page.locator("text=/Turn \\d+\\/40/").first();
     const text = await el.textContent({ timeout: 300 });
-    const match = text.match(/Turn (\d+)\/28/);
+    const match = text.match(/Turn (\d+)\/40/);
     return match ? parseInt(match[1], 10) : null;
   } catch { return null; }
 }
@@ -124,12 +154,29 @@ async function scrapeTurn(page) {
 // ---------------------------------------------------------------------------
 async function dismissOverlays(page, log) {
   for (let i = 0; i < 15; i++) {
+    // Tutorial popup — "I Understand" button in a fixed overlay
+    const tutorialBtn = page.locator("button:has-text('I Understand')").first();
+    if (await tutorialBtn.isVisible({ timeout: 200 }).catch(() => false)) {
+      try {
+        await tutorialBtn.click({ timeout: 1500 });
+        dbg("Dismissed tutorial popup");
+      } catch { /* skip */ }
+      await sleep(300);
+      continue;
+    }
+
     const phase = await detectPhase(page);
 
     if (phase === "scribes_note") {
-      // Scribe's Note has its own "Continue" button inside a fixed overlay
+      // Scribe's Note has its own "Continue" button inside a fixed z-50 overlay
       try {
-        await page.locator(".fixed button:has-text('Continue')").first().click({ timeout: 1500 });
+        await page.evaluate(() => {
+          const fixed = document.querySelector(".fixed.inset-0.z-50");
+          if (fixed) {
+            const btn = fixed.querySelector("button");
+            if (btn) btn.click();
+          }
+        });
         dbg("Dismissed Scribe's Note");
       } catch { break; }
       await sleep(300);
@@ -346,6 +393,13 @@ async function clickTab(page, log, tabName) {
     if (await btn.isVisible({ timeout: 300 }).catch(() => false) && !(await btn.isDisabled().catch(() => true))) {
       await btn.click({ timeout: 1000 });
       log.tabsVisited.add(tabName.toLowerCase());
+      await sleep(200);
+      // Dismiss tutorial popup that appears on the newly opened tab
+      const tutorialBtn = page.locator("button:has-text('I Understand')").first();
+      if (await tutorialBtn.isVisible({ timeout: 500 }).catch(() => false)) {
+        await tutorialBtn.click({ timeout: 1000 }).catch(() => {});
+        await sleep(200);
+      }
     }
   } catch { /* skip */ }
 }
@@ -385,12 +439,12 @@ async function analyzeUX(page, log, turn) {
     }
   } catch { /* skip */ }
 
-  // Critical meters
+  // Critical resources
   const meters = await scrapeMeters(page);
-  for (const [name, value] of Object.entries(meters)) {
-    if (value !== null && value <= 15) log.uxFriction.push({ type: "meter_critical_low", turn, meter: name, value });
-    if (value !== null && value >= 85) log.uxFriction.push({ type: "meter_critical_high", turn, meter: name, value });
-  }
+  if (meters.denarii !== null && meters.denarii <= 0) log.uxFriction.push({ type: "meter_critical_low", turn, meter: "denarii", value: meters.denarii });
+  if (meters.food !== null && meters.food <= 0) log.uxFriction.push({ type: "meter_critical_low", turn, meter: "food", value: meters.food });
+  if (meters.population !== null && meters.population <= 3) log.uxFriction.push({ type: "meter_critical_low", turn, meter: "population", value: meters.population });
+  if (meters.morale !== null && meters.morale <= 20) log.uxFriction.push({ type: "meter_critical_low", turn, meter: "morale", value: meters.morale });
 
   // Locked tabs
   try {
@@ -411,7 +465,7 @@ async function playGame(page, persona, idx) {
 
   console.log(`  Game ${idx + 1}: ${persona.name} (${persona.difficulty})...`);
 
-  await page.goto(BASE_URL, { waitUntil: "networkidle", timeout: 15000 });
+  await page.goto(BASE_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
   await sleep(500);
 
   // Start game
@@ -429,7 +483,7 @@ async function playGame(page, persona, idx) {
 
   let lastTurn = 0;
   let stuckCount = 0;
-  const gameTimeout = 180000; // 180s per game max
+  const gameTimeout = 300000; // 300s per game max
 
   for (let iter = 0; iter < 400; iter++) {
     if (Date.now() - t0 > gameTimeout) {
@@ -442,11 +496,43 @@ async function playGame(page, persona, idx) {
     const phase = await detectPhase(page);
     dbg(`iter=${iter} phase=${phase}`);
 
+    // Overlay phases — handle directly in main loop too
+    if (phase === "scribes_note") {
+      stuckCount = 0;
+      try {
+        // Click the Continue button inside the scribe's note fixed overlay
+        // Use evaluate to find the correct button in the z-50 overlay
+        const clicked = await page.evaluate(() => {
+          const fixed = document.querySelector(".fixed.inset-0.z-50");
+          if (fixed) {
+            const btn = fixed.querySelector("button");
+            if (btn) { btn.click(); return true; }
+          }
+          // Fallback: click any Continue button
+          const btns = [...document.querySelectorAll("button")].filter(b => b.textContent.trim() === "Continue");
+          if (btns.length > 0) { btns[btns.length - 1].click(); return true; }
+          return false;
+        });
+        dbg("Dismissed Scribe's Note (main loop), clicked=" + clicked);
+      } catch { /* skip */ }
+      await sleep(300);
+      continue;
+    }
+    if (phase === "synergy_overlay" || phase === "synergy_card" || phase === "synergy_toast") {
+      stuckCount = 0;
+      await dismissOverlays(page, log);
+      await sleep(300);
+      continue;
+    }
+
     // Terminal states
     if (phase === "game_over") {
       log.outcome = "game_over";
       try {
-        log.gameOverReason = await page.locator("h2").first().textContent({ timeout: 1000 });
+        // Scrape the data-gameover-reason attribute from GameOverScreen
+        const reasonAttr = await page.locator("[data-gameover-reason]").first().getAttribute("data-gameover-reason", { timeout: 1000 });
+        const title = await page.locator("h2").first().textContent({ timeout: 1000 });
+        log.gameOverReason = reasonAttr ? `${reasonAttr} — ${title}` : title;
       } catch { log.gameOverReason = "Unknown"; }
       log.finalMeters = await scrapeMeters(page);
       break;
@@ -497,6 +583,9 @@ async function playGame(page, persona, idx) {
             : (Math.random() > 0.7 ? Math.min(1, count - 1) : 0);
           const btn = options.nth(idx);
           const text = await btn.textContent().catch(() => "?");
+          // Scroll the option into view to clear the sticky dashboard
+          await btn.scrollIntoViewIfNeeded().catch(() => {});
+          await sleep(100);
           await btn.click({ timeout: 2000 });
           log.eventChoices.push({ event: title, choice: text.slice(0, 80), phase });
         }
@@ -528,6 +617,23 @@ async function playGame(page, persona, idx) {
       continue;
     }
 
+    // Raid phases
+    if (phase === "raid_warning") {
+      stuckCount = 0;
+      try { await page.locator("button:has-text('Defend the Estate')").first().click({ timeout: 2000 }); }
+      catch { /* skip */ }
+      await sleep(300);
+      continue;
+    }
+    if (phase === "raid_result") {
+      stuckCount = 0;
+      // Raid result has a Continue button
+      try { await page.locator("button:has-text('Continue')").first().click({ timeout: 2000 }); }
+      catch { /* skip */ }
+      await sleep(300);
+      continue;
+    }
+
     // Flip phases
     if (phase === "flip_intro") {
       stuckCount = 0;
@@ -544,7 +650,10 @@ async function playGame(page, persona, idx) {
         const count = await options.count();
         if (count > 0) {
           const idx = persona.strategy === "random" ? Math.floor(Math.random() * count) : 0;
-          await options.nth(Math.min(idx, count - 1)).click({ timeout: 2000 });
+          const btn = options.nth(Math.min(idx, count - 1));
+          await btn.scrollIntoViewIfNeeded().catch(() => {});
+          await sleep(100);
+          await btn.click({ timeout: 2000 });
         }
       } catch { /* skip */ }
       await sleep(300);
@@ -579,13 +688,36 @@ async function playGame(page, persona, idx) {
       }
     }
 
-    // Unknown phase — try recovery
+    // Unknown phase — try recovery by clicking any visible overlay button
     stuckCount++;
     dbg(`stuck count = ${stuckCount}`);
-    if (stuckCount > 10) {
+    if (stuckCount > 20) {
       log.uxFriction.push({ type: "completely_stuck", phase });
       break;
     }
+    // Try clicking any overlay button as last resort
+    try {
+      const clicked = await page.evaluate(() => {
+        // Try fixed overlays first
+        const fixed = document.querySelector(".fixed.inset-0");
+        if (fixed) {
+          const btn = fixed.querySelector("button");
+          if (btn) { btn.click(); return "overlay"; }
+        }
+        // Try event option buttons (scroll into view first)
+        const roleGroup = document.querySelector("[role='group']");
+        if (roleGroup) {
+          const btn = roleGroup.querySelector("button");
+          if (btn) { btn.scrollIntoView({ block: "center" }); btn.click(); return "event-option:" + btn.textContent.trim().substring(0, 30); }
+        }
+        // Try any visible button with action-like text
+        const btns = [...document.querySelectorAll("button")].filter(b => b.offsetParent !== null);
+        const actionBtn = btns.find(b => /continue|begin|accept|dismiss|ok|close|proceed|done|return/i.test(b.textContent));
+        if (actionBtn) { actionBtn.click(); return actionBtn.textContent.trim().substring(0, 30); }
+        return null;
+      });
+      if (clicked) dbg(`Recovery click: ${clicked}`);
+    } catch { /* skip */ }
     await sleep(500);
   }
 
@@ -631,7 +763,7 @@ function generateReport(allLogs) {
   lines.push(`| Victories | ${wins} (${Math.round(wins / Math.max(allLogs.length, 1) * 100)}%) |`);
   lines.push(`| Game Overs | ${losses} (${Math.round(losses / Math.max(allLogs.length, 1) * 100)}%) |`);
   lines.push(`| Stuck/Crashed | ${stuck} |`);
-  lines.push(`| Avg turns survived | ${avgTurns.toFixed(1)}/28 |`);
+  lines.push(`| Avg turns survived | ${avgTurns.toFixed(1)}/40 |`);
   lines.push(`| Avg playthrough time | ${avgTime}s |`);
   lines.push("");
 
@@ -677,7 +809,7 @@ function generateReport(allLogs) {
       const m = l.finalMeters || {};
       lines.push(`- **${l.persona}** (${l.difficulty}): Died at turn ${l.turns.length}`);
       lines.push(`  - Reason: ${l.gameOverReason || "?"}`);
-      lines.push(`  - Final meters: T:${m.treasury ?? "?"} P:${m.people ?? "?"} M:${m.military ?? "?"} F:${m.faith ?? "?"}`);
+      lines.push(`  - Final resources: Denarii:${m.denarii ?? "?"} Food:${m.food ?? "?"} Pop:${m.population ?? "?"} Garrison:${m.garrison ?? "?"} Morale:${m.morale ?? "?"}`);
     }
     lines.push("");
   }
@@ -690,7 +822,7 @@ function generateReport(allLogs) {
     for (const l of victories) {
       const m = l.finalMeters || {};
       lines.push(`- **${l.persona}** (${l.difficulty}): Won at turn ${l.turns.length}`);
-      lines.push(`  - Final meters: T:${m.treasury ?? "?"} P:${m.people ?? "?"} M:${m.military ?? "?"} F:${m.faith ?? "?"}`);
+      lines.push(`  - Final resources: Denarii:${m.denarii ?? "?"} Food:${m.food ?? "?"} Pop:${m.population ?? "?"} Garrison:${m.garrison ?? "?"} Morale:${m.morale ?? "?"}`);
       lines.push(`  - Buildings built: ${l.buildingsBuilt.length}, Trades: ${l.tradesMade.length}`);
     }
     lines.push("");
@@ -837,11 +969,11 @@ function generateReport(allLogs) {
     if (log.turns.length === 0) continue;
     lines.push(`### ${log.persona} (${log.difficulty})`);
     lines.push("");
-    lines.push("| Turn | Treasury | People | Military | Faith |");
-    lines.push("|------|----------|--------|----------|-------|");
+    lines.push("| Turn | Denarii | Food | Population | Garrison | Morale |");
+    lines.push("|------|---------|------|------------|----------|--------|");
     for (const t of log.turns) {
       const m = t.meters;
-      lines.push(`| ${t.turn} | ${m.treasury ?? "-"} | ${m.people ?? "-"} | ${m.military ?? "-"} | ${m.faith ?? "-"} |`);
+      lines.push(`| ${t.turn} | ${m.denarii ?? "-"} | ${m.food ?? "-"} | ${m.population ?? "-"} | ${m.garrison ?? "-"} | ${m.morale ?? "-"} |`);
     }
     lines.push("");
   }

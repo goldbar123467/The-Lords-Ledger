@@ -64,8 +64,9 @@ export function checkForRaid(raids, turn) {
   const crimCd = raids.criminalCooldown || 0;
   const scotCd = raids.scottishCooldown || 0;
 
-  // Forced Scottish raid if none has fired by turn 16
-  if (turn >= scottishDef.forceTurn && (raids.totalScottishRaids || 0) === 0 && scotCd <= 0) {
+  // Forced Scottish raid if none has fired by turn 16 (respects cooldown from any recent raid)
+  const lastRaid = raids.lastRaidTurn || 0;
+  if (turn >= scottishDef.forceTurn && (raids.totalScottishRaids || 0) === 0 && scotCd <= 0 && (turn - lastRaid) >= 2) {
     return { type: "scottish" };
   }
 
@@ -111,7 +112,8 @@ export function checkForRaid(raids, turn) {
  *             garrisonDelta: number, tradeGoodLost: { resource: string, amount: number } | null,
  *             narrativeLine: string, raidName: string }}
  */
-export function resolveRaid(raidType, defenseRating, defenseThreshold, garrison, castleLevel, inventory) {
+export function resolveRaid(raidType, defenseRating, defenseThreshold, garrison, castleLevel, inventory, difficulty) {
+  const difficultyScale = difficulty === "easy" ? 0.5 : difficulty === "hard" ? 1.5 : 1.0;
   const def = RAID_TYPES[raidType];
   if (!def) return null;
 
@@ -135,8 +137,10 @@ export function resolveRaid(raidType, defenseRating, defenseThreshold, garrison,
   }
 
   // DEFEAT — calculate losses based on how close defense was
-  const defenseRatio = defenseRating > 0 ? defenseRating / defenseThreshold : 0;
-  const lossMultiplier = 1 - defenseRatio;
+  const defenseRatio = (defenseRating > 0 && defenseThreshold > 0)
+    ? Math.min(1, defenseRating / defenseThreshold)
+    : 0;
+  const lossMultiplier = Math.max(0, 1 - defenseRatio);
 
   const losses = def.losses;
 
@@ -147,7 +151,7 @@ export function resolveRaid(raidType, defenseRating, defenseThreshold, garrison,
   } else {
     baseDenLoss = randInt(losses.denariiMin, losses.denariiMax);
   }
-  const denariiLoss = Math.round(baseDenLoss * lossMultiplier);
+  const denariiLoss = Math.round(baseDenLoss * lossMultiplier * difficultyScale);
 
   // Food loss
   let baseFoodLoss;
@@ -156,12 +160,12 @@ export function resolveRaid(raidType, defenseRating, defenseThreshold, garrison,
   } else {
     baseFoodLoss = randInt(losses.foodMin, losses.foodMax);
   }
-  const foodLoss = Math.round(baseFoodLoss * lossMultiplier);
+  const foodLoss = Math.round(baseFoodLoss * lossMultiplier * difficultyScale);
 
-  // Population loss
-  let popLoss = Math.round((losses.populationLoss || 0) * lossMultiplier);
+  // Population loss — capped at 25% of current population in reducer to prevent wipeouts
+  let popLoss = Math.round((losses.populationLoss || 0) * lossMultiplier * difficultyScale);
   if (garrison === 0) {
-    popLoss += 5; // Additional penalty for zero garrison
+    popLoss += Math.round(3 * difficultyScale); // Penalty for zero garrison
   }
 
   // Garrison loss (Scottish only)
@@ -220,9 +224,10 @@ export function resolveRaid(raidType, defenseRating, defenseThreshold, garrison,
 /**
  * Build chronicle text for a raid outcome.
  */
-export function buildRaidChronicleText(raidType, result, season, year, garrison, defenseRating, defenseThreshold) {
+export function buildRaidChronicleText(raidType, result, season, year, garrison, defenseRating, defenseThreshold, watchtowerBonus) {
   if (result.victory) {
-    const parts = [`${result.raidName} attacked the estate. Your defenses held (rating ${defenseRating} vs ${defenseThreshold} required).`];
+    const wtNote = watchtowerBonus > 0 ? `, watchtower intel +${watchtowerBonus}` : "";
+    const parts = [`${result.raidName} attacked the estate. Your defenses held (rating ${defenseRating} vs ${defenseThreshold} required${wtNote}).`];
     if (result.denariiDelta > 0) parts.push(`Recovered ${result.denariiDelta}d in plunder`);
     if (result.foodDelta > 0) parts.push(`${result.foodDelta} food in captured supplies`);
     parts.push("The people celebrate.");
@@ -232,7 +237,8 @@ export function buildRaidChronicleText(raidType, result, season, year, garrison,
   // Defeat
   const parts = [`${result.raidName} raided the estate.`];
   if (garrison > 0) {
-    parts.push(`Your defenses were insufficient (rating ${defenseRating} vs ${defenseThreshold} required).`);
+    const wtNote = watchtowerBonus > 0 ? `, watchtower intel +${watchtowerBonus}` : "";
+    parts.push(`Your defenses were insufficient (rating ${defenseRating} vs ${defenseThreshold} required${wtNote}).`);
   } else {
     parts.push("There was no garrison to defend.");
   }

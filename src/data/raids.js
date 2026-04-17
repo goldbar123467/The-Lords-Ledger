@@ -10,7 +10,7 @@ export const RAID_TYPES = {
     id: "criminal",
     garrisonRequired: 5,
     firstPossibleTurn: 4,
-    baseChance: 0.70,
+    baseChance: 0.50,
     cooldownTurns: 1,
     triggerInterval: 4,
     names: ["Outlaws", "Brigands", "Forest Bandits", "Highway Robbers"],
