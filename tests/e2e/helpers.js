@@ -115,14 +115,20 @@ export async function dismissOverlay(page) {
  * Returns true if back in management, false if game ended.
  */
 export async function playOneTurn(page) {
+  if (page.isClosed && page.isClosed()) return false;
   const simBtn = page.locator('button[aria-label*="Simulate"]');
   if (!(await simBtn.isVisible({ timeout: 2_000 }).catch(() => false))) {
     return false;
   }
-  await simBtn.click();
+  await simBtn.click().catch(() => {});
 
   for (let i = 0; i < 60; i++) {
-    await page.waitForTimeout(200);
+    try {
+      await page.waitForTimeout(200);
+    } catch {
+      return false;
+    }
+    if (page.isClosed && page.isClosed()) return false;
 
     // Check for game over
     if (await page.getByText("Try Again", { exact: true }).isVisible({ timeout: 200 }).catch(() => false)) {

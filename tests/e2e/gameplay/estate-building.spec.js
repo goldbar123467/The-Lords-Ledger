@@ -5,7 +5,7 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { startGame, dismissTutorial } from "../helpers.js";
+import { startGame } from "../helpers.js";
 
 /**
  * Get the current denarii value from the Dashboard.
@@ -69,9 +69,7 @@ test.describe("Estate Building", () => {
     // The "Your Buildings" section should contain Strip Farm
     // Look for the Strip Farm appearing as a built building (not in Build New)
     const builtCount = await page.evaluate(() => {
-      // Count buildings with condition display (built buildings show condition)
-      const conditionElements = document.querySelectorAll('[class*="condition"], [style*="condition"]');
-      // Alternative: count all "Repair" buttons as an indicator of built buildings
+      // Count all "Repair" buttons as an indicator of built buildings
       const repairButtons = document.querySelectorAll('button');
       return Array.from(repairButtons).filter(b => b.textContent.includes("Repair") || b.textContent.includes("Info")).length;
     });

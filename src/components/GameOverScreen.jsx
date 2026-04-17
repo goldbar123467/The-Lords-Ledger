@@ -9,6 +9,7 @@ export default function GameOverScreen({ gameOverReason, causeChain, state, onPl
   return (
     <div className="min-h-screen flex flex-col items-center justify-start px-4 py-6"
       style={{ backgroundColor: "#0f0d0a" }}
+      data-gameover-reason={gameOverReason.type}
     >
       <div
         className="w-full max-w-xl rounded-lg border-2 p-5 sm:p-8 shadow-2xl"

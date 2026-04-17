@@ -176,8 +176,8 @@ export const GARRISON_UPKEEP_PER_SOLDIER = 3;
 /** Starting inventory capacity */
 export const STARTING_INVENTORY_CAPACITY = 300;
 
-/** Food consumption: 1 food per family per season */
-export const FOOD_PER_FAMILY = 1;
+/** Food consumption: 2 food per family per season */
+export const FOOD_PER_FAMILY = 2;
 
 /** Cost to recruit one soldier */
 export const RECRUIT_COST = 10;
@@ -205,10 +205,10 @@ export const STARTING_TOTAL_PLOTS = 24;
 
 /** Farm output multiplier by season */
 export const SEASON_FARM_MULTIPLIERS = {
-  spring: 0.5,   // planting season
+  spring: 0.6,   // planting season (early crops)
   summer: 1.0,   // growing season
   autumn: 1.5,   // harvest
-  winter: 0.25,  // dormant
+  winter: 0.5,   // dormant (stored produce, winter crops)
 };
 
 /** Food consumption multiplier by season */
@@ -216,7 +216,7 @@ export const SEASON_CONSUMPTION_MULTIPLIERS = {
   spring: 1.0,
   summer: 1.0,
   autumn: 1.0,
-  winter: 1.5,   // more food needed for heating/preservation
+  winter: 1.1,  // slightly more food needed for heating/preservation
 };
 
 /** Building degradation multiplier by season */
@@ -232,7 +232,7 @@ export const SEASON_INFO = {
   spring: { label: "Spring", symbol: "\u2E30", color: "#8dba6e", desc: "Planting season. Farm output \u00D70.5" },
   summer: { label: "Summer", symbol: "\u2600", color: "#c9a84c", desc: "Growing season. Normal output" },
   autumn: { label: "Autumn", symbol: "\u2766", color: "#d4864c", desc: "Harvest! Farm output \u00D71.5" },
-  winter: { label: "Winter", symbol: "\u2744", color: "#7eb8d4", desc: "Dormant. Farm output \u00D70.25, +50% food consumption" },
+  winter: { label: "Winter", symbol: "\u2744", color: "#7eb8d4", desc: "Dormant. Farm output \u00D70.5, +25% food consumption" },
 };
 
 // ---------------------------------------------------------------------------
@@ -268,7 +268,7 @@ export const DIFFICULTY_CONFIGS = {
     label: "Easy",
     description: "More resources, gentler penalties",
     startingDenarii: 700,
-    startingInventory: { grain: 200, livestock: 50, fish: 30, iron: 25, steel: 8, coal: 60, leather: 15, wood: 20 },
+    startingInventory: { grain: 350, livestock: 80, fish: 50, iron: 25, steel: 8, coal: 60, leather: 15, wood: 20 },
     startingPopulation: 22,
     startingGarrison: 5,
     penaltyScale: 0.5,
@@ -277,7 +277,7 @@ export const DIFFICULTY_CONFIGS = {
     label: "Normal",
     description: "The standard medieval experience",
     startingDenarii: 500,
-    startingInventory: { grain: 150, livestock: 30, fish: 20, iron: 20, steel: 5, coal: 50, leather: 10, wood: 15 },
+    startingInventory: { grain: 280, livestock: 50, fish: 35, iron: 20, steel: 5, coal: 50, leather: 10, wood: 15 },
     startingPopulation: 20,
     startingGarrison: 5,
     penaltyScale: 1.0,
@@ -285,8 +285,8 @@ export const DIFFICULTY_CONFIGS = {
   hard: {
     label: "Hard",
     description: "Fewer resources, harsher consequences",
-    startingDenarii: 350,
-    startingInventory: { grain: 100, livestock: 20, fish: 10, iron: 10, steel: 3, coal: 30, leather: 5, wood: 8 },
+    startingDenarii: 400,
+    startingInventory: { grain: 200, livestock: 35, fish: 20, iron: 10, steel: 3, coal: 30, leather: 5, wood: 8 },
     startingPopulation: 18,
     startingGarrison: 3,
     penaltyScale: 1.5,
