@@ -7,6 +7,11 @@
 import { test } from "@playwright/test";
 import { startGame, navigateToTab, dismissOverlay, playOneTurn } from "../helpers.js";
 import { resolve } from "path";
+// Import the authoritative tab list so spec tours stay in sync with the UI.
+// A rename in tabConfig.js automatically flows into this spec rather than
+// silently breaking on stale labels (B-40). Pulling from the plain-JS
+// sibling (not TabBar.jsx) keeps this import Node-parseable — no JSX.
+import { TAB_CONFIG } from "../../../src/components/tabConfig.js";
 
 const SHOT_DIR = resolve(import.meta.dirname, "..", "..", "..", "playtest-screenshots", "qa-cycle");
 
@@ -27,7 +32,8 @@ test.describe("Exploratory QA cycle", () => {
     await startGame(page, "normal");
     await page.screenshot({ path: `${SHOT_DIR}/02-dashboard-estate.png`, fullPage: true });
 
-    const tabs = ["Map", "Market", "Military", "People", "Hall", "Chapel", "Forge", "Chronicle"];
+    // Tour every tab except Estate (already captured as 02-dashboard-estate).
+    const tabs = TAB_CONFIG.filter((t) => t.id !== "estate").map((t) => t.label);
     for (const tab of tabs) {
       await navigateToTab(page, tab);
       await page.waitForTimeout(250);

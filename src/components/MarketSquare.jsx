@@ -100,6 +100,7 @@ function PriceBoard({ marketPrices }) {
       </div>
       <div style={{ borderTop: "1px solid #3a3228" }} />
 
+      <div style={{ maxHeight: "180px", overflowY: "auto" }}>
       {sellEntries.map(([resource]) => {
         const cfg = RESOURCE_CONFIG[resource];
         const sellPrice = marketPrices.sell?.[resource];
@@ -141,6 +142,7 @@ function PriceBoard({ marketPrices }) {
           </div>
         );
       })}
+      </div>
     </div>
   );
 }

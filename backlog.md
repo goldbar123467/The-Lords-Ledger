@@ -8,6 +8,12 @@
 > 2026-04-17 cycle 2: re-ran persona + exploratory QA, added B-37..B-42 from
 > the gameplay/visual suite and full tab tour. Total unfixed items: 11 (under
 > 25 cap). Current fix set: B-32, B-33, B-34, B-36, B-37 (5 items).
+> 2026-04-17 cycle 3: re-ran persona QA + gameplay + visual suites; all visual
+> specs pass, persona specs pass (0 pageerrors), but auto-playthrough reports
+> `possible_softlock` on Normal/Balanced + Normal/Military and multi-turn /
+> season-flow specs still flake under 8 parallel workers. Added B-43, B-44.
+> Unfixed items: 8 (under cap). Current fix set:
+> B-38, B-39, B-40, B-41, B-42 (5 items).
 
 Priority legend:
 - P0: crash / blocker
@@ -141,7 +147,7 @@ Priority legend:
 - Actual: Positional indexing persists in 9 spec locations; any reorder
   breaks many tests at once.
 
-### B-38 — `qa-findings.json` appended forever across runs, no truncation
+### B-38 — `qa-findings.json` appended forever across runs, no truncation ✅ FIXED 2026-04-17
 - Persona: N/A (QA harness)
 - Severity: P3
 - Reproduction: `tests/e2e/qa/persona-qa.spec.js` → `record()` reads
@@ -152,7 +158,7 @@ Priority legend:
   `runId` and derive the per-run summary from that id).
 - Actual: File grows and confuses cycle-over-cycle comparisons.
 
-### B-39 — Full-page visual QA reveals layout overflow on Market/Estate tabs at 1280×720
+### B-39 — Full-page visual QA reveals layout overflow on Market/Estate tabs at 1280×720 ✅ FIXED 2026-04-17
 - Persona: Avg Gamer
 - Severity: P2
 - Reproduction: `playtest-screenshots/qa-cycle/tab-market.png` (fullPage)
@@ -167,7 +173,7 @@ Priority legend:
   render.
 - Actual: Content feels truncated for players on default desktop window.
 
-### B-40 — Exploratory spec shipped with stale tab labels (`Great Hall`, `Blacksmith`)
+### B-40 — Exploratory spec shipped with stale tab labels (`Great Hall`, `Blacksmith`) ✅ FIXED 2026-04-17
 - Persona: N/A (QA harness)
 - Severity: P2
 - Reproduction: Initial version of `tests/e2e/qa/exploratory.spec.js`
@@ -179,7 +185,7 @@ Priority legend:
   shared list) so specs import the single source of truth.
 - Actual: Any tab rename silently breaks downstream specs.
 
-### B-41 — `SIMULATE_SEASON` button floats over Blacksmith forge on tall scrolls
+### B-41 — `SIMULATE_SEASON` button floats over Blacksmith forge on tall scrolls ✅ FIXED 2026-04-17
 - Persona: Avg Gamer / Goat Gamer
 - Severity: P2 (UX)
 - Reproduction: `playtest-screenshots/qa-cycle/tab-forge.png` (fullPage) —
@@ -190,7 +196,7 @@ Priority legend:
   content so scroll bottom is reachable.
 - Actual: Blacksmith interior appears cramped; anvil clipped.
 
-### B-42 — Blacksmith anvil sprite rendered as black silhouette on dark background
+### B-42 — Blacksmith anvil sprite rendered as black silhouette on dark background ✅ FIXED 2026-04-17
 - Persona: Noob (first-time player)
 - Severity: P3 (visibility / onboarding)
 - Reproduction: Forge tab at game start — the anvil SVG at the top of
@@ -199,3 +205,31 @@ Priority legend:
 - Expected: Either lift the silhouette brightness to ~0.6 or place the
   anvil on a lighter plate so shape is visible to first-time players.
 - Actual: Users can't tell what the black blob is until they interact.
+
+### B-43 — Auto-playthrough reports `possible_softlock` on Normal/Balanced & Normal/Military
+- Persona: Avg Gamer / Goat Gamer
+- Severity: P1 (broken progression for default difficulty)
+- Reproduction: `npx playwright test tests/e2e/gameplay/auto-playthrough.spec.js`
+  → "Full game: Normal/Balanced" stops at turn 14, "Full game: Normal/Military"
+  at turn 13 with `finalOutcome: "possible_softlock"`. Persona QA also shows
+  Avg ending at turn 7 and Goat at turn 8 with `note: "ended early"`.
+  The auto-driver's heuristics can't find any affordable action — all buttons
+  disabled or the game sits on a state the driver doesn't handle.
+- Expected: Either the auto-driver handles the state (event resolve, etc.) or
+  the balance / UI leaves an always-available action (e.g., "Do nothing" /
+  "Advance") so a Normal difficulty run reaches turn 40.
+- Actual: Default-difficulty AI consistently gets stuck mid-game.
+
+### B-44 — `multi-turn.spec.js` + `season-flow.spec.js` flake under 8 parallel workers
+- Persona: N/A (CI flake — B-33/B-34 regression)
+- Severity: P2
+- Reproduction: `npx playwright test tests/e2e/gameplay --reporter=line` fails
+  "game handles 8 turns (2 full years) on easy difficulty" and "Simulate Season
+  button triggers seasonal event" intermittently while those same specs pass
+  when re-run against a smaller batch. B-33 added a stability wait in
+  `dismissTutorial`, but `playOneTurn` / event resolve under parallel workers
+  still races with overlay transitions.
+- Expected: Either harden `playOneTurn`/seasonal-resolve locators with
+  `state: "visible"` + `stabilityTimeout`, or serialize the gameplay project
+  (`workers: 1` for `tests/e2e/gameplay/`) until overlay races are resolved.
+- Actual: ~2/51 gameplay tests fail on each full-suite run.

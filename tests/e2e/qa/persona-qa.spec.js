@@ -55,6 +55,13 @@ async function collectErrors(page) {
 test.describe("Persona QA", () => {
   test.describe.configure({ timeout: 120_000 });
 
+  test.beforeAll(() => {
+    // Truncate findings at the start of each run so N invocations of this
+    // spec yield exactly 3 entries (one per persona) rather than N × 3.
+    // The afterAll summary then reflects only the current run's findings.
+    writeFileSync(FINDINGS_PATH, JSON.stringify([], null, 2));
+  });
+
   test.afterAll(() => {
     // Build a run-level summary of qa-findings.json so cycles can be compared.
     let findings = [];
