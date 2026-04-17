@@ -1,12 +1,12 @@
 [
   {
-    "ts": "2026-04-17T16:34:57.837Z",
+    "ts": "2026-04-17T16:37:10.862Z",
     "persona": "Noob",
     "errors": [],
     "bugs": []
   },
   {
-    "ts": "2026-04-17T16:34:59.428Z",
+    "ts": "2026-04-17T16:37:13.125Z",
     "persona": "Goat",
     "errors": [],
     "bugs": [
@@ -20,7 +20,7 @@
     ]
   },
   {
-    "ts": "2026-04-17T16:35:00.210Z",
+    "ts": "2026-04-17T16:37:13.535Z",
     "persona": "Avg",
     "errors": [],
     "bugs": [
@@ -28,7 +28,7 @@
         "persona": "Avg",
         "turn": 0,
         "note": "ended early",
-        "reason": "title_screen",
+        "reason": "sim_missing",
         "iteration": -1
       }
     ]
