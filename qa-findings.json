@@ -193,5 +193,64 @@
         "note": "ended early"
       }
     ]
+  },
+  {
+    "ts": "2026-04-17T06:27:13.819Z",
+    "persona": "Noob",
+    "errors": [
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      }
+    ],
+    "bugs": []
+  },
+  {
+    "ts": "2026-04-17T06:27:26.390Z",
+    "persona": "Goat",
+    "errors": [
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      }
+    ],
+    "bugs": [
+      {
+        "persona": "Goat",
+        "turn": 7,
+        "note": "ended early"
+      }
+    ]
+  },
+  {
+    "ts": "2026-04-17T06:29:42.203Z",
+    "persona": "Avg",
+    "errors": [
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "type": "console",
+        "msg": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      }
+    ],
+    "bugs": []
   }
 ]
