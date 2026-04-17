@@ -390,7 +390,8 @@ export function simulateEconomy(state) {
   } = state;
 
   const report = [];
-  const penaltyScale = (DIFFICULTY_CONFIGS[state.difficulty || "normal"] || DIFFICULTY_CONFIGS.normal).penaltyScale;
+  const diffCfg = DIFFICULTY_CONFIGS[state.difficulty || "normal"] || DIFFICULTY_CONFIGS.normal;
+  const penaltyScale = diffCfg.penaltyScale;
   let currentDenarii = denarii;
   let currentPopulation = population;
   let currentGarrison = garrison;
@@ -400,9 +401,12 @@ export function simulateEconomy(state) {
   let currentInventory = production.inventory;
   report.push(...production.report);
 
-  // Baseline subsistence: peasant families forage and tend small garden plots
+  // Baseline subsistence: peasant families forage and tend small garden plots.
+  // Per-difficulty scale so a zero-action player has several turns of stability
+  // before any food spiral.
   const farmMult = SEASON_FARM_MULTIPLIERS[season] ?? 1.0;
-  const subsistenceGrain = Math.max(2, Math.floor(currentPopulation * 0.4 * farmMult));
+  const subsistenceScale = diffCfg.subsistenceScale ?? 0.7;
+  const subsistenceGrain = Math.max(3, Math.floor(currentPopulation * subsistenceScale * farmMult));
   currentInventory = { ...currentInventory, grain: (currentInventory.grain || 0) + subsistenceGrain };
 
   // Summarize production
@@ -429,8 +433,8 @@ export function simulateEconomy(state) {
 
   // ----- 2. CONSUMPTION -----
   const difficulty = state.difficulty || "normal";
-  const foodCapBase = difficulty === "easy" ? 20 : difficulty === "normal" ? 30 : 50;
-  const consumptionScale = difficulty === "easy" ? 0.6 : difficulty === "hard" ? 1.0 : 0.8;
+  const foodCapBase = diffCfg.foodCapBase ?? 28;
+  const consumptionScale = diffCfg.consumptionScale ?? 0.7;
   const maxFoodLoss = Math.max(foodCapBase, Math.ceil(currentPopulation * FOOD_PER_FAMILY * consumptionScale));
   const consumption = runConsumption(currentInventory, currentPopulation, maxFoodLoss, season);
   currentInventory = consumption.inventory;

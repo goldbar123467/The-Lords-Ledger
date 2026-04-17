@@ -59,7 +59,7 @@ Priority legend:
   should detect infinite-loop cases and return false.
 - Actual: Test fails with `Target page, context or browser has been closed`.
 
-### B-06 — People meter climbs to 99 on Easy by turn 7 (near-auto-loss)
+### B-06 — People meter climbs to 99 on Easy by turn 7 (near-auto-loss) ✅ FIXED 2026-04-17
 - Persona: Noob (docs), Avg
 - Severity: P1 balance
 - Reproduction: Start on Easy, do nothing harsh, watch People reach 99.
@@ -67,7 +67,7 @@ Priority legend:
   stay under the meter-death threshold without player intervention.
 - Actual: Cautious Explorer persona was one point from loss at turn 7.
 
-### B-07 — Speedrunner (zero-action) persona dies fast; no passive stability
+### B-07 — Speedrunner (zero-action) persona dies fast; no passive stability ✅ FIXED 2026-04-17
 - Persona: Noob (who freezes)
 - Severity: P2 balance
 - Reproduction: Start game, only click "Simulate Season" each turn.
@@ -75,7 +75,7 @@ Priority legend:
   new players can learn without instant spiral.
 - Actual: People meter crashes from 63 to 22 in 3 turns with no actions.
 
-### B-08 — No code splitting; bundle is 1.2 MB
+### B-08 — No code splitting; bundle is 1.2 MB ✅ FIXED 2026-04-17
 - Persona: All (load time)
 - Severity: P2
 - Reproduction: `npm run build` → `dist/assets/index-*.js 1,219.14 kB`.
@@ -161,7 +161,7 @@ Priority legend:
   any click when auto-timer is active.
 - Actual: Gets stuck in a toast loop.
 
-### B-19 — Raid defend button sometimes below viewport on 720p
+### B-19 — Raid defend button sometimes below viewport on 720p ✅ FIXED 2026-04-17
 - Persona: Avg, Goat
 - Severity: P2
 - Reproduction: RaidScreen with long description pushes "Defend" offscreen
@@ -169,7 +169,7 @@ Priority legend:
 - Expected: Scroll container or sticky action row.
 - Actual: Button not reachable without scroll.
 
-### B-20 — Build warning: chunk > 500 KB (no manual chunks)
+### B-20 — Build warning: chunk > 500 KB (no manual chunks) ✅ FIXED 2026-04-17
 - Persona: N/A
 - Severity: P3
 - Reproduction: `npm run build` warning on chunk size.

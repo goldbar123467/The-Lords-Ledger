@@ -212,44 +212,56 @@ export default function RaidScreen({ raidState, garrison, military, onDefend, on
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
         <div
-          className="w-full max-w-lg rounded-lg p-6 raid-pulse-border relative"
+          className="w-full max-w-lg rounded-lg raid-pulse-border relative flex flex-col"
           style={{
             backgroundColor: "#1a1610",
             border: `3px solid ${borderColor}`,
             borderLeft: `6px solid ${borderColor}`,
             "--raid-glow": glowColor,
+            maxHeight: "calc(100vh - 2rem)",
           }}
         >
-          {/* Header */}
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <RaidIcon size={isScottish ? 28 : 24} color={borderColor} />
-            <h2
-              className={`font-bold uppercase tracking-widest text-center ${isScottish ? "text-2xl" : "text-xl"}`}
-              style={{ fontFamily: "Cinzel Decorative, Cinzel, serif", color: borderColor }}
+          {/* Scrollable content area */}
+          <div className="px-6 pt-6 pb-3 overflow-y-auto flex-1 min-h-0">
+            {/* Header */}
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <RaidIcon size={isScottish ? 28 : 24} color={borderColor} />
+              <h2
+                className={`font-bold uppercase tracking-widest text-center ${isScottish ? "text-2xl" : "text-xl"}`}
+                style={{ fontFamily: "Cinzel Decorative, Cinzel, serif", color: borderColor }}
+              >
+                {def.warningTitle}
+              </h2>
+              <RaidIcon size={isScottish ? 28 : 24} color={borderColor} />
+            </div>
+
+            {/* Description */}
+            <p
+              className={`text-center leading-relaxed mb-2 ${isScottish ? "text-lg" : "text-base"}`}
+              style={{ color: "#c8b090" }}
             >
-              {def.warningTitle}
-            </h2>
-            <RaidIcon size={isScottish ? 28 : 24} color={borderColor} />
+              {warningText}
+            </p>
+
+            {/* Defense comparison */}
+            {(() => {
+              const mil = military || { garrison: { levy: garrison, menAtArms: 0, knights: 0 }, walls: 1, gate: 0, moat: 0, morale: 50 };
+              const dr = calculateDefenseRating(mil);
+              const threshold = type === "criminal" ? CRIMINAL_DEFENSE_THRESHOLD : SCOTTISH_DEFENSE_THRESHOLD;
+              return <DefenseComparison defenseRating={dr} threshold={threshold} />;
+            })()}
           </div>
 
-          {/* Description */}
-          <p
-            className={`text-center leading-relaxed mb-2 ${isScottish ? "text-lg" : "text-base"}`}
-            style={{ color: "#c8b090" }}
+          {/* Sticky action row — always visible at bottom of overlay */}
+          <div
+            className="px-6 py-3 text-center shrink-0"
+            style={{
+              backgroundColor: "#1a1610",
+              borderTop: `1px solid ${borderColor}`,
+              borderBottomLeftRadius: "0.5rem",
+              borderBottomRightRadius: "0.5rem",
+            }}
           >
-            {warningText}
-          </p>
-
-          {/* Defense comparison */}
-          {(() => {
-            const mil = military || { garrison: { levy: garrison, menAtArms: 0, knights: 0 }, walls: 1, gate: 0, moat: 0, morale: 50 };
-            const dr = calculateDefenseRating(mil);
-            const threshold = type === "criminal" ? CRIMINAL_DEFENSE_THRESHOLD : SCOTTISH_DEFENSE_THRESHOLD;
-            return <DefenseComparison defenseRating={dr} threshold={threshold} />;
-          })()}
-
-          {/* Defend button */}
-          <div className="text-center mt-4">
             <button
               onClick={onDefend}
               className="px-8 py-3 rounded-md border-2 font-bold text-lg uppercase tracking-wider cursor-pointer transition-all duration-200"
@@ -318,59 +330,71 @@ export default function RaidScreen({ raidState, garrison, military, onDefend, on
         )}
 
         <div
-          className={`w-full max-w-lg rounded-lg p-6 relative ${!isVictory && showShake ? "raid-shake" : ""}`}
+          className={`w-full max-w-lg rounded-lg relative flex flex-col ${!isVictory && showShake ? "raid-shake" : ""}`}
           style={{
             backgroundColor: "#1a1610",
             border: `3px solid ${resultBorder}`,
             background: `linear-gradient(135deg, #1a1610 0%, ${resultBg} 50%, #1a1610 100%)`,
+            maxHeight: "calc(100vh - 2rem)",
           }}
         >
           {/* Particles for victory */}
           {isVictory && showParticles && <GoldParticles />}
 
-          {/* Header */}
-          <div className="flex items-center justify-center gap-3 mb-3">
-            <RaidIcon size={24} color={resultBorder} />
-            <h2
-              className="text-xl font-bold uppercase tracking-widest text-center"
-              style={{ fontFamily: "Cinzel Decorative, Cinzel, serif", color: resultBorder }}
-            >
-              {isVictory ? "RAID REPELLED" : "RAID SUCCESSFUL"}
-            </h2>
-            <RaidIcon size={24} color={resultBorder} />
-          </div>
-
-          {/* Partial defense note */}
-          {result.partial && (
-            <p className="text-sm text-center mb-2 italic" style={{ color: "#a89070" }}>
-              Your {garrison} soldiers fought bravely but were outnumbered. Losses were reduced but not prevented.
-            </p>
-          )}
-
-          {/* Narrative */}
-          <p className="text-base leading-relaxed mb-4 text-center" style={{ color: "#c8b090" }}>
-            {result.narrativeLine}
-          </p>
-
-          {/* Gains / Losses */}
-          <div
-            className="rounded-md p-3 mb-4"
-            style={{ backgroundColor: "rgba(0,0,0,0.3)", border: `1px solid ${isVictory ? "#4a8a3a" : "#6a5a42"}` }}
-          >
-            <div className="text-xs uppercase tracking-wider mb-2 font-bold" style={{ color: "#a89070" }}>
-              {isVictory ? "Spoils of Victory" : "Losses Sustained"}
+          {/* Scrollable content */}
+          <div className="px-6 pt-6 pb-3 overflow-y-auto flex-1 min-h-0">
+            {/* Header */}
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <RaidIcon size={24} color={resultBorder} />
+              <h2
+                className="text-xl font-bold uppercase tracking-widest text-center"
+                style={{ fontFamily: "Cinzel Decorative, Cinzel, serif", color: resultBorder }}
+              >
+                {isVictory ? "RAID REPELLED" : "RAID SUCCESSFUL"}
+              </h2>
+              <RaidIcon size={24} color={resultBorder} />
             </div>
-            {lines.map((line, i) =>
-              isVictory ? (
-                <GainLine key={i} text={line} delay={i * 200} />
-              ) : (
-                <LossLine key={i} text={line} delay={i * 200} />
-              )
+
+            {/* Partial defense note */}
+            {result.partial && (
+              <p className="text-sm text-center mb-2 italic" style={{ color: "#a89070" }}>
+                Your {garrison} soldiers fought bravely but were outnumbered. Losses were reduced but not prevented.
+              </p>
             )}
+
+            {/* Narrative */}
+            <p className="text-base leading-relaxed mb-4 text-center" style={{ color: "#c8b090" }}>
+              {result.narrativeLine}
+            </p>
+
+            {/* Gains / Losses */}
+            <div
+              className="rounded-md p-3"
+              style={{ backgroundColor: "rgba(0,0,0,0.3)", border: `1px solid ${isVictory ? "#4a8a3a" : "#6a5a42"}` }}
+            >
+              <div className="text-xs uppercase tracking-wider mb-2 font-bold" style={{ color: "#a89070" }}>
+                {isVictory ? "Spoils of Victory" : "Losses Sustained"}
+              </div>
+              {lines.map((line, i) =>
+                isVictory ? (
+                  <GainLine key={i} text={line} delay={i * 200} />
+                ) : (
+                  <LossLine key={i} text={line} delay={i * 200} />
+                )
+              )}
+            </div>
           </div>
 
-          {/* Continue button */}
-          <div className="text-center">
+          {/* Sticky action row */}
+          <div
+            className="px-6 py-3 text-center shrink-0"
+            style={{
+              backgroundColor: "#1a1610",
+              borderTop: `1px solid ${resultBorder}`,
+              borderBottomLeftRadius: "0.5rem",
+              borderBottomRightRadius: "0.5rem",
+            }}
+          >
             <button
               onClick={onContinue}
               className="px-8 py-3 rounded-md border-2 font-bold text-base uppercase tracking-wider cursor-pointer transition-all duration-200"

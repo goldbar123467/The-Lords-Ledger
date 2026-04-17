@@ -272,6 +272,9 @@ export const DIFFICULTY_CONFIGS = {
     startingPopulation: 22,
     startingGarrison: 5,
     penaltyScale: 0.5,
+    consumptionScale: 0.5,
+    foodCapBase: 18,
+    subsistenceScale: 0.9,
   },
   normal: {
     label: "Normal",
@@ -281,6 +284,9 @@ export const DIFFICULTY_CONFIGS = {
     startingPopulation: 20,
     startingGarrison: 5,
     penaltyScale: 1.0,
+    consumptionScale: 0.7,
+    foodCapBase: 28,
+    subsistenceScale: 0.7,
   },
   hard: {
     label: "Hard",
@@ -290,5 +296,8 @@ export const DIFFICULTY_CONFIGS = {
     startingPopulation: 18,
     startingGarrison: 3,
     penaltyScale: 1.5,
+    consumptionScale: 1.0,
+    foodCapBase: 50,
+    subsistenceScale: 0.5,
   },
 };

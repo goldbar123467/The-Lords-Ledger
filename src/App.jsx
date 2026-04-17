@@ -1,4 +1,4 @@
-import { useReducer, useMemo, useState, useEffect } from "react";
+import { useReducer, useMemo, useState, useEffect, lazy, Suspense } from "react";
 import { gameReducer, initialState } from "./engine/gameReducer";
 import seasonalEventsData from "./data/seasonalEvents";
 import randomEventsData from "./data/randomEvents";
@@ -22,13 +22,27 @@ import VictoryScreen from "./components/VictoryScreen";
 import FlipScreen from "./components/FlipScreen";
 import SynergyToast from "./components/SynergyToast";
 import TutorialHint from "./components/TutorialHint";
-import Tavern from "./components/Tavern";
 import Watchtower from "./components/Watchtower";
 import RaidScreen from "./components/RaidScreen";
-import GreatHall from "./components/GreatHall";
 import ChapelTab from "./components/ChapelTab";
-import BlacksmithTab from "./components/BlacksmithTab";
 import TutorialPopup from "./components/TutorialPopup";
+
+// Lazy-loaded heavy tabs (split into separate chunks, fetched on first open)
+const Tavern = lazy(() => import("./components/Tavern"));
+const GreatHall = lazy(() => import("./components/GreatHall"));
+const BlacksmithTab = lazy(() => import("./components/BlacksmithTab"));
+
+// Minimal fallback while a lazy tab chunk downloads
+function TabLoadingFallback() {
+  return (
+    <div
+      className="flex items-center justify-center py-12 italic"
+      style={{ color: "#a89070", fontFamily: "Cinzel, serif" }}
+    >
+      Loading...
+    </div>
+  );
+}
 
 
 const seasonalEvents = Object.values(seasonalEventsData).flat();
@@ -521,11 +535,13 @@ export default function App() {
         {/* --- MAP TAB --- */}
         {!isFlipPhase && displayTab === "map" && isManagement && (
           tavernOpen ? (
-            <Tavern
-              state={state}
-              dispatch={dispatch}
-              onClose={() => setTavernOpen(false)}
-            />
+            <Suspense fallback={<TabLoadingFallback />}>
+              <Tavern
+                state={state}
+                dispatch={dispatch}
+                onClose={() => setTavernOpen(false)}
+              />
+            </Suspense>
           ) : watchtowerOpen ? (
             <Watchtower
               state={state}
@@ -576,7 +592,9 @@ export default function App() {
 
         {/* --- GREAT HALL TAB --- */}
         {!isFlipPhase && displayTab === "hall" && isManagement && (
-          <GreatHall state={state} dispatch={dispatch} />
+          <Suspense fallback={<TabLoadingFallback />}>
+            <GreatHall state={state} dispatch={dispatch} />
+          </Suspense>
         )}
 
         {/* --- CHAPEL TAB --- */}
@@ -586,7 +604,9 @@ export default function App() {
 
         {/* --- BLACKSMITH FORGE TAB --- */}
         {!isFlipPhase && displayTab === "forge" && isManagement && (
-          <BlacksmithTab state={state} dispatch={dispatch} />
+          <Suspense fallback={<TabLoadingFallback />}>
+            <BlacksmithTab state={state} dispatch={dispatch} />
+          </Suspense>
         )}
 
         {/* --- CHRONICLE TAB --- */}
