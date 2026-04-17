@@ -6,18 +6,24 @@
  */
 
 import { Landmark, Map, Store, Shield, Users, ScrollText, Scale, Church, Hammer } from "lucide-react";
+import { TAB_CONFIG as TAB_LABELS } from "./tabConfig.js";
 
-const TAB_CONFIG = [
-  { id: "estate",    label: "Estate",    Icon: Landmark },
-  { id: "map",       label: "Map",       Icon: Map },
-  { id: "market",    label: "Market",    Icon: Store },
-  { id: "military",  label: "Military",  Icon: Shield },
-  { id: "people",    label: "People",    Icon: Users },
-  { id: "hall",      label: "Hall",      Icon: Scale },
-  { id: "chapel",    label: "Chapel",    Icon: Church },
-  { id: "forge",     label: "Forge",     Icon: Hammer },
-  { id: "chronicle", label: "Chronicle", Icon: ScrollText },
-];
+// Re-export the plain tab list for any JSX consumers that want it from here.
+export { TAB_CONFIG } from "./tabConfig.js";
+
+const TAB_ICONS = {
+  estate: Landmark,
+  map: Map,
+  market: Store,
+  military: Shield,
+  people: Users,
+  hall: Scale,
+  chapel: Church,
+  forge: Hammer,
+  chronicle: ScrollText,
+};
+
+const TABS = TAB_LABELS.map((t) => ({ ...t, Icon: TAB_ICONS[t.id] }));
 
 export default function TabBar({ activeTab, onSetTab, disabled }) {
   return (
@@ -25,7 +31,7 @@ export default function TabBar({ activeTab, onSetTab, disabled }) {
       className="w-full flex overflow-x-auto"
       style={{ backgroundColor: "#0f0d0a" }}
     >
-      {TAB_CONFIG.map((tab) => {
+      {TABS.map((tab) => {
         const isActive = activeTab === tab.id;
         const isDisabled = disabled;
 

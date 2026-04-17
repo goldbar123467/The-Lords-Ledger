@@ -727,8 +727,8 @@ function BuildCard({ building, state, onBuild, isSynergyBuilding, index }) {
       className="rounded-lg p-3 flex flex-col"
       style={{
         backgroundColor: locked ? "#1a1612" : "#231e16",
-        border: `1px solid ${locked ? "rgba(106, 90, 66, 0.2)" : rarity.border}`,
-        opacity: locked ? 0.7 : 1,
+        border: `1px solid ${locked ? "rgba(106, 90, 66, 0.5)" : rarity.border}`,
+        opacity: locked ? 0.92 : 1,
         transition: "all 200ms ease",
         animation: `card-enter 300ms ease backwards`,
         animationDelay: `${index * 40}ms`,
