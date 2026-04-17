@@ -103,7 +103,11 @@ test.describe("Season Simulation Flow", () => {
 
     await expect(page.getByText("Turn 1/40", { exact: false }).first()).toBeVisible();
 
-    await playOneTurn(page);
+    const diag = {};
+    const ok = await playOneTurn(page, diag);
+    if (!ok) {
+      console.log(`[season-flow] playOneTurn stopped: ${diag.reason} @ iter ${diag.iteration}`);
+    }
 
     await expect(page.getByText("Turn 2/40", { exact: false }).first()).toBeVisible();
   });
@@ -115,13 +119,31 @@ test.describe("Season Simulation Flow", () => {
 
     await expect(page.getByText("Spring", { exact: false }).first()).toBeVisible();
 
-    await playOneTurn(page);
+    const logDiag = (diag) => {
+      if (diag.reason) {
+        console.log(`[season-flow] playOneTurn stopped: ${diag.reason} @ iter ${diag.iteration}`);
+      }
+    };
+
+    {
+      const diag = {};
+      const ok = await playOneTurn(page, diag);
+      if (!ok) logDiag(diag);
+    }
     await expect(page.getByText("Summer", { exact: false }).first()).toBeVisible();
 
-    await playOneTurn(page);
+    {
+      const diag = {};
+      const ok = await playOneTurn(page, diag);
+      if (!ok) logDiag(diag);
+    }
     await expect(page.getByText("Autumn", { exact: false }).first()).toBeVisible();
 
-    await playOneTurn(page);
+    {
+      const diag = {};
+      const ok = await playOneTurn(page, diag);
+      if (!ok) logDiag(diag);
+    }
     await expect(page.getByText("Winter", { exact: false }).first()).toBeVisible();
   });
 
@@ -129,7 +151,11 @@ test.describe("Season Simulation Flow", () => {
     test.setTimeout(120_000);
 
     for (let i = 0; i < 4; i++) {
-      await playOneTurn(page);
+      const diag = {};
+      const ok = await playOneTurn(page, diag);
+      if (!ok) {
+        console.log(`[season-flow] playOneTurn stopped: ${diag.reason} @ iter ${diag.iteration}`);
+      }
     }
 
     await expect(page.getByText("Year 2", { exact: false }).first()).toBeVisible();

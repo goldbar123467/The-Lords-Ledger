@@ -306,6 +306,7 @@ function ForgeHearth({ temperature, onPumpBellows, bellowsCharge, bellowsCooldow
 function Anvil({ forgeLit }) {
   return (
     <div
+      aria-label="Anvil"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -313,31 +314,45 @@ function Anvil({ forgeLit }) {
         margin: "16px auto 8px",
       }}
     >
-      {/* Anvil body */}
+      {/* Top plate (wide, flat working surface) */}
       <div
         style={{
           position: "relative",
-          width: 120,
-          height: 50,
+          width: 140,
+          height: 16,
           background: forgeLit
-            ? `linear-gradient(180deg, #5a4a3a 0%, #2a2825 40%, #1a1815 100%)`
-            : `linear-gradient(180deg, ${FORGE_COLORS.anvilGrey} 0%, #2a2825 60%, #1a1815 100%)`,
-          borderRadius: "6px 6px 3px 3px",
-          boxShadow: `0 4px 8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)`,
+            ? `linear-gradient(180deg, #5a4a3a 0%, #2a2825 60%, #1a1815 100%)`
+            : `linear-gradient(180deg, ${FORGE_COLORS.anvilGrey} 0%, #2a2825 70%, #1a1815 100%)`,
+          borderRadius: "3px 3px 2px 2px",
+          boxShadow: `0 3px 5px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08)`,
           transition: "background 600ms ease",
         }}
       >
-        {/* Horn */}
+        {/* Pointed horn on LEFT (CSS triangle) */}
         <div
           style={{
             position: "absolute",
-            left: -18,
-            top: 12,
-            width: 28,
-            height: 18,
-            background: `linear-gradient(90deg, ${FORGE_COLORS.iron} 0%, ${FORGE_COLORS.anvilGrey} 100%)`,
-            borderRadius: "10px 0 0 5px",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+            left: -22,
+            top: 0,
+            width: 0,
+            height: 0,
+            borderTop: "8px solid transparent",
+            borderBottom: "8px solid transparent",
+            borderRight: `22px solid ${FORGE_COLORS.anvilGrey}`,
+            filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.45))",
+          }}
+        />
+        {/* Heel / step on RIGHT top surface */}
+        <div
+          style={{
+            position: "absolute",
+            right: -6,
+            top: 2,
+            width: 10,
+            height: 12,
+            background: `linear-gradient(180deg, ${FORGE_COLORS.iron} 0%, ${FORGE_COLORS.anvilGrey} 100%)`,
+            borderRadius: "2px",
+            boxShadow: "0 2px 3px rgba(0,0,0,0.4)",
           }}
         />
         {/* Top surface reflection when lit */}
@@ -348,22 +363,35 @@ function Anvil({ forgeLit }) {
               top: 0,
               left: 0,
               right: 0,
-              height: "40%",
-              borderRadius: "6px 6px 0 0",
-              background: "linear-gradient(180deg, rgba(255,107,26,0.08) 0%, transparent 100%)",
+              height: "50%",
+              borderRadius: "3px 3px 0 0",
+              background: "linear-gradient(180deg, rgba(255,107,26,0.12) 0%, transparent 100%)",
               pointerEvents: "none",
             }}
           />
         )}
       </div>
-      {/* Stand */}
+      {/* Tapered waist (narrower than top plate) */}
       <div
         style={{
           width: 80,
-          height: 28,
+          height: 20,
+          background: forgeLit
+            ? `linear-gradient(180deg, #3a3430 0%, #1f1c19 100%)`
+            : `linear-gradient(180deg, ${FORGE_COLORS.anvilGrey} 0%, #1a1815 100%)`,
+          clipPath: "polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%)",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
+          transition: "background 600ms ease",
+        }}
+      />
+      {/* Stand / base (wider than waist) */}
+      <div
+        style={{
+          width: 110,
+          height: 22,
           background: FORGE_COLORS.leather,
-          borderRadius: "0 0 6px 6px",
-          boxShadow: "0 4px 6px rgba(0,0,0,0.5)",
+          borderRadius: "2px 2px 6px 6px",
+          boxShadow: "0 4px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)",
         }}
       />
     </div>

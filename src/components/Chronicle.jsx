@@ -45,8 +45,12 @@ export default function Chronicle({ entries }) {
         Chronicle of Your Reign
       </div>
       <div
-        className="max-h-80 overflow-y-auto p-3 flex flex-col gap-2"
-        style={{ scrollbarGutter: "stable", backgroundColor: "#1a1610" }}
+        className="overflow-y-auto p-3 flex flex-col gap-2"
+        style={{
+          scrollbarGutter: "stable",
+          backgroundColor: "#1a1610",
+          maxHeight: "min(60vh, 480px)",
+        }}
       >
         <div ref={topRef} />
         {reversed.map((entry, i) => {
@@ -68,6 +72,19 @@ export default function Chronicle({ entries }) {
             </div>
           );
         })}
+        {entries.length < 3 && (
+          <div
+            style={{
+              color: "#6a5a42",
+              fontStyle: "italic",
+              fontFamily: "Crimson Text, serif",
+              padding: "12px 16px",
+              textAlign: "center",
+            }}
+          >
+            New entries appear after each simulated season. Click {"\u2694"} Simulate Season to continue your reign.
+          </div>
+        )}
       </div>
     </div>
   );

@@ -58,8 +58,10 @@ test.describe("Multi-Turn Survival", () => {
     expect(initialTurn).toBe(1);
 
     for (let i = 0; i < 4; i++) {
-      const success = await playOneTurn(page);
+      const diag = {};
+      const success = await playOneTurn(page, diag);
       if (!success) {
+        console.log(`[multi-turn] playOneTurn stopped: ${diag.reason} @ iter ${diag.iteration}`);
         const isGameOver = await page
           .getByText("Try Again", { exact: true })
           .isVisible({ timeout: 500 })
@@ -91,8 +93,12 @@ test.describe("Multi-Turn Survival", () => {
     turnSnapshots.push(await getDashboardValues(page));
 
     for (let i = 0; i < 3; i++) {
-      const success = await playOneTurn(page);
-      if (!success) break;
+      const diag = {};
+      const success = await playOneTurn(page, diag);
+      if (!success) {
+        console.log(`[multi-turn] playOneTurn stopped: ${diag.reason} @ iter ${diag.iteration}`);
+        break;
+      }
       turnSnapshots.push(await getDashboardValues(page));
     }
 
@@ -127,13 +133,16 @@ test.describe("Multi-Turn Survival", () => {
     const afterBuild = await getDashboardValues(page);
     expect(afterBuild.denarii).toBe(600); // 700 - 100
 
-    const success = await playOneTurn(page);
+    const diag = {};
+    const success = await playOneTurn(page, diag);
     if (success) {
       const afterTurn = await getDashboardValues(page);
       expect(
         afterTurn.denarii !== afterBuild.denarii ||
           afterTurn.food !== afterBuild.food
       ).toBe(true);
+    } else {
+      console.log(`[multi-turn] playOneTurn stopped: ${diag.reason} @ iter ${diag.iteration}`);
     }
   });
 
@@ -165,11 +174,14 @@ test.describe("Multi-Turn Survival", () => {
     // Garrison should have increased
     expect(afterRecruit.garrison).toBeGreaterThan(initialValues.garrison);
 
-    const success = await playOneTurn(page);
+    const diag = {};
+    const success = await playOneTurn(page, diag);
     if (success) {
       const afterTurn = await getDashboardValues(page);
       // Economy ran — denarii should have changed (upkeep, production, events)
       expect(afterTurn.denarii).not.toBe(afterRecruit.denarii);
+    } else {
+      console.log(`[multi-turn] playOneTurn stopped: ${diag.reason} @ iter ${diag.iteration}`);
     }
   });
 
@@ -183,8 +195,12 @@ test.describe("Multi-Turn Survival", () => {
 
     let turnsPlayed = 0;
     for (let i = 0; i < 8; i++) {
-      const success = await playOneTurn(page);
-      if (!success) break;
+      const diag = {};
+      const success = await playOneTurn(page, diag);
+      if (!success) {
+        console.log(`[multi-turn] playOneTurn stopped: ${diag.reason} @ iter ${diag.iteration}`);
+        break;
+      }
       turnsPlayed++;
     }
 

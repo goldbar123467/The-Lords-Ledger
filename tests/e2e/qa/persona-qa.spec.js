@@ -37,6 +37,26 @@ function isNetworkNoise(text) {
   );
 }
 
+// Capture a lightweight snapshot of the current page state so reviewers can
+// distinguish a real softlock from a harness timeout (B-58/B-59). We grab
+// the first 400 chars of body text plus up to 20 visible button labels;
+// errors are swallowed because this runs on the unhappy path.
+async function captureStateSnapshot(page) {
+  try {
+    const innerText = await page.evaluate(() => document.body.innerText.slice(0, 400));
+    const buttonLabels = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("button"))
+        .filter(b => b.offsetParent !== null)
+        .slice(0, 20)
+        .map(b => (b.getAttribute("aria-label") || b.innerText || "").trim().slice(0, 60))
+        .filter(Boolean)
+    );
+    return { innerText, buttonLabels };
+  } catch {
+    return { innerText: null, buttonLabels: [] };
+  }
+}
+
 async function collectErrors(page) {
   const errors = [];
   page.on("pageerror", (e) => {
@@ -115,12 +135,14 @@ test.describe("Persona QA", () => {
       const diag = {};
       const ok = await playOneTurn(page, diag);
       if (!ok) {
+        const snapshot = await captureStateSnapshot(page);
         bugs.push({
           persona: "Noob",
           turn: i,
           note: "game ended / stuck before turn " + i,
           reason: diag.reason || "unknown",
           iteration: diag.iteration ?? null,
+          ...snapshot,
         });
         break;
       }
@@ -160,12 +182,14 @@ test.describe("Persona QA", () => {
       const diag = {};
       const ok = await playOneTurn(page, diag);
       if (!ok) {
+        const snapshot = await captureStateSnapshot(page);
         bugs.push({
           persona: "Avg",
           turn: i,
           note: "ended early",
           reason: diag.reason || "unknown",
           iteration: diag.iteration ?? null,
+          ...snapshot,
         });
         break;
       }
@@ -187,12 +211,14 @@ test.describe("Persona QA", () => {
       const diag = {};
       const ok = await playOneTurn(page, diag);
       if (!ok) {
+        const snapshot = await captureStateSnapshot(page);
         bugs.push({
           persona: "Goat",
           turn: i,
           note: "ended early",
           reason: diag.reason || "unknown",
           iteration: diag.iteration ?? null,
+          ...snapshot,
         });
         break;
       }

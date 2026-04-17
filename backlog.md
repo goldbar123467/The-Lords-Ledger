@@ -366,6 +366,15 @@ Priority legend:
 > 3/3 pass (0 pageerrors), auto-playthrough (serial) 6/6 pass (4 victory,
 > 2 meaningful famine). Bugs surfaced from fresh screenshots and parallel
 > run. Current fix set: B-51, B-52, B-53, B-54, B-55 (5 items).
+> 2026-04-17 cycle 6 (branch `claude/dazzling-curie-mAG8c`): single-cycle
+> run. Pre-fix persona QA 3/3 pass (0 pageerrors; Goat `title_screen` at
+> turn 7, Avg `sim_missing` at turn 0). Fixed B-56, B-57, B-58, B-59, B-60
+> in parallel with 2 Opus 4.7 subagents — UI polish (anvil silhouette,
+> chronicle hug + placeholder) + diagnostics (persona snapshot helper,
+> diag threaded through multi-turn + season-flow). Post-fix persona QA
+> 3/3 pass (Noob + Avg clean, Goat still shows the same Vite HMR title
+> bounce at turn 7 but now surfaces precise innerText + buttonLabels).
+> Backlog after cycle: 0 unfixed items.
 
 ### B-51 — Persona QA screenshots `qa-avg.png` + `qa-goat.png` capture TITLE SCREEN again — ✅ FIXED 2026-04-17
 - Persona: Avg Gamer / Goat Gamer (QA harness regression of B-46)
@@ -478,7 +487,7 @@ Priority legend:
   footer text lifted to `#c8b090` / `rgba(255,107,26,0.7)` so info-only
   panels read at full opacity over the forge's darker lower gradient.
 
-### B-56 — Blacksmith anvil SVG still reads as abstract "helmet" shape
+### B-56 — Blacksmith anvil SVG still reads as abstract "helmet" shape ✅ FIXED 2026-04-17
 - Persona: Noob
 - Severity: P3 (visibility / onboarding)
 - Reproduction: `tab-forge.png` — the central anvil illustration (Workshop
@@ -491,8 +500,15 @@ Priority legend:
   it.
 - Actual: Visual reads as an unrelated object; onboarding for 6th
   graders loses the forge metaphor.
+- Resolution (2026-04-17): Redrew the `Anvil` component in
+  `src/components/BlacksmithTab.jsx` as a three-tier silhouette — a
+  140×16 top plate with a CSS-triangle pointed horn on the left and a
+  square heel/step on the right, an 80×20 tapered waist (clipPath
+  polygon), and a 110×22 wider stand/base. Added `aria-label="Anvil"`
+  on the outer wrapper so screen readers + first-time players get the
+  label hint. `forgeLit` reflection overlay retained on the top plate.
 
-### B-57 — Chronicle tab has ~400 px of empty space between first entry and Simulate bar
+### B-57 — Chronicle tab has ~400 px of empty space between first entry and Simulate bar ✅ FIXED 2026-04-17
 - Persona: Noob / Avg Gamer
 - Severity: P3 (polish)
 - Reproduction: `tab-chronicle.png` on fresh game — Y1 Spring "The old
@@ -503,8 +519,16 @@ Priority legend:
   add placeholder guidance ("New entries appear after each simulated
   season."), or show the tutorial tip inline.
 - Actual: Empty expanse suggests a rendering bug to first-time players.
+- Resolution (2026-04-17): In `src/components/Chronicle.jsx` replaced
+  the fixed `max-h-80` class with an inline
+  `maxHeight: "min(60vh, 480px)"` so the scroll panel hugs content when
+  short and still scrolls when long. Added a conditional parchment-
+  styled hint below the list when `entries.length < 3` — "New entries
+  appear after each simulated season. Click ⚔ Simulate Season to
+  continue your reign." — using the existing Crimson Text / muted
+  `#6a5a42` colour so it reads as flavour text, not a UI button.
 
-### B-58 — Avg Gamer persona ends at turn 3 on Normal — no explanation in findings
+### B-58 — Avg Gamer persona ends at turn 3 on Normal — no explanation in findings ✅ FIXED 2026-04-17
 - Persona: Avg Gamer
 - Severity: P2 (diagnostics / possible softlock)
 - Reproduction: `qa-findings.json` persona Avg logs
@@ -518,8 +542,16 @@ Priority legend:
   distinguish softlock from false positive. Ideally Avg reaches ≥ turn 8.
 - Actual: Blind triage — reviewer can't tell if game or harness is at
   fault.
+- Resolution (2026-04-17): Added `captureStateSnapshot(page)` helper in
+  `tests/e2e/qa/persona-qa.spec.js` that grabs
+  `document.body.innerText.slice(0, 400)` + up to 20 visible button
+  labels, and now spreads the snapshot into every persona's
+  `bugs.push({...})` payload on early exit. Post-fix run: Avg completes
+  8 turns with zero bugs recorded; when Avg *does* fail, reviewers now
+  see the actual screen text + available buttons alongside
+  `reason` + `iteration`.
 
-### B-59 — Goat Gamer persona ends at turn 7 on Hard with same blind diagnostic
+### B-59 — Goat Gamer persona ends at turn 7 on Hard with same blind diagnostic ✅ FIXED 2026-04-17
 - Persona: Goat Gamer
 - Severity: P2 (diagnostics)
 - Reproduction: Same as B-58 but Hard difficulty: `{persona: "Goat",
@@ -529,8 +561,16 @@ Priority legend:
 - Expected: Same as B-58 — innerText snapshot + visible button labels.
   Distinguish game-over (Try Again visible) from harness timeout.
 - Actual: Both failure modes look identical in current findings payload.
+- Resolution (2026-04-17): Same `captureStateSnapshot` helper (see B-58)
+  threaded through Goat's early-exit branch. Post-fix `qa-findings.json`
+  for Goat's turn-7 exit now shows
+  `reason: "title_screen"`, `iteration: 2`, plus an `innerText` snapshot
+  confirming the page bounced to "Choose Your Challenge" and
+  `buttonLabels: ["Mute music", "EASY…", "NORMAL…", "HARD…"]` — i.e.
+  the known Vite HMR reconnect artifact, not a softlock. Triage blindness
+  is eliminated.
 
-### B-60 — `playOneTurn` has no per-iteration diagnostic on failure
+### B-60 — `playOneTurn` has no per-iteration diagnostic on failure ✅ FIXED 2026-04-17
 - Persona: N/A (QA harness)
 - Severity: P2
 - Reproduction: `tests/e2e/helpers.js:150-257` `playOneTurn` returns
@@ -542,3 +582,14 @@ Priority legend:
   which branch fired (`game_over`, `victory`, `sim_missing`, `loop_timeout`)
   plus the iteration index. Callers log this in the bugs array.
 - Actual: Helper failure reason is invisible to every caller.
+- Resolution (2026-04-17): `playOneTurn(page, diag)` in
+  `tests/e2e/helpers.js` now writes `{reason, iteration}` for each
+  false-return branch (`sim_missing`, `title_screen`, `game_over`,
+  `victory`, `page_closed`, `loop_timeout`). All return-checking
+  callers were threaded: `tests/e2e/qa/persona-qa.spec.js` (3 sites),
+  `tests/e2e/gameplay/multi-turn.spec.js` (5 sites), and
+  `tests/e2e/gameplay/season-flow.spec.js` (5 sites) now log
+  `[multi-turn]` / `[season-flow]` diagnostics on stop. `save-load.spec.js`
+  does not call `playOneTurn`, and the two fire-and-forget invocations
+  in `season-flow.spec.js:167` + `exploratory.spec.js:47` do not check
+  the return value so threading is a no-op there.
