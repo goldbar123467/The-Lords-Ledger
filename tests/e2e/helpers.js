@@ -184,18 +184,31 @@ export async function playOneTurn(page) {
 
     // Priority 1: Dismiss any overlay (scribe's note, tutorial, raid)
     // by clicking the LAST matching button (topmost in stacking order).
+    // Wait for the target button to be visible + stable before clicking so
+    // we don't race with overlay fade-in/unmount transitions under parallel
+    // workers (B-33/B-44).
     const overlayBtns = page.locator(".fixed.inset-0 button");
     const overlayCount = await overlayBtns.count();
     if (overlayCount > 0) {
-      // Click the last overlay button (topmost z-index layer)
-      await overlayBtns.last().click({ timeout: 2_000 }).catch(() => {});
+      const topBtn = overlayBtns.last();
+      try {
+        await topBtn.waitFor({ state: "visible", timeout: 1_000 });
+        await topBtn.click({ timeout: 2_000 });
+      } catch {
+        // Overlay may have unmounted between count and click — harmless.
+      }
       continue;
     }
 
     // Priority 2: Event / flip choices (both "Choose your response" and "Choose your path")
     const choices = page.locator('[role="group"] button');
     if (await choices.first().isVisible({ timeout: 200 }).catch(() => false)) {
-      await choices.first().click();
+      try {
+        await choices.first().waitFor({ state: "visible", timeout: 1_000 });
+        await choices.first().click({ timeout: 2_000 });
+      } catch {
+        // Choice list may have re-rendered — retry loop will try again.
+      }
       continue;
     }
 
@@ -230,7 +243,12 @@ export async function playOneTurn(page) {
     );
     const continueBtn = page.locator("button").filter({ hasText: resolvePattern });
     if (await continueBtn.first().isVisible({ timeout: 200 }).catch(() => false)) {
-      await continueBtn.last().click();
+      try {
+        await continueBtn.last().waitFor({ state: "visible", timeout: 1_000 });
+        await continueBtn.last().click({ timeout: 2_000 });
+      } catch {
+        // Seasonal-resolve button may have unmounted mid-click — retry loop.
+      }
       continue;
     }
   }

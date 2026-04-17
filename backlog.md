@@ -14,11 +14,22 @@
 > season-flow specs still flake under 8 parallel workers. Added B-43, B-44.
 > Unfixed items: 8 (under cap). Current fix set:
 > B-38, B-39, B-40, B-41, B-42 (5 items).
-> 2026-04-17 cycle 4: re-ran persona QA + gameplay (50 pass, 1 skip) + visual
-> (54 pass). Persona screenshots for Avg (Normal) and Goat (Hard) show TITLE
-> SCREEN instead of the true end-state, and `playthrough-results.json` keeps
-> growing across runs. Added B-45, B-46, B-47, B-48. Unfixed items: 7 (under
-> 25 cap). Current fix set: B-35, B-45, B-46, B-47, B-48 (5 items).
+> 2026-04-17 cycle 4 (main): re-ran persona QA + gameplay (50 pass, 1 skip)
+> + visual (54 pass). Persona screenshots for Avg (Normal) and Goat (Hard)
+> show TITLE SCREEN instead of the true end-state, and
+> `playthrough-results.json` keeps growing across runs. Added B-45, B-46,
+> B-47, B-48. Fix set: B-35, B-45, B-46, B-47, B-48 (5 items).
+> 2026-04-17 cycle 4 (branch): parallel branch cycle found the same TITLE
+> SCREEN regression plus auto-playthrough softlocks on **all six** profiles
+> (Easy/Passive sl26, Easy/Builder sl23, Normal/Balanced sl23, Normal/Military
+> famine22, Hard/Passive sl25, Hard/Builder sl23). Fixed the softlock (B-43)
+> by making the auto-playthrough describe block serial + adding
+> TitleScreen recovery helpers. Main's `Return to Title`-regex narrowing
+> (cycle 4 main B-46) is the root-cause prevention; branch's serial + recovery
+> is the defence in depth. Branch also flagged the Avg persona 120s timeout
+> as B-45 (branch) — resolved by raising describe timeout to 180s. Branch
+> fix set: B-35, B-43, B-44 (superseded by main B-47), B-45 (branch),
+> B-46 (branch duplicate of B-43).
 
 Priority legend:
 - P0: crash / blocker
@@ -218,7 +229,7 @@ Priority legend:
   anvil on a lighter plate so shape is visible to first-time players.
 - Actual: Users can't tell what the black blob is until they interact.
 
-### B-43 — Auto-playthrough reports `possible_softlock` on Normal/Balanced & Normal/Military
+### B-43 — Auto-playthrough reports `possible_softlock` on Normal/Balanced & Normal/Military ✅ FIXED 2026-04-17
 - Persona: Avg Gamer / Goat Gamer
 - Severity: P1 (broken progression for default difficulty)
 - Reproduction: `npx playwright test tests/e2e/gameplay/auto-playthrough.spec.js`
@@ -232,7 +243,7 @@ Priority legend:
   "Advance") so a Normal difficulty run reaches turn 40.
 - Actual: Default-difficulty AI consistently gets stuck mid-game.
 
-### B-44 — `multi-turn.spec.js` + `season-flow.spec.js` flake under 8 parallel workers (cycle 4: superseded by B-47)
+### B-44 — `multi-turn.spec.js` + `season-flow.spec.js` flake under 8 parallel workers ✅ FIXED 2026-04-17 (superseded by B-47)
 - Persona: N/A (CI flake — B-33/B-34 regression)
 - Severity: P2
 - Reproduction: `npx playwright test tests/e2e/gameplay --reporter=line` fails
@@ -315,3 +326,35 @@ Priority legend:
   threads it through; diagnostics attach to the returned object and are
   merged into the final `turnData` entry plus a top-level `diagnostics`
   field on the payload when the run stops on a blocking outcome.
+
+### B-49 — Avg Gamer persona test times out at 120s (branch cycle 4) ✅ FIXED 2026-04-17
+- Persona: Avg Gamer (test harness)
+- Severity: P1 (CI red — persona suite cannot complete cleanly)
+- Reproduction: `npx playwright test tests/e2e/qa/persona-qa.spec.js` →
+  "Avg Gamer — builds and simulates" fails with
+  `Test timeout of 120000ms exceeded.` on `page.screenshot` —
+  "Target page, context or browser has been closed". The 8-turn loop + per-
+  turn `playOneTurn` + overlay dismissals regularly overruns the 120s budget
+  on Normal difficulty; the worker tears the context down before the final
+  `page.screenshot` lands.
+- Expected: Raise describe-level + inline test timeout to 180_000.
+- Actual: Persona suite reported `1 failed` ("Avg Gamer") and
+  `qa-findings.json` was missing the Avg persona entry.
+- Resolution (2026-04-17, branch): `tests/e2e/qa/persona-qa.spec.js`
+  describe `timeout: 180_000`, Avg inline `test.setTimeout(180_000)`.
+  All 3 personas now pass in 53s with findings for every persona.
+
+### B-50 — Auto-playthrough softlocks on all six profiles (branch duplicate of B-43) ✅ FIXED 2026-04-17
+- Persona: Avg Gamer / Goat Gamer
+- Severity: P1 (no profile reaches turn 40)
+- Reproduction: Same as B-43 above; this entry captures the branch-cycle
+  observation that the failure hit all six profiles (Easy/Passive sl26,
+  Easy/Builder sl23, Normal/Balanced sl23, Normal/Military famine22,
+  Hard/Passive sl25, Hard/Builder sl23).
+- Resolution (2026-04-17, branch cycle 4): main's B-46 (narrow `Return`
+  regex in `tests/e2e/helpers.js`) is the root-cause prevention. Branch's
+  serial-mode change on the auto-playthrough describe block + title-screen
+  recovery helpers are deliberately NOT applied here because main's fix
+  already makes the spec green without altering worker parallelism.
+  Post-fix (main HEAD) auto-playthrough outcomes: 4/6 profiles reach
+  turn 40 (victory), 2 end in meaningful famine (no softlocks).
