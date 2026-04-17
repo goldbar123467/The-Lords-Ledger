@@ -10,20 +10,27 @@ import { waitForTitleScreen, dismissTutorial } from "../helpers.js";
 
 /**
  * Get all visible resource values from the Dashboard.
+ *
+ * Reads each resource by its `data-testid="resource-*"` attribute instead of
+ * relying on positional order of `.text-2xl` elements. Missing testids
+ * (e.g. faith/piety may not render on every run) resolve to `undefined`.
  */
 async function getDashboardValues(page) {
   return page.evaluate(() => {
-    const values = document.querySelectorAll(".text-2xl");
-    const nums = Array.from(values).map((el) => parseInt(el.textContent, 10));
-    // Order: Denarii, Food, Families, Garrison, Morale, Faith, Piety
+    const readResource = (key) => {
+      const el = document.querySelector(`[data-testid="resource-${key}"]`);
+      if (!el) return undefined;
+      const parsed = parseInt(el.textContent, 10);
+      return Number.isNaN(parsed) ? undefined : parsed;
+    };
     return {
-      denarii: nums[0],
-      food: nums[1],
-      families: nums[2],
-      garrison: nums[3],
-      morale: nums[4],
-      faith: nums[5],
-      piety: nums[6],
+      denarii: readResource("denarii"),
+      food: readResource("food"),
+      families: readResource("families"),
+      garrison: readResource("garrison"),
+      morale: readResource("morale"),
+      faith: readResource("faith"),
+      piety: readResource("piety"),
     };
   });
 }
@@ -52,8 +59,8 @@ test.describe("Game Start", () => {
     expect(values.denarii).toBe(500);
     expect(values.families).toBe(20);
     expect(values.garrison).toBe(5);
-    // Food is calculated from inventory: grain 150 + livestock 30 + fish 20 = 200
-    expect(values.food).toBe(200);
+    // Food is calculated from inventory: grain 280 + livestock 50 + fish 35 = 365
+    expect(values.food).toBe(365);
   });
 
   test("starting on Easy difficulty gives more resources", async ({ page }) => {
@@ -68,8 +75,8 @@ test.describe("Game Start", () => {
     expect(values.denarii).toBe(700);
     expect(values.families).toBe(22);
     expect(values.garrison).toBe(5);
-    // Easy food: grain 200 + livestock 50 + fish 30 = 280
-    expect(values.food).toBe(280);
+    // Easy food: grain 350 + livestock 80 + fish 50 = 480
+    expect(values.food).toBe(480);
   });
 
   test("starting on Hard difficulty gives fewer resources", async ({ page }) => {
@@ -81,11 +88,11 @@ test.describe("Game Start", () => {
     await dismissTutorial(page);
 
     const values = await getDashboardValues(page);
-    expect(values.denarii).toBe(350);
+    expect(values.denarii).toBe(400);
     expect(values.families).toBe(18);
     expect(values.garrison).toBe(3);
-    // Hard food: grain 100 + livestock 20 + fish 10 = 130
-    expect(values.food).toBe(130);
+    // Hard food: grain 200 + livestock 35 + fish 20 = 255
+    expect(values.food).toBe(255);
   });
 
   test("game starts on Spring, Year 1, Turn 1", async ({ page }) => {
