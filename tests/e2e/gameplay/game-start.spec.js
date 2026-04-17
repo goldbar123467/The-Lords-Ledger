@@ -10,20 +10,27 @@ import { waitForTitleScreen, dismissTutorial } from "../helpers.js";
 
 /**
  * Get all visible resource values from the Dashboard.
+ *
+ * Reads each resource by its `data-testid="resource-*"` attribute instead of
+ * relying on positional order of `.text-2xl` elements. Missing testids
+ * (e.g. faith/piety may not render on every run) resolve to `undefined`.
  */
 async function getDashboardValues(page) {
   return page.evaluate(() => {
-    const values = document.querySelectorAll(".text-2xl");
-    const nums = Array.from(values).map((el) => parseInt(el.textContent, 10));
-    // Order: Denarii, Food, Families, Garrison, Morale, Faith, Piety
+    const readResource = (key) => {
+      const el = document.querySelector(`[data-testid="resource-${key}"]`);
+      if (!el) return undefined;
+      const parsed = parseInt(el.textContent, 10);
+      return Number.isNaN(parsed) ? undefined : parsed;
+    };
     return {
-      denarii: nums[0],
-      food: nums[1],
-      families: nums[2],
-      garrison: nums[3],
-      morale: nums[4],
-      faith: nums[5],
-      piety: nums[6],
+      denarii: readResource("denarii"),
+      food: readResource("food"),
+      families: readResource("families"),
+      garrison: readResource("garrison"),
+      morale: readResource("morale"),
+      faith: readResource("faith"),
+      piety: readResource("piety"),
     };
   });
 }
