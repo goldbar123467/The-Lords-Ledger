@@ -367,7 +367,7 @@ Priority legend:
 > 2 meaningful famine). Bugs surfaced from fresh screenshots and parallel
 > run. Current fix set: B-51, B-52, B-53, B-54, B-55 (5 items).
 
-### B-51 — Persona QA screenshots `qa-avg.png` + `qa-goat.png` capture TITLE SCREEN again
+### B-51 — Persona QA screenshots `qa-avg.png` + `qa-goat.png` capture TITLE SCREEN again — ✅ FIXED 2026-04-17
 - Persona: Avg Gamer / Goat Gamer (QA harness regression of B-46)
 - Severity: P1 (triage blind for 2/3 personas)
 - Reproduction: `npx playwright test tests/e2e/qa/persona-qa.spec.js` →
@@ -382,8 +382,18 @@ Priority legend:
   the stuck management screen) — never the title screen.
 - Actual: Two of three personas produce screenshots indistinguishable from
   an untouched title load, so reviewers can't tell why the run ended.
+- Resolution (2026-04-17): Root cause was Vite HMR reconnect under parallel
+  worker load bouncing the SPA back to the initial title state mid-turn
+  (PLAY_AGAIN in the reducer never re-enters title, so no in-app reset was
+  the culprit). `playOneTurn` now accepts an optional `diag` object and
+  records `{ reason, iteration }` for each false return — added an explicit
+  `title_screen` probe on "Choose Your Challenge" that fires BEFORE the
+  overlay-dismissal path so the harness exits with a precise reason instead
+  of a silent `sim_missing` timeout. Persona spec now writes the reason into
+  the `bugs` payload. Screenshot reflects whatever end state is actually on
+  screen (title, game-over, victory, or stuck management).
 
-### B-52 — `playtest-screenshots/autoplay-*.png` accumulate stale diagnostics across runs
+### B-52 — `playtest-screenshots/autoplay-*.png` accumulate stale diagnostics across runs — ✅ FIXED 2026-04-17
 - Persona: N/A (QA diagnostics)
 - Severity: P3
 - Reproduction: `ls playtest-screenshots/autoplay-*.png` shows
@@ -400,8 +410,13 @@ Priority legend:
   write new diagnostics under `playtest-screenshots/autoplay/<runId>/`.
 - Actual: Directory is polluted with false-positive failure artifacts
   from previous cycles.
+- Resolution (2026-04-17): Added `test.beforeAll` in
+  `auto-playthrough.spec.js` that enumerates the screenshots dir with
+  `readdirSync` and unlinks any entry matching `^autoplay-.*\.png$`,
+  wrapped in try/catch so a missing dir or race is harmless. `qa-*.png`,
+  `qa-cycle/`, and `game-*-final.png` are untouched.
 
-### B-53 — Auto-playthrough flakes with `ERR_CONNECTION_REFUSED` under parallel workers
+### B-53 — Auto-playthrough flakes with `ERR_CONNECTION_REFUSED` under parallel workers — ✅ FIXED 2026-04-17
 - Persona: N/A (CI)
 - Severity: P1 (CI red — 3/6 profiles fail on full-suite run)
 - Reproduction: `npx playwright test tests/e2e/gameplay --reporter=line` →
@@ -416,6 +431,11 @@ Priority legend:
   to `fullyParallel: false` / `workers: 1..2` locally so Vite can serve
   every playthrough without dying mid-navigation.
 - Actual: Every local suite run flakes out 3 auto-playthrough tests.
+- Resolution (2026-04-17): Marked the `Automated Playthroughs` describe
+  block with `test.describe.configure({ mode: "serial" })` so the 6
+  playthrough profiles share a single worker and the Vite dev server only
+  serves one game at a time. Visual / persona / exploratory projects
+  unchanged; `playwright.config.js` untouched.
 
 ### B-54 — Market tab commodity table obscured by sticky Simulate-Season bar on 1280×720 ✅ FIXED 2026-04-17
 - Persona: Avg Gamer / Goat Gamer

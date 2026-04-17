@@ -112,9 +112,16 @@ test.describe("Persona QA", () => {
         await page.waitForTimeout(200);
         await dismissOverlay(page);
       }
-      const ok = await playOneTurn(page);
+      const diag = {};
+      const ok = await playOneTurn(page, diag);
       if (!ok) {
-        bugs.push({ persona: "Noob", turn: i, note: "game ended / stuck before turn " + i });
+        bugs.push({
+          persona: "Noob",
+          turn: i,
+          note: "game ended / stuck before turn " + i,
+          reason: diag.reason || "unknown",
+          iteration: diag.iteration ?? null,
+        });
         break;
       }
     }
@@ -150,8 +157,18 @@ test.describe("Persona QA", () => {
     }
 
     for (let i = 0; i < 8; i++) {
-      const ok = await playOneTurn(page);
-      if (!ok) { bugs.push({ persona: "Avg", turn: i, note: "ended early" }); break; }
+      const diag = {};
+      const ok = await playOneTurn(page, diag);
+      if (!ok) {
+        bugs.push({
+          persona: "Avg",
+          turn: i,
+          note: "ended early",
+          reason: diag.reason || "unknown",
+          iteration: diag.iteration ?? null,
+        });
+        break;
+      }
     }
 
     await page.screenshot({ path: `${SHOT_DIR}/qa-avg.png`, fullPage: true });
@@ -167,8 +184,18 @@ test.describe("Persona QA", () => {
     const bugs = [];
 
     for (let i = 0; i < 12; i++) {
-      const ok = await playOneTurn(page);
-      if (!ok) { bugs.push({ persona: "Goat", turn: i, note: "ended early" }); break; }
+      const diag = {};
+      const ok = await playOneTurn(page, diag);
+      if (!ok) {
+        bugs.push({
+          persona: "Goat",
+          turn: i,
+          note: "ended early",
+          reason: diag.reason || "unknown",
+          iteration: diag.iteration ?? null,
+        });
+        break;
+      }
     }
 
     await page.screenshot({ path: `${SHOT_DIR}/qa-goat.png`, fullPage: true });

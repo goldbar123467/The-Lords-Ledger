@@ -1,9 +1,11 @@
 {
-  "timestamp": "2026-04-17T16:10:55.099Z",
-  "durationMs": 24189,
-  "totalFindings": 1,
-  "totalBugs": 0,
+  "timestamp": "2026-04-17T16:35:00.294Z",
+  "durationMs": 25607,
+  "totalFindings": 3,
+  "totalBugs": 2,
   "byPersona": {
+    "Noob": 1,
+    "Goat": 1,
     "Avg": 1
   },
   "bySeverity": {
