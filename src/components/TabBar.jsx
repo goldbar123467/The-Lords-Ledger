@@ -34,7 +34,8 @@ export default function TabBar({ activeTab, onSetTab, disabled }) {
             key={tab.id}
             onClick={() => !isDisabled && onSetTab(tab.id)}
             disabled={isDisabled}
-            className="flex-1 min-w-0 px-2 py-3 text-center border-b-2 group"
+            title={tab.label}
+            className="tab-button flex-1 min-w-0 px-2 py-3 text-center border-b-2 group"
             style={{
               backgroundColor: isActive ? "#231e16" : "transparent",
               borderBottomColor: isActive ? "#c4a24a" : "transparent",

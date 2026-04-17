@@ -92,7 +92,7 @@ Priority legend:
 - Actual: Helpers click "last" overlay assuming stacking; real players may
   click the wrong one or get stuck.
 
-### B-10 — No focus ring on tab buttons after click
+### B-10 — No focus ring on tab buttons after click ✅ FIXED 2026-04-17
 - Persona: Noob (keyboard), accessibility
 - Severity: P2 a11y
 - Reproduction: Tab through UI, press enter, lose focus ring on current tab.
@@ -137,7 +137,7 @@ Priority legend:
   by the skin of your teeth"); meters colored red.
 - Actual: Victory screen is the same for any win.
 
-### B-16 — Chronicle entries not visually differentiated by type
+### B-16 — Chronicle entries not visually differentiated by type ✅ FIXED 2026-04-17
 - Persona: Noob, Avg
 - Severity: P3
 - Reproduction: Open Chronicle tab; system/action/event entries all look
@@ -145,7 +145,7 @@ Priority legend:
 - Expected: Subtle icon or color per `type: "system"|"action"|"event"`.
 - Actual: Homogeneous text wall.
 
-### B-17 — Dashboard numbers use `.text-2xl` class only — test brittle
+### B-17 — Dashboard numbers use `.text-2xl` class only — test brittle ✅ FIXED 2026-04-17
 - Persona: N/A (maintainability)
 - Severity: P3
 - Reproduction: `tests/e2e/gameplay/auto-playthrough.spec.js:28` relies on
@@ -191,7 +191,7 @@ Priority legend:
 - Expected: useState with lazy initializer or useMemo.
 - Actual: Hits localStorage on every state update.
 
-### B-23 — No visible feedback when player clicks a disabled action
+### B-23 — No visible feedback when player clicks a disabled action ✅ FIXED 2026-04-17
 - Persona: Noob
 - Severity: P2
 - Reproduction: Try to build when treasury < cost — button disabled but no
@@ -199,7 +199,7 @@ Priority legend:
 - Expected: Tooltip "Not enough denarii" or brief red flash.
 - Actual: Silent click; frustrating for 6th graders.
 
-### B-24 — Tab icon-only view on narrow screens has no tooltip
+### B-24 — Tab icon-only view on narrow screens has no tooltip ✅ FIXED 2026-04-17
 - Persona: Avg on mobile
 - Severity: P2 a11y
 - Reproduction: Viewport < sm breakpoint → only labels shown under icons but
