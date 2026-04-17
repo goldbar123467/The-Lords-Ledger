@@ -21,9 +21,31 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      // Gameplay specs run in the dedicated `gameplay` project (B-47) with
+      // a capped worker count; exclude them here so a full-suite run does
+      // not execute them twice.
+      testIgnore: /tests\/e2e\/gameplay\//,
       use: {
         ...devices["Desktop Chrome"],
         // Consistent viewport for visual snapshots
+        viewport: { width: 1280, height: 720 },
+      },
+    },
+    /**
+     * Gameplay project (B-47): the `season-flow` / `multi-turn` /
+     * `auto-playthrough` specs race overlay transitions when run with the
+     * default worker count. Pinning this project to 2 workers locally keeps
+     * the Vite dev server from saturating while leaving the visual + persona
+     * projects fully parallel. On CI we already run `workers: 1` at the
+     * top level, so this opt-in cap is a no-op there.
+     */
+    {
+      name: "gameplay",
+      testDir: "./tests/e2e/gameplay",
+      fullyParallel: false,
+      workers: process.env.CI ? 1 : 2,
+      use: {
+        ...devices["Desktop Chrome"],
         viewport: { width: 1280, height: 720 },
       },
     },

@@ -148,10 +148,50 @@ async function tryRecruitSoldiers(page, log) {
 }
 
 /**
+ * Capture a diagnostic snapshot of the visible page (text + button labels)
+ * plus a full-page screenshot for triage. Called on blocking outcomes
+ * (sim_button_missing, possible_softlock) per B-48.
+ */
+async function captureDiagnostics(page, runId, outcome) {
+  const snapshot = await page
+    .evaluate(() => {
+      const visibleText = document.body.innerText.slice(0, 800);
+      const buttons = Array.from(document.querySelectorAll("button"))
+        .filter((b) => {
+          const rect = b.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        })
+        .slice(0, 20)
+        .map((b) => (b.textContent || "").trim().slice(0, 60));
+      return { visibleText, buttons };
+    })
+    .catch(() => ({ visibleText: "", buttons: [] }));
+
+  const safeRunId = String(runId ?? "unknown").replace(/\//g, "-");
+  try {
+    await page.screenshot({
+      path: resolve(
+        import.meta.dirname,
+        "..",
+        "..",
+        "..",
+        "playtest-screenshots",
+        `autoplay-${safeRunId}-${outcome}.png`
+      ),
+      fullPage: true,
+    });
+  } catch {
+    // Screenshot failure must not break the test
+  }
+
+  return snapshot;
+}
+
+/**
  * Play one full turn with event logging. Returns:
  *  { continued: bool, events: string[], choicesMade: string[], outcome: string|null }
  */
-async function playOneTurnLogged(page) {
+async function playOneTurnLogged(page, runId) {
   const events = [];
   const choices = [];
 
@@ -161,7 +201,18 @@ async function playOneTurnLogged(page) {
 
   const simBtn = page.locator('button[aria-label*="Simulate"]');
   if (!(await simBtn.isVisible({ timeout: 3_000 }).catch(() => false))) {
-    return { continued: false, events, choices, outcome: "sim_button_missing" };
+    const diagnostics = await captureDiagnostics(
+      page,
+      runId,
+      "sim_button_missing"
+    );
+    return {
+      continued: false,
+      events,
+      choices,
+      outcome: "sim_button_missing",
+      diagnostics,
+    };
   }
   await simBtn.click();
 
@@ -235,11 +286,36 @@ async function playOneTurnLogged(page) {
       continue;
     }
 
-    // Priority 3: Continue/resolve buttons
-    const continueBtn = page.locator("button").filter({
-      hasText:
-        /See What Happens Next|^Continue$|See Your Legacy|See the Consequences|Return to Your Reign|Defend|^Begin$|Proceed|Accept|^Done$|Return/,
-    });
+    // Priority 3: Continue/resolve buttons.
+    //
+    // Narrowed to exact resolve-step labels (B-46): the prior trailing
+    // `|Return` alternation let the driver click navigation affordances on
+    // the game-over / victory screen (e.g. "Return to Title"), hiding the
+    // true end state. Each label is anchored with an optional leading arrow
+    // glyph so in-game labels like "\u2190 Return to Market Square" still
+    // match, but unrelated "Return" substrings do not.
+    const RESOLVE_PREFIX = "^\\s*(?:\\u2190\\s*)?";
+    const RESOLVE_LABELS = [
+      "See What Happens Next",
+      "Continue",
+      "See Your Legacy",
+      "See the Consequences",
+      "Return to Your Reign",
+      "Return to Throne",
+      "Return to Queue",
+      "Return to Market Square",
+      "Return to Tavern",
+      "Return to Chapel",
+      "Defend",
+      "Begin",
+      "Proceed",
+      "Accept",
+      "Done",
+    ];
+    const resolvePattern = new RegExp(
+      RESOLVE_LABELS.map((l) => `${RESOLVE_PREFIX}${l}\\s*$`).join("|")
+    );
+    const continueBtn = page.locator("button").filter({ hasText: resolvePattern });
     if (
       await continueBtn
         .first()
@@ -257,11 +333,25 @@ async function playOneTurnLogged(page) {
 
   // If we exhausted the loop, check if we're stuck
   const stillSim = await simBtn.isVisible({ timeout: 500 }).catch(() => false);
+  if (!stillSim) {
+    const diagnostics = await captureDiagnostics(
+      page,
+      runId,
+      "possible_softlock"
+    );
+    return {
+      continued: false,
+      events,
+      choices,
+      outcome: "possible_softlock",
+      diagnostics,
+    };
+  }
   return {
-    continued: stillSim,
+    continued: true,
     events,
     choices,
-    outcome: stillSim ? null : "possible_softlock",
+    outcome: null,
   };
 }
 
@@ -273,6 +363,7 @@ async function runPlaythrough(page, difficulty, strategy, runId) {
   const actionLog = [];
   const errors = [];
   let finalOutcome = null;
+  let finalDiagnostics = null;
   let turnsPlayed = 0;
   const startTime = Date.now();
 
@@ -298,7 +389,7 @@ async function runPlaythrough(page, difficulty, strategy, runId) {
       await doManagementActions(page, t + 1, strategy, actionLog);
 
       // Play the turn
-      const result = await playOneTurnLogged(page);
+      const result = await playOneTurnLogged(page, runId);
       turnsPlayed++;
 
       // Snapshot resources after turn
@@ -309,17 +400,24 @@ async function runPlaythrough(page, difficulty, strategy, runId) {
         postTurn = await getTurnInfo(page);
       }
 
-      turnData.push({
+      const turnEntry = {
         turn: postTurn?.turn ?? turnsPlayed + 1,
         season: postTurn?.season ?? null,
         year: postTurn?.year ?? null,
         resources: postRes,
         events: result.events.slice(0, 5),
         choices: result.choices.slice(0, 5),
-      });
+      };
+      if (result.diagnostics) {
+        turnEntry.diagnostics = result.diagnostics;
+      }
+      turnData.push(turnEntry);
 
       if (!result.continued) {
         finalOutcome = result.outcome;
+        if (result.diagnostics) {
+          finalDiagnostics = result.diagnostics;
+        }
         break;
       }
     } catch (err) {
@@ -338,7 +436,7 @@ async function runPlaythrough(page, difficulty, strategy, runId) {
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
-  return {
+  const payload = {
     runId,
     difficulty,
     strategy,
@@ -349,6 +447,18 @@ async function runPlaythrough(page, difficulty, strategy, runId) {
     actionLog,
     errors,
   };
+
+  // Attach top-level diagnostics when the run stopped on a blocking outcome
+  // so consumers can inspect the payload without digging into turnData (B-48).
+  if (
+    finalDiagnostics &&
+    (finalOutcome === "sim_button_missing" ||
+      finalOutcome === "possible_softlock")
+  ) {
+    payload.diagnostics = finalDiagnostics;
+  }
+
+  return payload;
 }
 
 // ─── Test Runs ──────────────────────────────────────────────────────
@@ -379,6 +489,14 @@ const PLAYTHROUGHS = [
 ];
 
 test.describe("Automated Playthroughs", () => {
+  test.beforeAll(() => {
+    // Truncate playthrough-results.json at the start of each run so a fresh
+    // invocation starts with an empty array (mirrors persona-qa.spec.js). The
+    // end-of-test writes then append to this clean file, keeping cycle-over-
+    // cycle analysis free of stale runs. (B-45)
+    writeFileSync(RESULTS_PATH, JSON.stringify([], null, 2));
+  });
+
   for (const run of PLAYTHROUGHS) {
     test(`Full game: ${run.label}`, async ({ page }) => {
       test.setTimeout(300_000); // 5 minutes per run

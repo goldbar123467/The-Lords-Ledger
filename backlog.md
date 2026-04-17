@@ -14,6 +14,11 @@
 > season-flow specs still flake under 8 parallel workers. Added B-43, B-44.
 > Unfixed items: 8 (under cap). Current fix set:
 > B-38, B-39, B-40, B-41, B-42 (5 items).
+> 2026-04-17 cycle 4: re-ran persona QA + gameplay (50 pass, 1 skip) + visual
+> (54 pass). Persona screenshots for Avg (Normal) and Goat (Hard) show TITLE
+> SCREEN instead of the true end-state, and `playthrough-results.json` keeps
+> growing across runs. Added B-45, B-46, B-47, B-48. Unfixed items: 7 (under
+> 25 cap). Current fix set: B-35, B-45, B-46, B-47, B-48 (5 items).
 
 Priority legend:
 - P0: crash / blocker
@@ -111,12 +116,19 @@ Priority legend:
 - Expected: Bump test-level timeout or stabilise dismissTutorial.
 - Actual: Intermittent CI red.
 
-### B-35 — npm audit: 4 vulnerabilities (1 moderate, 3 high)
+### B-35 — npm audit: 4 vulnerabilities (1 moderate, 3 high) ✅ FIXED 2026-04-17
 - Persona: N/A (supply chain)
 - Severity: P2
 - Reproduction: `npm install` → "4 vulnerabilities (1 moderate, 3 high)".
 - Expected: Review with `npm audit`, upgrade or document exceptions.
 - Actual: Security notice on every install.
+- Resolution (2026-04-17): `npm audit fix` (no `--force`, React/Vite/Tailwind
+  majors untouched) bumped transitive deps to safe minors. Down from
+  4 → 0: brace-expansion 1.1.12 → 1.1.14 (GHSA-f886-m6hf-6m8v moderate),
+  flatted 3.3.4 → 3.4.2 (GHSA-25h7-pfq9-p65f, GHSA-rf6f-7fwh-wjgh high),
+  picomatch 4.0.3 → 4.0.4 (GHSA-3v7f-55p6-f55p, GHSA-c2c7-rcm5-vvqj high),
+  vite 7.3.1 → 7.3.2 (GHSA-4w7w-66w2-5vf9, GHSA-v2wj-q39q-566r,
+  GHSA-p9ff-h696-f583 high). Post-fix `npm audit` reports 0 vulnerabilities.
 
 ### B-36 — Persona QA logs CDN TLS errors and counts them toward `pageerror` budget ✅ FIXED 2026-04-17
 - Persona: N/A (QA harness)
@@ -220,7 +232,7 @@ Priority legend:
   "Advance") so a Normal difficulty run reaches turn 40.
 - Actual: Default-difficulty AI consistently gets stuck mid-game.
 
-### B-44 — `multi-turn.spec.js` + `season-flow.spec.js` flake under 8 parallel workers
+### B-44 — `multi-turn.spec.js` + `season-flow.spec.js` flake under 8 parallel workers (cycle 4: superseded by B-47)
 - Persona: N/A (CI flake — B-33/B-34 regression)
 - Severity: P2
 - Reproduction: `npx playwright test tests/e2e/gameplay --reporter=line` fails
@@ -233,3 +245,73 @@ Priority legend:
   `state: "visible"` + `stabilityTimeout`, or serialize the gameplay project
   (`workers: 1` for `tests/e2e/gameplay/`) until overlay races are resolved.
 - Actual: ~2/51 gameplay tests fail on each full-suite run.
+
+### B-45 — `tests/e2e/playthrough-results.json` accumulates across runs (no truncation) ✅ FIXED 2026-04-17
+- Persona: N/A (QA harness — parallel of fixed B-38 for `qa-findings.json`)
+- Severity: P3
+- Reproduction: `npx playwright test tests/e2e/gameplay/auto-playthrough.spec.js`
+  → file grows with every execution; `grep '"runId":'` shows 2 × each run.
+  There is no `beforeAll` truncation analogous to
+  `persona-qa.spec.js:58-63` (B-38 fix). Historical data from earlier cycles
+  pollutes new analyses.
+- Expected: Truncate `playthrough-results.json` to `[]` in a `test.beforeAll`
+  hook at the top of `auto-playthrough.spec.js` so each invocation starts fresh.
+- Actual: File contains 12 runs from earlier cycles mixed with current run.
+
+### B-46 — `playOneTurn` helper's `/Return/` regex clicks "Return to Title" on game-over ✅ FIXED 2026-04-17
+- Persona: Avg Gamer / Goat Gamer (QA harness artifact)
+- Severity: P2
+- Reproduction: `tests/e2e/helpers.js:203-208` filters continue-buttons with
+  `/…|Return/`. When `Normal`/`Hard` persona hits game-over around turn 7-8,
+  the game-over overlay's "Return to Title" (plus its "Try Again" button)
+  is rendered. Although the helper checks "Try Again" first, the post-turn
+  screenshot captured immediately after `playOneTurn` returns shows the
+  TITLE SCREEN — see `playtest-screenshots/qa-avg.png` + `qa-goat.png`.
+  The regex is broad enough that a later iteration or a race during fade-in
+  clicks the title-return affordance before the Try-Again guard fires.
+- Expected: Narrow the final regex to the exact resolve strings
+  (`Return to Your Reign`) or exclude anything matching `Return to Title`.
+  Post-run screenshots should then capture the ACTUAL end state
+  (game-over reason + scoreboard), not the reset title screen.
+- Actual: Persona QA screenshots consistently show the title screen for
+  Avg + Goat personas, making failure triage blind.
+
+### B-47 — Gameplay project runs fully parallel; overlay race causes flakes (was B-44 root) ✅ FIXED 2026-04-17
+- Persona: N/A (CI)
+- Severity: P2
+- Reproduction: `playwright.config.js:8` sets `workers: undefined` (all cores)
+  outside CI. Visual + persona specs are deterministic at 8 workers, but
+  `season-flow.spec.js` and `multi-turn.spec.js` intermittently race the
+  overlay transitions (B-44). B-33 hardened `dismissTutorial` but B-44 notes
+  the follow-on races still persist at 8 workers.
+- Expected: Split projects — keep visual/qa fully parallel, add a
+  `gameplay` project pinned to `workers: 2` (or `fullyParallel: false`) so
+  `season-flow`/`multi-turn`/`auto-playthrough` share the Vite server without
+  saturating it. Retain current behaviour on CI (`workers: 1`).
+- Actual: ~2/51 gameplay tests fail on each full-suite run; B-44 regressed.
+
+### B-48 — `auto-playthrough.spec.js` logs `sim_button_missing` without a state dump ✅ FIXED 2026-04-17
+- Persona: N/A (QA diagnostics)
+- Severity: P3
+- Reproduction: `tests/e2e/playthrough-results.json` shows `"finalOutcome":
+  "sim_button_missing"` on Normal/Military (turn 31) + Hard/Builder (turn 30)
+  + Easy/Passive (turn 9) + Easy/Builder (turn 8). The payload contains
+  turn/resources/events but no snapshot of the blocking DOM — engineers
+  can't tell whether a modal is stuck, if the page is on game-over, or if
+  the sim-button label has drifted. Makes B-43 investigation harder.
+- Expected: On `sim_button_missing` + `possible_softlock` outcomes, capture
+  `document.body.innerText.slice(0, 800)` and the list of visible button
+  labels and attach to `turnData[last]`. One screenshot per failing run
+  saved to `playtest-screenshots/autoplay-<runId>.png` would also help.
+- Actual: Outcome strings without enough context to diagnose.
+- Resolution (2026-04-17): added `captureDiagnostics(page, runId, outcome)`
+  helper in `tests/e2e/gameplay/auto-playthrough.spec.js`. On
+  `sim_button_missing` and `possible_softlock` it snapshots
+  `document.body.innerText.slice(0, 800)`, up to 20 visible button labels
+  (trimmed to 60 chars), and writes
+  `playtest-screenshots/autoplay-<runId>-<outcome>.png` (fullPage, `/`
+  sanitized to `-`). Screenshot call is wrapped in try/catch so a screenshot
+  failure cannot break the test. `playOneTurnLogged` now accepts `runId` and
+  threads it through; diagnostics attach to the returned object and are
+  merged into the final `turnData` entry plus a top-level `diagnostics`
+  field on the payload when the run stops on a blocking outcome.

@@ -1,8 +1,8 @@
 {
-  "timestamp": "2026-04-17T12:50:20.246Z",
-  "durationMs": 90465,
+  "timestamp": "2026-04-17T14:21:32.453Z",
+  "durationMs": 42074,
   "totalFindings": 3,
-  "totalBugs": 0,
+  "totalBugs": 2,
   "byPersona": {
     "Noob": 1,
     "Avg": 1,

@@ -199,10 +199,36 @@ export async function playOneTurn(page) {
       continue;
     }
 
-    // Priority 3: Continue/resolve/progression buttons
-    const continueBtn = page.locator("button").filter({
-      hasText: /See What Happens Next|^Continue$|See Your Legacy|See the Consequences|Return to Your Reign|Defend|^Begin$|Proceed|Accept|^Done$|Return/,
-    });
+    // Priority 3: Continue/resolve/progression buttons.
+    //
+    // Regex is intentionally narrow (B-46): only match exact resolve-step
+    // labels shipped by the app. An earlier catch-all `|Return` alternation
+    // was broad enough to click navigation affordances like a "Return to
+    // Title" on the game-over screen, which masked the actual end state.
+    // Each alternative is anchored (optionally preceded by a decorative
+    // arrow + whitespace) so substrings of unrelated buttons cannot match.
+    const RESOLVE_PREFIX = "^\\s*(?:\\u2190\\s*)?";
+    const RESOLVE_LABELS = [
+      "See What Happens Next",
+      "Continue",
+      "See Your Legacy",
+      "See the Consequences",
+      "Return to Your Reign",
+      "Return to Throne",
+      "Return to Queue",
+      "Return to Market Square",
+      "Return to Tavern",
+      "Return to Chapel",
+      "Defend",
+      "Begin",
+      "Proceed",
+      "Accept",
+      "Done",
+    ];
+    const resolvePattern = new RegExp(
+      RESOLVE_LABELS.map((l) => `${RESOLVE_PREFIX}${l}\\s*$`).join("|")
+    );
+    const continueBtn = page.locator("button").filter({ hasText: resolvePattern });
     if (await continueBtn.first().isVisible({ timeout: 200 }).catch(() => false)) {
       await continueBtn.last().click();
       continue;
