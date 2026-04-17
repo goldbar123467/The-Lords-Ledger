@@ -53,7 +53,10 @@ async function collectErrors(page) {
 }
 
 test.describe("Persona QA", () => {
-  test.describe.configure({ timeout: 120_000 });
+  // Describe-level cap is 180s so the Avg Gamer test (B-45) can run a full
+  // 8-turn Normal-difficulty loop + screenshot without the worker tearing
+  // down the context. Noob and Goat still set their own 120s cap inline.
+  test.describe.configure({ timeout: 180_000 });
 
   test.beforeAll(() => {
     // Truncate findings at the start of each run so N invocations of this
@@ -122,7 +125,10 @@ test.describe("Persona QA", () => {
   });
 
   test("Avg Gamer — builds and simulates", async ({ page }) => {
-    test.setTimeout(120_000);
+    // Normal-difficulty 8-turn loop + per-turn overlay dismissals regularly
+    // runs past the 120s describe default, so give this persona more runway
+    // (B-45). Noob/Goat stay at their own 120s budgets.
+    test.setTimeout(180_000);
     const errors = await collectErrors(page);
     await page.goto("/");
     await startGame(page, "normal");

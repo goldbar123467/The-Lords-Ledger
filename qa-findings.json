@@ -1,20 +1,32 @@
 [
   {
-    "ts": "2026-04-17T12:49:12.095Z",
+    "ts": "2026-04-17T15:02:17.597Z",
     "persona": "Noob",
     "errors": [],
     "bugs": []
   },
   {
-    "ts": "2026-04-17T12:49:37.691Z",
-    "persona": "Avg",
-    "errors": [],
-    "bugs": []
-  },
-  {
-    "ts": "2026-04-17T12:50:20.123Z",
+    "ts": "2026-04-17T15:02:30.642Z",
     "persona": "Goat",
     "errors": [],
-    "bugs": []
+    "bugs": [
+      {
+        "persona": "Goat",
+        "turn": 7,
+        "note": "ended early"
+      }
+    ]
+  },
+  {
+    "ts": "2026-04-17T15:02:42.853Z",
+    "persona": "Avg",
+    "errors": [],
+    "bugs": [
+      {
+        "persona": "Avg",
+        "turn": 3,
+        "note": "ended early"
+      }
+    ]
   }
 ]

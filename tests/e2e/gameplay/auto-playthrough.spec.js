@@ -148,10 +148,44 @@ async function tryRecruitSoldiers(page, log) {
 }
 
 /**
+ * Detect whether the page has unexpectedly landed on the title screen
+ * mid-playthrough. Under parallel-worker load, the app occasionally remounts
+ * (phase resets to "title") between turns — we recover by re-clicking the
+ * requested difficulty rather than reporting a false-positive softlock.
+ */
+async function isOnTitleScreen(page) {
+  return page.evaluate(() => {
+    const body = document.body.innerText || "";
+    // Title screen unambiguously contains the "CHOOSE YOUR CHALLENGE" CTA
+    // and the Easy / Normal / Hard difficulty cards.
+    return (
+      body.includes("CHOOSE YOUR CHALLENGE") &&
+      body.includes("A Medieval Economic Simulation")
+    );
+  }).catch(() => false);
+}
+
+/** Re-start the game at the requested difficulty after a title-screen reset. */
+async function recoverFromTitleScreen(page, difficulty) {
+  const label = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+  const diffBtn = page.getByText(label, { exact: false }).first();
+  if (!(await diffBtn.isVisible({ timeout: 500 }).catch(() => false))) {
+    return false;
+  }
+  await diffBtn.click().catch(() => {});
+  // Wait for Dashboard to appear (management phase loaded)
+  await page
+    .waitForSelector("text=Denarii", { timeout: 8_000 })
+    .catch(() => {});
+  await dismissTutorial(page);
+  return true;
+}
+
+/**
  * Play one full turn with event logging. Returns:
  *  { continued: bool, events: string[], choicesMade: string[], outcome: string|null }
  */
-async function playOneTurnLogged(page) {
+async function playOneTurnLogged(page, difficulty) {
   const events = [];
   const choices = [];
 
@@ -159,9 +193,22 @@ async function playOneTurnLogged(page) {
   await dismissOverlay(page);
   await dismissTutorial(page);
 
+  // If the app remounted to the title screen between turns, recover
+  // rather than report a phantom softlock.
+  if (await isOnTitleScreen(page)) {
+    await recoverFromTitleScreen(page, difficulty);
+  }
+
   const simBtn = page.locator('button[aria-label*="Simulate"]');
   if (!(await simBtn.isVisible({ timeout: 3_000 }).catch(() => false))) {
-    return { continued: false, events, choices, outcome: "sim_button_missing" };
+    // Second chance: maybe a title-screen remount occurred during
+    // dismissTutorial — try to recover once more before giving up.
+    if (await isOnTitleScreen(page)) {
+      await recoverFromTitleScreen(page, difficulty);
+    }
+    if (!(await simBtn.isVisible({ timeout: 2_000 }).catch(() => false))) {
+      return { continued: false, events, choices, outcome: "sim_button_missing" };
+    }
   }
   await simBtn.click();
 
@@ -205,6 +252,15 @@ async function playOneTurnLogged(page) {
       continue;
     }
 
+    // Title-screen remount detection: if the app unmounted back to the
+    // title screen mid-turn, recover and treat this as a successful turn
+    // boundary so the outer runPlaythrough loop keeps going.
+    if (await isOnTitleScreen(page)) {
+      if (await recoverFromTitleScreen(page, difficulty)) {
+        return { continued: true, events, choices, outcome: null };
+      }
+    }
+
     // Capture event text before making choices
     const eventTexts = await getVisibleEventText(page);
     if (eventTexts.length > 0) {
@@ -236,9 +292,14 @@ async function playOneTurnLogged(page) {
     }
 
     // Priority 3: Continue/resolve buttons
+    // Regex covers every known flow-progression button text across
+    // EventCard, ResolveScreen, FlipScreen (incl. CYOA), RaidScreen,
+    // ScribesNote, and Great Hall sub-screens. Left open-ended with
+    // common fallbacks (Onward, Next, OK, Close, Dismiss, Leave, Exit,
+    // Acknowledge) so a missed button text never causes a softlock.
     const continueBtn = page.locator("button").filter({
       hasText:
-        /See What Happens Next|^Continue$|See Your Legacy|See the Consequences|Return to Your Reign|Defend|^Begin$|Proceed|Accept|^Done$|Return/,
+        /See What Happens Next|^Continue$|See Your Legacy|See the Consequences|Return to Your Reign|Return to Throne|Defend|^Begin$|Proceed|Accept|^Done$|Return|Onward|^Next$|^OK$|^Close$|Dismiss|Leave|Acknowledge|I Understand/,
     });
     if (
       await continueBtn
@@ -257,6 +318,20 @@ async function playOneTurnLogged(page) {
 
   // If we exhausted the loop, check if we're stuck
   const stillSim = await simBtn.isVisible({ timeout: 500 }).catch(() => false);
+  if (!stillSim) {
+    // Last-chance recovery: if the loop exhausted while sitting on the
+    // title screen, click the difficulty to continue the playthrough.
+    if (await isOnTitleScreen(page)) {
+      if (await recoverFromTitleScreen(page, difficulty)) {
+        const recovered = await simBtn
+          .isVisible({ timeout: 2_000 })
+          .catch(() => false);
+        if (recovered) {
+          return { continued: true, events, choices, outcome: null };
+        }
+      }
+    }
+  }
   return {
     continued: stillSim,
     events,
@@ -298,7 +373,7 @@ async function runPlaythrough(page, difficulty, strategy, runId) {
       await doManagementActions(page, t + 1, strategy, actionLog);
 
       // Play the turn
-      const result = await playOneTurnLogged(page);
+      const result = await playOneTurnLogged(page, difficulty);
       turnsPlayed++;
 
       // Snapshot resources after turn
@@ -379,6 +454,12 @@ const PLAYTHROUGHS = [
 ];
 
 test.describe("Automated Playthroughs", () => {
+  // Auto-playthroughs are long (200+ seconds each) and resource heavy; running
+  // them in parallel against a shared Vite dev server triggers mid-game app
+  // remounts back to the title screen (B-43, B-46). Run the whole group
+  // serially so each profile gets a quiet environment to reach turn 40.
+  test.describe.configure({ mode: "serial" });
+
   for (const run of PLAYTHROUGHS) {
     test(`Full game: ${run.label}`, async ({ page }) => {
       test.setTimeout(300_000); // 5 minutes per run

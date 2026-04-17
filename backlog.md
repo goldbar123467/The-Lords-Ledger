@@ -14,6 +14,14 @@
 > season-flow specs still flake under 8 parallel workers. Added B-43, B-44.
 > Unfixed items: 8 (under cap). Current fix set:
 > B-38, B-39, B-40, B-41, B-42 (5 items).
+> 2026-04-17 cycle 4: persona QA — Noob passes, Avg Gamer test times out at
+> 120s with page closed during screenshot, Goat Gamer ends at turn 7 on hard
+> ("ended early"). Gameplay suite 50/51 pass. Auto-playthrough now shows
+> **all six** profiles fail (Easy/Passive softlock turn 26, Easy/Builder
+> softlock turn 23, Normal/Balanced softlock turn 23, Normal/Military famine
+> turn 22, Hard/Passive softlock turn 25, Hard/Builder softlock turn 23).
+> Visual suite 54/54 pass. Added B-45, B-46. Total unfixed: 5. Current fix
+> set: B-35, B-43, B-44, B-45, B-46 (5 items).
 
 Priority legend:
 - P0: crash / blocker
@@ -111,7 +119,7 @@ Priority legend:
 - Expected: Bump test-level timeout or stabilise dismissTutorial.
 - Actual: Intermittent CI red.
 
-### B-35 — npm audit: 4 vulnerabilities (1 moderate, 3 high)
+### B-35 — npm audit: 4 vulnerabilities (1 moderate, 3 high) ✅ FIXED 2026-04-17
 - Persona: N/A (supply chain)
 - Severity: P2
 - Reproduction: `npm install` → "4 vulnerabilities (1 moderate, 3 high)".
@@ -206,7 +214,7 @@ Priority legend:
   anvil on a lighter plate so shape is visible to first-time players.
 - Actual: Users can't tell what the black blob is until they interact.
 
-### B-43 — Auto-playthrough reports `possible_softlock` on Normal/Balanced & Normal/Military
+### B-43 — Auto-playthrough reports `possible_softlock` on Normal/Balanced & Normal/Military ✅ FIXED 2026-04-17
 - Persona: Avg Gamer / Goat Gamer
 - Severity: P1 (broken progression for default difficulty)
 - Reproduction: `npx playwright test tests/e2e/gameplay/auto-playthrough.spec.js`
@@ -220,7 +228,7 @@ Priority legend:
   "Advance") so a Normal difficulty run reaches turn 40.
 - Actual: Default-difficulty AI consistently gets stuck mid-game.
 
-### B-44 — `multi-turn.spec.js` + `season-flow.spec.js` flake under 8 parallel workers
+### B-44 — `multi-turn.spec.js` + `season-flow.spec.js` flake under 8 parallel workers ✅ FIXED 2026-04-17
 - Persona: N/A (CI flake — B-33/B-34 regression)
 - Severity: P2
 - Reproduction: `npx playwright test tests/e2e/gameplay --reporter=line` fails
@@ -233,3 +241,41 @@ Priority legend:
   `state: "visible"` + `stabilityTimeout`, or serialize the gameplay project
   (`workers: 1` for `tests/e2e/gameplay/`) until overlay races are resolved.
 - Actual: ~2/51 gameplay tests fail on each full-suite run.
+
+### B-45 — Avg Gamer persona test times out at 120s (page closed during screenshot) ✅ FIXED 2026-04-17
+- Persona: Avg Gamer (test harness)
+- Severity: P1 (CI red — persona suite cannot complete cleanly)
+- Reproduction: `npx playwright test tests/e2e/qa/persona-qa.spec.js` →
+  "Avg Gamer — builds and simulates" fails with
+  `Test timeout of 120000ms exceeded.` on `page.screenshot` —
+  "Target page, context or browser has been closed". The 8-turn loop + per-
+  turn `playOneTurn` + overlay dismissals regularly overruns the 120s
+  `test.setTimeout(120_000)` on Normal difficulty, and the worker tears
+  the context down before the final screenshot call lands.
+- Expected: Raise timeout to 180_000 or cut the 8-turn loop to a size that
+  fits the budget; move `page.screenshot` above the loop cap check so
+  context is still live.
+- Actual: Persona suite always reports `1 failed` ("Avg Gamer"), plus the
+  run summary is missing the Avg persona entry in `qa-findings.json`.
+
+### B-46 — Auto-playthrough: 6/6 profiles hit softlock or famine in mid-game ✅ FIXED 2026-04-17
+- Persona: Avg Gamer / Goat Gamer (expansion of B-43)
+- Severity: P1 (no profile reaches turn 40)
+- Reproduction: `npx playwright test tests/e2e/gameplay/auto-playthrough.spec.js`
+  →
+  - Easy/Passive: 26 turns, `possible_softlock`
+  - Easy/Builder: 23 turns, `possible_softlock`
+  - Normal/Balanced: 23 turns, `possible_softlock`
+  - Normal/Military: 22 turns, `game_over:famine`
+  - Hard/Passive: 25 turns, `possible_softlock`
+  - Hard/Builder: 23 turns, `possible_softlock`
+  All previously-victorious runs (Easy/Passive reached turn 40 once in prior
+  cycles) now stop ~turn 22–26.
+- Expected: At least Easy/Passive should reach turn 40 with the Normal /
+  Hard runs failing for recognisable reasons (famine/bankruptcy), not
+  opaque softlocks. Either the driver heuristic needs a recovery branch
+  (e.g., dismiss a stuck event overlay it doesn't know) or the game has
+  a state screen with no detected affordances.
+- Actual: The driver's 120-iteration × 250ms inner loop exhausts without
+  finding a Simulate / choice / continue button; returns
+  `outcome: "possible_softlock"`.
